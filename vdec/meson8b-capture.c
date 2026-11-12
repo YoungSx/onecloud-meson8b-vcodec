@@ -93,8 +93,13 @@ int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
 	    sess->pixfmt_cap != V4L2_PIX_FMT_NV12M)
 		return -EINVAL;
 	shadow = &sess->shadow[vb->index];
-	if (shadow->vaddr && shadow->luma != luma)
-		return -EINVAL;
+	if (shadow->vaddr && shadow->luma != luma) {
+		/* Resolution changed mid-session: the shadow canvas is
+		 * sized for the old format. Reallocate for the new one
+		 * rather than failing the resume.
+		 */
+		amvdec_shadow_free(sess, shadow);
+	}
 	if (!shadow->vaddr && amvdec_shadow_alloc(sess, shadow, luma))
 		return -ENOMEM;
 	addr[0] = shadow->paddr;

@@ -276,7 +276,6 @@ static int vdec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
 		return -EINVAL;
 	}
 
-	sess->changed_format = 1;
 	return 0;
 }
 
@@ -297,6 +296,52 @@ static void vdec_vb2_buf_queue(struct vb2_buffer *vb)
 		vdec_queue_recycle(sess, vb);
 
 	schedule_work(&sess->esparser_queue_work);
+}
+
+/*
+ * Can the capture queue be used for the format announced by the last
+ * resolution change? Every allocated buffer must fit the new frame size,
+ * and the queue must hold at least as many buffers as the decoder needs.
+ *
+ * This deliberately checks the buffers themselves instead of a
+ * "formats were re-negotiated" flag: userspace may allocate its capture
+ * buffers between the SOURCE_CHANGE event and STREAMON(CAPTURE) without
+ * calling S_FMT again (observed with ffmpeg, which races its only
+ * REQBUFS against the firmware's first SPS parse).
+ */
+static bool vdec_capture_queue_fits(struct amvdec_session *sess,
+				    struct vb2_queue *q)
+{
+	u32 output_size = amvdec_get_output_size(sess);
+	u32 min_bufs = max_t(u32, v4l2_ctrl_g_ctrl(sess->ctrl_min_buf_capture),
+			     sess->fmt_out->min_buffers);
+	unsigned int num_planes =
+		sess->pixfmt_cap == V4L2_PIX_FMT_YUV420M ? 3 : 2;
+	unsigned int i, j;
+
+	if (q->num_buffers < min_bufs)
+		return false;
+
+	for (i = 0; i < q->num_buffers; i++) {
+		struct vb2_buffer *vb = q->bufs[i];
+
+		if (!vb || vb->num_planes != num_planes)
+			return false;
+
+		for (j = 0; j < num_planes; j++) {
+			u32 plane_size = output_size;
+
+			if (j == 1)
+				plane_size = output_size / 2;
+			else if (j == 2)
+				plane_size = output_size / 4;
+
+			if (vb->planes[j].length < plane_size)
+				return false;
+		}
+	}
+
+	return true;
 }
 
 static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -322,7 +367,7 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	if (sess->status == STATUS_NEEDS_RESUME &&
 	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
-	    sess->changed_format) {
+	    vdec_capture_queue_fits(sess, q)) {
 		codec_ops->resume(sess);
 		sess->status = STATUS_RUNNING;
 		return 0;
@@ -679,7 +724,14 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		sess->ycbcr_enc = pixmp->ycbcr_enc;
 		sess->quantization = pixmp->quantization;
 		sess->xfer_func = pixmp->xfer_func;
-		sess->src_buffer_size = pixmp->plane_fmt[0].sizeimage;
+		/* Userspace derives sizeimage from the container resolution,
+		 * which a mid-stream resolution switch invalidates: packets
+		 * bigger than the plane, or leaving no room for the ESPARSER
+		 * search-pattern padding, are then dropped. Keep the session
+		 * default as a floor (observed with ffmpeg, 320x240 -> 1080p).
+		 */
+		sess->src_buffer_size = max_t(u32, pixmp->plane_fmt[0].sizeimage,
+					      SZ_1M);
 	}
 
 	memset(&format, 0, sizeof(format));

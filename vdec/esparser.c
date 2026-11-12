@@ -200,7 +200,8 @@ static u32 esparser_pad_start_code(struct amvdec_core *core,
 
 	if ((payload_size + pad_size + SEARCH_PATTERN_LEN) >
 						vb2_plane_size(vb, 0)) {
-		dev_warn(core->dev, "%s: unable to pad start code\n", __func__);
+		dev_warn(core->dev, "%s: unable to pad start code (payload %u pad %u plane %zu)\n",
+			 __func__, payload_size, pad_size, vb2_plane_size(vb, 0));
 		return pad_size;
 	}
 

@@ -445,6 +445,19 @@ static void codec_h264_frames_ready(struct amvdec_session *sess, u32 status)
 	error_count = amvdec_read_dos(core, AV_SCRATCH_D);
 	num_frames = (status >> 8) & 0xff;
 	if (num_frames > 6) {
+		/* While userspace re-negotiates after a resolution
+		 * change, the capture queue can be momentarily empty:
+		 * the firmware keeps decoding buffered bitstream into
+		 * its DPB and piling up ready frames. Drop them
+		 * instead of aborting; the next resolution's frames
+		 * are what userspace is waiting for.
+		 */
+		if (sess->status == STATUS_NEEDS_RESUME) {
+			dev_dbg(core->dev,
+				"dropping %d frames during reinit\n",
+				num_frames);
+			return;
+		}
 		amvdec_abort(sess);
 		return;
 	}

@@ -493,7 +493,6 @@ void amvdec_src_change(struct amvdec_session *sess, u32 width,
 		return;
 	}
 
-	sess->changed_format = 0;
 	sess->width = width;
 	sess->height = height;
 	sess->status = STATUS_NEEDS_RESUME;
