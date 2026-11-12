@@ -9,6 +9,7 @@
 
 #include "codec_mpeg12.h"
 #include "dos_regs.h"
+#include "esparser.h"
 #include "vdec_helpers.h"
 
 #define SIZE_WORKSPACE		SZ_128K
@@ -40,15 +41,13 @@ struct codec_mpeg12 {
 	/* Buffer for the MPEG1/2 Workspace */
 	void	  *workspace_vaddr;
 	dma_addr_t workspace_paddr;
+
+	struct amvdec_session *sess;
+	struct delayed_work drain_work;
+	bool draining;
 };
 
 static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB7 };
-
-static const u8 *codec_mpeg12_eos_sequence(u32 *len)
-{
-	*len = ARRAY_SIZE(eos_sequence);
-	return eos_sequence;
-}
 
 static int codec_mpeg12_can_recycle(struct amvdec_core *core)
 {
@@ -60,11 +59,25 @@ static void codec_mpeg12_recycle(struct amvdec_core *core, u32 buf_idx)
 	amvdec_write_dos(core, MREG_BUFFERIN, buf_idx + 1);
 }
 
+static void codec_mpeg12_drain_work(struct work_struct *work);
+
 static int codec_mpeg12_start(struct amvdec_session *sess)
 {
 	struct amvdec_core *core = sess->core;
 	struct codec_mpeg12 *mpeg12;
 	int ret;
+
+	/* Match the vendor vmpeg12_prot_init() reset sequence: GXL
+	 * resets the decode blocks inside its own power-up path,
+	 * while M8B needs the explicit DOS_SW_RESET0/MDEC_SW_RESET pulses
+	 * before the firmware processor runs.
+	 */
+	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6) | BIT(4));
+		amvdec_write_dos(core, DOS_SW_RESET0, 0);
+		amvdec_write_dos(core, MDEC_SW_RESET, BIT(7));
+		amvdec_write_dos(core, MDEC_SW_RESET, 0);
+	}
 
 	mpeg12 = kzalloc(sizeof(*mpeg12), GFP_KERNEL);
 	if (!mpeg12)
@@ -79,11 +92,6 @@ static int codec_mpeg12_start(struct amvdec_session *sess)
 		ret = -ENOMEM;
 		goto free_mpeg12;
 	}
-
-	ret = amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
-					(u32[]){ 8, 0 });
-	if (ret)
-		goto free_workspace;
 
 	amvdec_write_dos(core, POWER_CTL_VLD, BIT(4));
 	amvdec_write_dos(core, MREG_CO_MV_START,
@@ -100,24 +108,111 @@ static int codec_mpeg12_start(struct amvdec_session *sess)
 	amvdec_write_dos(core, MREG_FATAL_ERROR, 0);
 	amvdec_write_dos(core, MREG_WAIT_BUFFER, 0);
 
+	INIT_DELAYED_WORK(&mpeg12->drain_work, codec_mpeg12_drain_work);
+	mpeg12->sess = sess;
+
 	sess->keyframe_found = 1;
 	sess->priv = mpeg12;
 
 	return 0;
 
-free_workspace:
-	dma_free_coherent(core->dev, SIZE_WORKSPACE, mpeg12->workspace_vaddr,
-			  mpeg12->workspace_paddr);
+
 free_mpeg12:
 	kfree(mpeg12);
 
 	return ret;
 }
 
+/* The canvas list must be programmed only once userspace has allocated
+ * and queued its capture buffers (stateful m2m: that happens after
+ * STREAMON(OUTPUT)). Unlike H.264, the firmware raises no source-change
+ * event, so this runs from the first STREAMON(CAPTURE) via the resume
+ * gate in vdec_start_streaming.
+ *
+ * The firmware snapshots the AV_SCRATCH canvas table when its processor
+ * is released (MPSR = 1), which already happened at STREAMON(OUTPUT)
+ * with the table still empty. No ES data is fed before this point
+ * (esparser gate in esparser_queue_all), so restarting the processor
+ * re-runs the snapshot against the table programmed above without
+ * losing decode state. Vendor amvdec_start() restart sequence.
+ */
+static void codec_mpeg12_resume(struct amvdec_session *sess)
+{
+	struct amvdec_core *core = sess->core;
+
+	if (amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
+				(u32[]){ 8, 0 })) {
+		amvdec_abort(sess);
+		return;
+	}
+
+	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+		amvdec_write_dos(core, MPSR, 0);
+		amvdec_write_dos(core, CPSR, 0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
+		amvdec_write_dos(core, DOS_SW_RESET0, 0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_read_dos(core, DOS_SW_RESET0);
+		amvdec_write_dos(core, MPSR, 1);
+	}
+}
+
+/* The m8 firmware emits a picture only once the next one starts, so at
+ * end of stream the final picture is never completed by hardware.
+ * Watch from a work context (the drain ioctl must not block: while it
+ * slept, userspace could not recycle capture buffers and the 8 decode
+ * canvases ran dry). Once IRQs go quiet and no input remains in flight,
+ * hand the queued capture buffers back as an empty LAST frame + EOS.
+ */
+static void codec_mpeg12_drain_work(struct work_struct *work)
+{
+	struct codec_mpeg12 *mpeg12 =
+		container_of(work, struct codec_mpeg12, drain_work.work);
+	struct amvdec_session *sess = mpeg12->sess;
+	static const u32 max_polls = 150; /* 3 s at 20 ms */
+	u32 polls = 0;
+
+	while (polls++ < max_polls) {
+		bool irq_quiet = !time_is_after_jiffies64(
+			sess->last_irq_jiffies + msecs_to_jiffies(100));
+		int in_flight = atomic_read(&sess->esparser_queued_bufs);
+
+		if (irq_quiet && in_flight <= 1)
+			break;
+
+		msleep(20);
+	}
+
+	amvdec_flush_capture_buffers(sess);
+	mpeg12->draining = false;
+}
+
+static void codec_mpeg12_drain(struct amvdec_session *sess)
+{
+	struct codec_mpeg12 *mpeg12 = sess->priv;
+
+	if (mpeg12->draining)
+		return;
+
+	/* Sequence end: prompts the firmware to emit the last decoded
+	 * picture (it only completes one when the next picture starts).
+	 */
+	esparser_queue_eos(sess->core, eos_sequence, 4);
+
+	mpeg12->draining = true;
+	schedule_delayed_work(&mpeg12->drain_work, 0);
+}
+
 static int codec_mpeg12_stop(struct amvdec_session *sess)
 {
 	struct codec_mpeg12 *mpeg12 = sess->priv;
 	struct amvdec_core *core = sess->core;
+
+	cancel_delayed_work_sync(&mpeg12->drain_work);
 
 	if (mpeg12->workspace_vaddr)
 		dma_free_coherent(core->dev, SIZE_WORKSPACE,
@@ -206,5 +301,6 @@ struct amvdec_codec_ops codec_mpeg12_ops = {
 	.threaded_isr = codec_mpeg12_threaded_isr,
 	.can_recycle = codec_mpeg12_can_recycle,
 	.recycle = codec_mpeg12_recycle,
-	.eos_sequence = codec_mpeg12_eos_sequence,
+	.drain = codec_mpeg12_drain,
+	.resume = codec_mpeg12_resume,
 };

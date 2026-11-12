@@ -29,6 +29,29 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED |
 			 V4L2_FMT_FLAG_DYN_RESOLUTION,
+	}, {
+		.pixfmt = V4L2_PIX_FMT_MPEG1,
+		.min_buffers = 8,
+		.max_buffers = 8,
+		.max_width = 1920,
+		.max_height = 1080,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_mpeg12_ops,
+		.firmware_path = "meson/vdec/meson8b_mpeg12.bin",
+		/* The M8B shadow-canvas capture path only supports NV12M. */
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
+		.pixfmt = V4L2_PIX_FMT_MPEG2,
+		.min_buffers = 8,
+		.max_buffers = 8,
+		.max_width = 1920,
+		.max_height = 1080,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_mpeg12_ops,
+		.firmware_path = "meson/vdec/meson8b_mpeg12.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	},
 };
 
@@ -42,6 +65,7 @@ const struct vdec_platform vdec_platform_meson8b = {
 };
 
 MODULE_FIRMWARE("meson/vdec/meson8b_h264.bin");
+MODULE_FIRMWARE("meson/vdec/meson8b_mpeg12.bin");
 
 static const struct amvdec_format vdec_formats_gxbb[] = {
 	{

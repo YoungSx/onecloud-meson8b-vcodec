@@ -384,6 +384,14 @@ void esparser_queue_all(struct amvdec_session *sess)
 		if (sess->should_stop)
 			break;
 
+		/* For formats without dynamic-resolution events, the
+		 * firmware decodes straight into the capture canvases;
+		 * don't feed it before those exist.
+		 */
+		if (!(sess->fmt_out->flags & V4L2_FMT_FLAG_DYN_RESOLUTION) &&
+		    !sess->streamon_cap)
+			break;
+
 		if (esparser_queue(sess, &buf->vb) < 0)
 			break;
 	}

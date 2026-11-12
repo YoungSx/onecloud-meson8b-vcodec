@@ -86,6 +86,7 @@ void amvdec_src_change(struct amvdec_session *sess, u32 width,
  * @sess: current session
  */
 void amvdec_abort(struct amvdec_session *sess);
+void amvdec_flush_capture_buffers(struct amvdec_session *sess);
 void amvdec_meson8b_free_capture(struct amvdec_session *sess);
 int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
 			      struct vb2_buffer *vb, dma_addr_t addr[2]);

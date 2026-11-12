@@ -459,6 +459,36 @@ void amvdec_dst_buf_done_idx(struct amvdec_session *sess,
 }
 EXPORT_SYMBOL_GPL(amvdec_dst_buf_done_idx);
 
+/* Return every still-queued capture buffer to userspace as an empty frame,
+ * marking the last with V4L2_BUF_FLAG_LAST and raising the EOS event.
+ * Needed by firmware that never completes the final picture of a stream:
+ * the m8 mpeg12 firmware emits a picture only once the next one starts,
+ * so the m2m drain would otherwise hang forever on the last frame.
+ */
+void amvdec_flush_capture_buffers(struct amvdec_session *sess)
+{
+	static const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
+	struct vb2_v4l2_buffer *vbuf, *last = NULL;
+	unsigned int i;
+
+	while ((vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx))) {
+		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
+			vbuf->vb2_buf.planes[i].bytesused = 0;
+		vbuf->field = V4L2_FIELD_NONE;
+		if (last)
+			v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+		last = vbuf;
+	}
+
+	if (!last)
+		return;
+
+	last->flags = V4L2_BUF_FLAG_LAST;
+	v4l2_event_queue_fh(&sess->fh, &ev);
+	v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+}
+EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);
+
 void amvdec_set_par_from_dar(struct amvdec_session *sess,
 			     u32 dar_num, u32 dar_den)
 {

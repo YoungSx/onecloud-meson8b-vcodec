@@ -1,37 +1,46 @@
 {
   "repository": "https://github.com/hardkernel/linux",
   "commit": "5aed95d35d252cafc75ce613a3a0052285662de2",
-  "files": [
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264c_linux.h",
-      "words": 4096,
-      "sha256": "6497a19f4c22dbc35e83050d8274656e5bb04b62f208a872b14074433cbc432f"
-    },
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264header_linux.h",
-      "words": 1024,
-      "sha256": "1132e089f3605e465ebd55efa1b8ec9df2e4c579d8ce1cfaba2fbcd8f4c7fdb8"
-    },
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264data_linux.h",
-      "words": 1024,
-      "sha256": "683749ad13f902fe4b409f1d4e491119eb8c07f4cd8e2aadee6fd5909bbcccde"
-    },
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264mmc_linux.h",
-      "words": 1024,
-      "sha256": "f85bb67c7ea139725231f2855603a3cffca53e4ad745f305da1a6b3692d972f1"
-    },
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264list_linux.h",
-      "words": 1024,
-      "sha256": "32f121fe51abdc011fb0deb31ff15739e1a11562fc7f92a5afb8ad5404e21991"
-    },
-    {
-      "path": "drivers/amlogic/amports/m8/ucode/h264/h264slice_linux.h",
-      "words": 1024,
-      "sha256": "2d3c82d1917a4d0df7cde297cca136f6fa018108e1228dc17baee5c65ee8d716"
-    }
-  ],
-  "output_sha256": "bc77a41792f09651c79dc1d456e102046e13875a9e560aac43e50819e30ca0f1"
+  "h264": {
+    "files": [
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264c_linux.h",
+        "words": 4096,
+        "sha256": "6497a19f4c22dbc35e83050d8274656e5bb04b62f208a872b14074433cbc432f"
+      },
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264header_linux.h",
+        "words": 1024,
+        "sha256": "1132e089f3605e465ebd55efa1b8ec9df2e4c579d8ce1cfaba2fbcd8f4c7fdb8"
+      },
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264data_linux.h",
+        "words": 1024,
+        "sha256": "683749ad13f902fe4b409f1d4e491119eb8c07f4cd8e2aadee6fd5909bbcccde"
+      },
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264mmc_linux.h",
+        "words": 1024,
+        "sha256": "f85bb67c7ea139725231f2855603a3cffca53e4ad745f305da1a6b3692d972f1"
+      },
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264list_linux.h",
+        "words": 1024,
+        "sha256": "32f121fe51abdc011fb0deb31ff15739e1a11562fc7f92a5afb8ad5404e21991"
+      },
+      {
+        "path": "drivers/amlogic/amports/m8/ucode/h264/h264slice_linux.h",
+        "words": 1024,
+        "sha256": "2d3c82d1917a4d0df7cde297cca136f6fa018108e1228dc17baee5c65ee8d716"
+      }
+    ],
+    "output_sha256": "bc77a41792f09651c79dc1d456e102046e13875a9e560aac43e50819e30ca0f1"
+  },
+  "mpeg12": {
+    "path": "drivers/amlogic/amports/m8/ucode/mpeg12/vmpeg12_mc.c",
+    "words": 1797,
+    "array": "vmpeg12_mc",
+    "sha256": "dbc22bd3e8da19c6a71c7f7b20a01f213c37d4a8eb734009c9c4a9b2b203866e",
+    "output_sha256": "fc0bb328bf49e882809e4f46c5539a4c39b3e18865b4b883961c73db20e91b37"
+  }
 }

@@ -365,6 +365,19 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (!sess->streamon_out)
 		return 0;
 
+	/* Formats without a firmware-driven source-change event (mpeg12)
+	 * have no hook to configure after userspace's late capture setup,
+	 * so the first capture STREAMON plays that role. H.264 (dynamic
+	 * resolution) keeps its firmware src_change -> resume flow.
+	 */
+	if (sess->status == STATUS_INIT &&
+	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
+	    !(sess->fmt_out->flags & V4L2_FMT_FLAG_DYN_RESOLUTION) &&
+	    codec_ops->resume) {
+		codec_ops->resume(sess);
+		sess->status = STATUS_RUNNING;
+	}
+
 	if (sess->status == STATUS_NEEDS_RESUME &&
 	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
 	    vdec_capture_queue_fits(sess, q)) {

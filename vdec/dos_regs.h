@@ -34,6 +34,7 @@
 #define DBLK_STATUS		0x254c
 
 #define GCLK_EN			0x260c
+#define MDEC_SW_RESET		0x2610
 #define MDEC_PIC_DC_CTRL	0x2638
 #define MDEC_PIC_DC_STATUS	0x263c
 #define ANC0_CANVAS_ADDR	0x2640
