@@ -53,8 +53,26 @@ SHA-256 3144c1a5...（完整清单见 samples/SHA256SUMS）。
 
 见 BLOCKERS-RESEARCH.md。
 
-## 稳定性发现（如实记录）
+## 稳定性：第二会话挂起已修复（2026-11-13）
 
-连续第二个 STREAMON 会话（不卸载模块、连续两次 ffmpeg hw 解码）会挂起：
-第二次会话微码加载后 0 帧输出，ffmpeg 挂在 DQBUF。复现于 CPU 基准尝试中。
-单会话模式（insmod → 解码 → rmmod）稳定。修复列为 ROADMAP P0-2。
+连续第二个 STREAMON 会话（不卸载模块、连续两次 ffmpeg hw 解码）曾会挂起：
+第二次会话微码加载后 0 帧输出，ffmpeg 挂在 DQBUF。
+
+根因：`vdec_1_stop()` 在 IMEM DMA 仍可能传输时直接复位处理器（DOS_SW_RESET0），
+下一会话微码加载后处理器不产生中断。对照厂商 3.10 `amvdec_stop()` 序列修复：
+stop 时先等 `IMEM_DMA_CTRL` 忙位（bit15）清零（1s 超时告警兜底），再补 CBUS
+dummy read 时序，然后才复位。见 `vdec/vdec_1.c` `vdec_1_stop()`。
+
+修复后（干净构建，无插桩）验证：
+- `cpu-bench.py`：6 个连续 hw 会话（3 轮 × 2 解码）全部正常，无挂起；
+- `two-session-test.sh`：3 个连续 hw 会话全部正常；
+- dmesg 增量无 BUG/WARNING/Oops。
+
+## B 帧 1080p（High profile, bframes=2）：通过（2026-11-13）
+
+样片 `samples/h264-1080p-bframes.mp4`（SHA-256 1c428c1d...）。`bframes-cycle.py`
+（sw → hw → hw2 三会话，hw2 不卸载模块直接二次解码，兼测第二会话修复）：
+
+- sw/hw/hw2 退出码均 0，各 300 帧；
+- **hw、hw2 与软解逐帧 MD5 300/300 一致**；
+- 双模块卸载干净，dmesg 无 BUG/WARNING/Oops。

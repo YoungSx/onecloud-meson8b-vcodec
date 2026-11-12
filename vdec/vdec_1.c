@@ -139,13 +139,31 @@ static int vdec_1_stop(struct amvdec_session *sess)
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 	u32 sleep_reg = AO_RTI_GEN_PWR_SLEEP0 - core->platform->ao_sysctrl_offset;
 	u32 iso_reg = AO_RTI_GEN_PWR_ISO0 - core->platform->ao_sysctrl_offset;
+	u32 val;
+	int ret;
 
 	amvdec_write_dos(core, MPSR, 0);
 	amvdec_write_dos(core, CPSR, 0);
 	amvdec_write_dos(core, ASSIST_MBOX1_MASK, 0);
 
+	/* Wait for any in-flight IMEM DMA to finish before resetting,
+	 * matching the vendor amvdec_stop() sequence.
+	 * Without this, a following session can hang with no IRQ after
+	 * its firmware load (observed on Meson8b). */
+	ret = read_poll_timeout(amvdec_read_dos, val, !(val & 0x8000),
+				10, 1000000, false, core, IMEM_DMA_CTRL);
+	if (ret)
+		dev_warn(core->dev_dec, "IMEM DMA still busy at stop\n");
+
+	/* CBUS dummy reads for timing control, as in the vendor sequence. */
+	amvdec_read_dos(core, DOS_SW_RESET0);
+	amvdec_read_dos(core, DOS_SW_RESET0);
+	amvdec_read_dos(core, DOS_SW_RESET0);
+
 	amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
 	amvdec_write_dos(core, DOS_SW_RESET0, 0);
+	amvdec_read_dos(core, DOS_SW_RESET0);
+	amvdec_read_dos(core, DOS_SW_RESET0);
 	amvdec_read_dos(core, DOS_SW_RESET0);
 
 	/* enable vdec1 isolation */
