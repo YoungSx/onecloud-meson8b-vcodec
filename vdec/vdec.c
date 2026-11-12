@@ -783,6 +783,21 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 
 	dev_dbg(dev, "Received V4L2_DEC_CMD_STOP\n");
 
+	/* Drain input still queued in the m2m OUTPUT queue into the
+	 * ESPARSER before marking the session stopped, or the EOS marker
+	 * overtakes it and those frames are lost. Visible once the capture
+	 * copy became fast enough for ffmpeg to send STOP while input was
+	 * still queued (VIFIFO full). */
+	if (codec_ops->eos_sequence) {
+		unsigned int tries = 1000;
+
+		while (v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx) &&
+		       tries--) {
+			esparser_queue_all(sess);
+			msleep(10);
+		}
+	}
+
 	sess->should_stop = 1;
 
 	v4l2_m2m_mark_stopped(sess->m2m_ctx);

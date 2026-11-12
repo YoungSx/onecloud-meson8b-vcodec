@@ -25,6 +25,7 @@ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len);
  * esparser_queue_all_src() - work handler that writes as many src buffers
  * as possible to the ESPARSER
  */
+void esparser_queue_all(struct amvdec_session *sess);
 void esparser_queue_all_src(struct work_struct *work);
 
 #define ESPARSER_MIN_PACKET_SIZE SZ_4K

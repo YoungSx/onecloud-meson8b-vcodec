@@ -48,6 +48,7 @@ struct amvdec_session;
 
 struct amvdec_shadow {
 	void *vaddr;
+	void *cached;
 	dma_addr_t paddr;
 	u32 size;
 	u32 luma;

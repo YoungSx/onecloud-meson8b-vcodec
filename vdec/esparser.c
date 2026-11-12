@@ -371,11 +371,12 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 	return 0;
 }
 
-void esparser_queue_all_src(struct work_struct *work)
+/* Feed every m2m OUTPUT buffer waiting in the queue into the ESPARSER.
+ * Stops early on should_stop or when the VIFIFO is full (-EAGAIN leaves
+ * the buffer queued for the next run). */
+void esparser_queue_all(struct amvdec_session *sess)
 {
 	struct v4l2_m2m_buffer *buf, *n;
-	struct amvdec_session *sess =
-		container_of(work, struct amvdec_session, esparser_queue_work);
 
 	mutex_lock(&sess->lock);
 	v4l2_m2m_for_each_src_buf_safe(sess->m2m_ctx, buf, n) {
@@ -386,6 +387,14 @@ void esparser_queue_all_src(struct work_struct *work)
 			break;
 	}
 	mutex_unlock(&sess->lock);
+}
+
+void esparser_queue_all_src(struct work_struct *work)
+{
+	struct amvdec_session *sess =
+		container_of(work, struct amvdec_session, esparser_queue_work);
+
+	esparser_queue_all(sess);
 }
 
 int esparser_power_up(struct amvdec_session *sess)
