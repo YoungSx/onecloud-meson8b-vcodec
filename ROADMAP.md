@@ -21,7 +21,7 @@ MD5、CPU 总量 16.1→7.9 CPU-s 即 1/2、user 态 15 倍降低；P1 加固三
 
 ## P2 — 使用集成（0.5 轮会话）
 
-8. WanOS/OpenList 转码链路使用 h264_v4l2m2m 的配置示例文档。
+8. ~~WanOS/OpenList 转码链路使用 h264_v4l2m2m 的配置示例文档。~~ 完成（81e629b，docs/transcode.md）。
 9. ~~`extract-firmware.py` 扩展 mpeg12 微码（vmpeg12_mc 单数组，16KiB 零填充）
    + 驱动侧 vdec_platform.c 平台条目（NV12M-only，M8B shadow 路径只支持
    NV12M）~~ 完成（d3dee91）。关键发现：m8 固件在 MPSR=1 释放处理器时快照
