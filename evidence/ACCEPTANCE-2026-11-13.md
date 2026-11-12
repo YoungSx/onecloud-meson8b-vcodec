@@ -15,33 +15,22 @@ SHA-256 3144c1a5...（完整清单见 samples/SHA256SUMS）。
   /dev/video0`；`loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)`。
 - 模块卸载干净，dmesg 增量无 BUG/WARNING/Oops/refcount 告警；卸载后无 /dev/video*。
 
-## 性能与 CPU（验收 4 后半）：**未达标，如实记录**
+## 性能与 CPU（验收 4）：**达标（缓存别名拷贝路径，2026-11-13 复测）**
 
-三次独立测量（同一输入、framemd5 输出）：
+首版 shadow 拷贝在 coherent 内存上逐字节读，整机 CPU 反超软解（旧数据见 git
+历史）。改用 vmap 缓存别名 + `dma_sync_single_for_cpu` 后（commit 1817393），
+`syscpu-bench.py` 无值守复测（`/proc/stat` 系统级增量，CLK_TCK=100，含内核
+kworker，1080p 300 帧完整解码）：
 
-| 测量 | 软解 wall | 硬解 wall | 备注 |
-| --- | --- | --- | --- |
-| 1080p-cycle（首次，~00:07） | 28.7s (10fps) | 12.2s (25fps) | 系统内存压力期（MemAvailable 344MB），软解被拖慢，**不可复现** |
-| 无值守 A/B（~01:40） | 10.8s | 28.2s | 无人值守 nohup，无管理流量干扰 |
-| 无值守 1080p-cycle 复测 | 10.5s (29fps) | 27.8s (11fps) | 同上，复现 A/B 结果 |
+| | user CPU 秒 | system+irq+softirq | 合计 CPU 秒 | wall 秒 |
+| --- | --- | --- | --- | --- |
+| 软解 | 14.15 | 1.99 | **16.1** | 5.7 |
+| 硬解 | 0.93 | 6.95 | **7.9** | 7.0 |
 
-`/proc/stat` 系统级 CPU 增量（CLK_TCK=100，含内核 kworker）：
-
-| | user | system+irq+softirq | 合计 CPU 秒 |
-| --- | --- | --- | --- |
-| 软解 | ~13.9 | ~1.8 | **~15.7** |
-| 硬解 | ~2.1-3.3 | ~28-38 | **~30-41** |
-
-结论：当前实现的硬解路径**正确但不省 CPU、不省时间**——shadow buffer 的内核态
-8 字节字节序交换拷贝（1080p 约 3MB/帧）在 kworker 中消耗的 CPU 超过软解全部
-解码开销，wall time 约为软解 2.7 倍。ffmpeg 进程自身的 user CPU 很低（~0.6s），
-但那是成本转移到了内核线程，不是消失。
-
-首次 cycle 的 "25fps vs 10fps" 读数是在内存压力下软解被偶发拖慢时测得，
-不构成性能结论；后续两次无值守复测均反转。
-
-**要达到验收 4 的"CPU 显著低于软解"，必须实现零拷贝/硬件转换输出路径**
-（GE2D YUV 转换，或找到 VDEC 写端字节序控制的厂商依据）。见 ROADMAP P0-3。
+整机 CPU 总量约为软解的 **1/2**，其中 user 态低 **15 倍**（解码线程完全卸载，
+为其他进程腾出用户态算力）；代价是 system 态上升与 wall 时间 +24%（缓存别名
+拷贝占内核时间）。测量方法教训（管理 SSH 经 DERP 中继污染数据）保留在
+`evidence/`，所有数字均为 nohup 无值守测量。
 
 ## 验收 1-3：通过
 
@@ -76,3 +65,36 @@ dummy read 时序，然后才复位。见 `vdec/vdec_1.c` `vdec_1_stop()`。
 - sw/hw/hw2 退出码均 0，各 300 帧；
 - **hw、hw2 与软解逐帧 MD5 300/300 一致**；
 - 双模块卸载干净，dmesg 无 BUG/WARNING/Oops。
+
+## P1-4 反复压测：通过（2026-11-13）
+
+`stress-cycle.sh`（每轮 insmod 两模块 → 1080p hw 解码 → rmmod → dmesg 增量扫描
++ meminfo/slab 对比）：**10/10 轮通过**，另加 50 轮无内核 BUG/WARNING/Oops；
+内存无泄漏（MemFree 改善 10.9MB，slab +28KB 属正常抖动）。
+CMA 压力测试：tmpfs 挤压 CmaFree 至 56KB 时解码仍通过 300/300。
+
+## P1-5 分辨率切换：通过（2026-11-13，commit 1a48649）
+
+样片 `samples/res-switch.h264`（前 50 帧 320x240 → 300 帧 1920x1080，7.2MB）。
+
+ffmpeg 自身无法验证该路径：其 v4l2 reinit 在持有未释放 AVBufferRef 时阻塞在
+`sem_wait(refsync)`（ffmpeg 7.0.2 `v4l2_m2m.c:223`，上游缺陷），res-switch 流
+回放必然挂起。改用自带规范客户端 `tests/res-switch-test.c`（POLLPRI → DQEVENT →
+STREAMOFF → S_FMT/REQBUFS → STREAMON 完整 source-change 流程）：
+
+- **350/350 帧**（50×320x240 + 300×1080p），与软解帧数一致；
+- 两次 `codec_h264_resume` 干净完成，0 次 abort；
+- 首帧竞态（同会话内 REQBUFS 与 ISR 侧 src_change 竞速导致偶发 0 帧）：改为
+  检查已分配 capture buffer 是否适配新格式（替代可被 ISR 清零的 changed_format
+  标志），100+30 连续 smoke 运行 50/50 帧。
+
+本项同时修复两个跟随缺陷：M8B shadow canvas 在分辨率变化时按新尺寸重分配
+（原实现返回 EINVAL 直接 abort）；reinit 期间固件积压 >6 帧就绪改为丢弃
+（原实现 abort 整个会话）。OUTPUT plane 尺寸下限 1MiB（容器分辨率推导的
+sizeimage 在切换后失效，导致 ESPARSER 搜索 padding 溢出丢包）。
+
+## P1-6 错误输入：通过（2026-11-13）
+
+`samples/corrupt.h264`（截断/损坏 NAL）：硬解 0 帧输出（软解 8 帧——固件对
+损坏流容忍度更低），但**模块存活、无内核 BUG/WARNING/Oops、无 abort 洪泛**，
+后续会话立即恢复正常（smoke 50/50）。驱动不崩溃、可恢复即达标。
