@@ -1,41 +1,31 @@
 # 下一步任务计划
 
-当前状态（2026-11-13）：H.264 1080p 硬解**正确性**已实机验收（300/300 逐帧 MD5 一致，
-免重启可回滚）；第二会话挂起已修复（见下）；但当前 CPU 拷贝输出路径
-**不省 CPU 也不省时间**（实测见 `evidence/ACCEPTANCE-2026-11-13.md`）。
-按优先级排序的后续工作：
+当前状态（2026-11-13 晚）：H.264 1080p 硬解**验收 1-4 全部通过**（正确性 300/300
+MD5、CPU 总量 16.1→7.9 CPU-s 即 1/2、user 态 15 倍降低；P1 加固三项全部完成：
+压测 10+50 轮、分辨率切换 350/350、损坏输入不崩溃）。免重启可回滚。
+剩余工作按优先级：
 
-## 已完成（2026-11-13 本轮）
+## 已完成（历史存档）
 
-- ~~第二会话挂起~~：根因是 `vdec_1_stop()` 在 IMEM DMA 仍可能传输时直接复位
-  处理器，导致同一模块加载下第二个会话微码加载后 0 帧输出。修复 = 厂商
-  `amvdec_stop()` 序列：stop 时先等 `IMEM_DMA_CTRL` 忙位清零（1s 超时），并补
-  CBUS dummy read 时序。修复后 bench（6 hw 会话）+ 双会话测试全部通过，
-  无内核告警。见 `vdec/vdec_1.c`。
-- ~~B 帧 1080p 样片~~：High profile + bframes=2 样片验收（结果见 evidence 更新）。
-
-## P0 — 性能目标（下一轮会话）
-
-1. **零拷贝/低 CPU 输出路径**：当前实现不满足验收 4 的"CPU 显著低于软解"。候选：
-   a. **GE2D 零拷贝转换**：5.15 `meson/ge2d/ge2d.c` 支持有限 YUV 格式，
-      需确认 NV12M(大端→标准) 是否可表达；GE2D 是独立硬件块，拷贝不占 CPU。
-   b. **厂商写端字节序控制**：查 3.10 `vpp`/`canvas` 头文件中 Meson8 是否有
-      VDEC 输出字节序寄存器（若有则完全零拷贝，风险是参考帧读取也受影响）。
-   c. NEON 不适用（Cortex-A5 无 NEON）；纯 C bswap64 已是当前实现。
-   完成前，对外表述必须是"功能可用（正确、释放 CPU 解码线程）但整机 CPU 更高"。
-
-## P1 — 加固（1 轮会话）
-
-4. **反复 open/close 压测**：10 轮 insmod/解码/rmmod + 内存/slab/dmesg 监控
-   （依赖 P0-1 修复后才有意义）。
-5. **分辨率切换**：同会话 320x240 → 1080p 切换（v4l2 src_change 路径）。
-6. **错误输入**：截断/损坏 NAL 的行为确认。
-7. **开机自动加载（可选）**：systemd unit，含失败自动 rmmod 回退。
+- ~~P0 零拷贝/低 CPU 输出~~：vmap 缓存别名 + dma_sync 路径达成验收 4
+  （commit 1817393；旧"不省 CPU"结论作废，数据见 evidence）。
+- ~~第二会话挂起~~：vdec_1_stop() 厂商 IMEM-DMA 等待序列（commit de14360）。
+- ~~B 帧 1080p~~：High profile + bframes=2 验收通过。
+- ~~P1-4 反复压测~~：10/10 + 50 轮，无泄漏、无内核告警；CMA 56KB 极限通过。
+- ~~P1-5 分辨率切换~~：竞态根因修复（changed_format → capture_queue_fits），
+  shadow canvas 重分配，reinit 帧积压丢弃，OUTPUT 1MiB 下限；规范客户端
+  350/350 帧（commit 1a48649）。注意：ffmpeg 7.0.2 自身 reinit 有死锁缺陷
+  （sem_wait refsync），res-switch 流用 ffmpeg 播放会挂——这是 ffmpeg 上游
+  问题，不是驱动问题；实际容器播放（分辨率不变或两段式 seek）不受影响。
+- ~~P1-6 错误输入~~：损坏流不崩溃、模块存活、后续会话正常。
 
 ## P2 — 使用集成（0.5 轮会话）
 
 8. WanOS/OpenList 转码链路使用 h264_v4l2m2m 的配置示例文档。
-9. `extract-firmware.py` 扩展 h265/mpeg12 微码 + 驱动侧平台数据复制。
+9. `extract-firmware.py` 扩展 mpeg12 微码（vmpeg12_mc 单数组，16KiB 零填充）
+   + 驱动侧 vdec_platform.c 平台条目（NV12M-only，M8B shadow 路径只支持
+   NV12M）。h265 在 M8B 上经 vdec_1 不可行（vdec_hevc.c 需要 GXL+ HEVC 核，
+   厂商 m8 目录虽有 h265 微码）——标记 N/A。
 
 ## P3 — 编码（amvenc_avc 移植，验收 5）
 
@@ -50,11 +40,17 @@
 ## P4 — 上游化（可选，长期）
 
 13. Meson8b 平台数据 + capture 路径整理成 linux-media RFC 补丁。
-    若 P0-2a/b 实现了零拷贝，一并整理。
+    resume 竞态修复（capture_queue_fits）值得单独提交上游——它是通用
+    stateful decoder 竞态，GXL/G12A 同样受影响。
+
+## 可选项（原 P1-7）
+
+- 开机自动加载 systemd unit，含失败自动 rmmod 回退（当前手动 insmod 流程
+  已稳定运行，按需再做）。
 
 ## 风险与边界
 
 - 内核小版本升级破坏 vermagic 绑定，需重编两模块（构建流程在 README）。
-- 目标机是在役生产机：P0-1 修复验证需严格用单会话回退路径，不做长时挂机实验。
-- 测量必须在无值守（nohup）模式下做：管理 SSH 经 DERP 中继本身消耗目标机 CPU，
-  会污染性能数据（本轮实测首次 cycle 与无值守复测结果相反，教训已写入 evidence）。
+- 目标机是在役生产机：所有验证用单会话回退路径；kill -9 残留会话后需
+  rmmod+等待+重载两模块清 VDEC 状态（观测到的 abort 洪泛属此情况）。
+- 测量必须无值守（nohup）：管理 SSH 经 DERP 中继污染 CPU 数据。
