@@ -1,0 +1,84 @@
+ffmpeg_exit= 0
+[h264 @ 0x35d9800] Reinit context to 320x240, pix_fmt: yuv420p
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/meson8b-vcodec-runtime/smoke.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf60.16.100
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 328 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline), 1 reference frame (avc1 / 0x31637661), yuv420p(progressive, left), 320x240 [SAR 1:1 DAR 4:3], 324 kb/s, 25 fps, 25 tbr, 12800 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc60.31.102 libx264
+[out#0/framemd5 @ 0x35d9800] No explicit maps, mapping streams automatically...
+[vost#0:0/rawvideo @ 0x360f410] Created video stream from input stream 0:0
+[h264_v4l2m2m @ 0x35df5b0] Using device /dev/video0
+[h264_v4l2m2m @ 0x35df5b0] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
+[h264_v4l2m2m @ 0x35df5b0] requesting formats: output=H264/none capture=YM12/yuv420p
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (h264_v4l2m2m) -> rawvideo (native))
+[vost#0:0/rawvideo @ 0x360f410] Starting thread...
+[vf#0:0 @ 0x360fcd0] Starting thread...
+[vist#0:0/h264 @ 0x35da450] [dec:h264_v4l2m2m @ 0x35deed0] Starting thread...
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0] Starting thread...
+[graph 0 input from stream 0:0 @ 0xb4600fc0] w:320 h:240 pixfmt:yuv420p tb:1/12800 fr:25/1 sar:1/1 csp:unknown range:unknown
+[graph 0 input from stream 0:0 @ 0xb4600fc0] video frame properties congruent with link at pts_time: 0
+Output #0, framemd5, to '/tmp/meson8b-vcodec-runtime/hw-first-frame.md5':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.1.100
+  Stream #0:0(und): Video: rawvideo, 1 reference frame (I420 / 0x30323449), yuv420p(progressive, left), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 23040 kb/s, 25 fps, 25 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc61.3.100 rawvideo
+[out#0/framemd5 @ 0x35d9800] Starting thread...
+[vf#0:0 @ 0x360fcd0] All consumers returned EOF
+[vf#0:0 @ 0x360fcd0] Terminating thread with return code 0 (success)
+[vost#0:0/rawvideo @ 0x360f410] Encoder thread received EOF
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0] EOF while reading input
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0] Terminating thread with return code 0 (success)
+[vost#0:0/rawvideo @ 0x360f410] Terminating thread with return code 0 (success)
+[out#0/framemd5 @ 0x35d9800] All streams finished
+[out#0/framemd5 @ 0x35d9800] Terminating thread with return code 0 (success)
+[vist#0:0/h264 @ 0x35da450] [dec:h264_v4l2m2m @ 0x35deed0] Decoder thread received EOF packet
+[vist#0:0/h264 @ 0x35da450] [dec:h264_v4l2m2m @ 0x35deed0] Decoder returned EOF, finishing
+[vist#0:0/h264 @ 0x35da450] [dec:h264_v4l2m2m @ 0x35deed0] Terminating thread with return code 0 (success)
+[AVIOContext @ 0x35dfbc0] Statistics: 294 bytes written, 0 seeks, 1 writeouts
+[out#0/framemd5 @ 0x35d9800] Output file #0 (/tmp/meson8b-vcodec-runtime/hw-first-frame.md5):
+[out#0/framemd5 @ 0x35d9800]   Output stream #0:0 (video): 1 frames encoded; 1 packets muxed (115200 bytes); 
+[out#0/framemd5 @ 0x35d9800]   Total: 1 packets (115200 bytes) muxed
+[out#0/framemd5 @ 0x35d9800] video:112KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=       0KiB time=00:00:00.04 bitrate=  58.8kbits/s speed=0.0491x    
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0] Input file #0 (/tmp/meson8b-vcodec-runtime/smoke.mp4):
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0]   Input stream #0:0 (video): 50 packets read (81121 bytes); 7 frames decoded; 0 decode errors; 
+[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x35d89b0]   Total: 50 packets (81121 bytes) demuxed
+[AVIOContext @ 0x35e1160] Statistics: 82175 bytes read, 0 seeks
+
+#format: frame checksums
+#version: 2
+#hash: MD5
+#software: Lavf61.1.100
+#tb 0: 1/25
+#media_type 0: video
+#codec_id 0: rawvideo
+#dimensions 0: 320x240
+#sar 0: 1/1
+#stream#, dts,        pts, duration,     size, hash
+0,          0,          0,        1,   115200, 90120ffb877ce31c78851d920494ddce
+
+unload meson_vdec 0
+unload meson8b_runtime 0
+[516594.172540] meson8b-runtime: applied volatile codec overlay 1
+[516594.197007] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[516594.197037] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[516595.292791] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+active
+active
+/openlist true 0
+/homeassistant true 0
+/arcane-agent true 0

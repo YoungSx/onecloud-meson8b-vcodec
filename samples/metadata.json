@@ -1,0 +1,32 @@
+{
+  "h264-1080p-baseline.mp4": {
+    "codec_name": "h264",
+    "profile": "Constrained Baseline",
+    "width": 1920,
+    "height": 1080,
+    "has_b_frames": 0,
+    "pix_fmt": "yuv420p",
+    "level": 40,
+    "nb_read_frames": "300"
+  },
+  "h264-1080p-bframes.mp4": {
+    "codec_name": "h264",
+    "profile": "High",
+    "width": 1920,
+    "height": 1080,
+    "has_b_frames": 2,
+    "pix_fmt": "yuv420p",
+    "level": 40,
+    "nb_read_frames": "300"
+  },
+  "h264-320x240-smoke.mp4": {
+    "codec_name": "h264",
+    "profile": "Constrained Baseline",
+    "width": 320,
+    "height": 240,
+    "has_b_frames": 0,
+    "pix_fmt": "yuv420p",
+    "level": 13,
+    "nb_read_frames": "50"
+  }
+}

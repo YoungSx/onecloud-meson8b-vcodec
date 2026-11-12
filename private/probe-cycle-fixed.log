@@ -1,0 +1,9 @@
+driver=meson-vdec card=Amlogic Video Decoder caps=04204000
+type=10 format=H264 description=H.264 flags=9
+type=9 format=YM12 description=Planar YUV 4:2:0 (N-C) flags=0
+
+active
+active
+/openlist true 0
+/homeassistant true 0
+/arcane-agent true 0

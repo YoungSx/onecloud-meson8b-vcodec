@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target-path = "/soc";
+        __overlay__ {
+            video-decoder@d0050000 {
+                compatible = "amlogic,meson8b-vdec";
+                reg = <0xd0050000 0x10000>, <0xc110a580 0xe4>;
+                reg-names = "dos", "esparser";
+                interrupts = <0 44 1>, <0 32 1>;
+                interrupt-names = "vdec", "esparser";
+                clocks = <3 54>, <3 17>, <3 196>;
+                clock-names = "dos_parser", "dos", "vdec_1";
+                resets = <8 40>;
+                reset-names = "esparser";
+                amlogic,ao-sysctrl = <7>;
+                amlogic,canvas = <49>;
+                status = "okay";
+            };
+        };
+    };
+};

@@ -1,0 +1,20 @@
+243:#define MC_OFFSET_HEADER    0x0000
+244:#define MC_OFFSET_DATA      0x1000
+245:#define MC_OFFSET_MMCO      0x2000
+246:#define MC_OFFSET_LIST      0x3000
+247:#define MC_OFFSET_SLICE     0x4000
+249:#define MC_TOTAL_SIZE       (20*SZ_1K)
+250:#define MC_SWAP_SIZE        ( 4*SZ_1K)
+1689:    mc_cpu_addr = dma_alloc_coherent(NULL, MC_TOTAL_SIZE, &mc_dma_handle, GFP_KERNEL);
+1733:            dma_free_coherent(NULL, MC_TOTAL_SIZE, mc_cpu_addr, mc_dma_handle);
+1738:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_HEADER, pvh264_header_mc, MC_SWAP_SIZE);
+1739:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_DATA,   pvh264_data_mc,   MC_SWAP_SIZE);
+1740:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_MMCO,   pvh264_mmco_mc,   MC_SWAP_SIZE);
+1741:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_LIST,   pvh264_list_mc,   MC_SWAP_SIZE);
+1742:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_SLICE,  pvh264_slice_mc,  MC_SWAP_SIZE);
+1757:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_HEADER, vh264_header_mc, MC_SWAP_SIZE);
+1758:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_DATA,   vh264_data_mc,   MC_SWAP_SIZE);
+1759:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_MMCO,   vh264_mmco_mc,   MC_SWAP_SIZE);
+1760:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_LIST,   vh264_list_mc,   MC_SWAP_SIZE);
+1761:        memcpy((u8 *)mc_cpu_addr + MC_OFFSET_SLICE,  vh264_slice_mc,  MC_SWAP_SIZE);
+1846:            dma_free_coherent(NULL, MC_TOTAL_SIZE, mc_cpu_addr, mc_dma_handle);

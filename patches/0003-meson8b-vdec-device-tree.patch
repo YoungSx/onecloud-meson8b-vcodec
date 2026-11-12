@@ -1,0 +1,50 @@
+Subject: [PATCH 3/3 RFC] ARM: dts: describe Meson8b VDEC and enable on OneCloud
+
+Use the S805 DOS aperture at 0xd0050000, parser at 0xc110a580,
+interrupts 44/32 and the existing clock, reset and canvas providers.
+The SoC node is disabled by default; OneCloud enables the lab device.
+The accompanying driver refuses streaming until capture conversion exists.
+
+---
+diff --git a/arch/arm/boot/dts/meson8b-onecloud.dts b/arch/arm/boot/dts/meson8b-onecloud.dts
+index 89e3e32..99f2bc7 100644
+--- a/arch/arm/boot/dts/meson8b-onecloud.dts
++++ b/arch/arm/boot/dts/meson8b-onecloud.dts
+@@ -458,3 +458,7 @@ &ir_receiver {
+ 	pinctrl-0 = <&ir_recv_pins>;
+ 	pinctrl-names = "default";
+ };
++
++&vdec {
++	status = "okay";
++};
+diff --git a/arch/arm/boot/dts/meson8b.dtsi b/arch/arm/boot/dts/meson8b.dtsi
+index 5519086..45ff757 100644
+--- a/arch/arm/boot/dts/meson8b.dtsi
++++ b/arch/arm/boot/dts/meson8b.dtsi
+@@ -14,6 +14,25 @@
+ #include "meson.dtsi"
+ 
+ / {
++	soc {
++		vdec: video-decoder@d0050000 {
++			compatible = "amlogic,meson8b-vdec";
++			reg = <0xd0050000 0x10000>, <0xc110a580 0xe4>;
++			reg-names = "dos", "esparser";
++			interrupts = <GIC_SPI 44 IRQ_TYPE_EDGE_RISING>,
++				     <GIC_SPI 32 IRQ_TYPE_EDGE_RISING>;
++			interrupt-names = "vdec", "esparser";
++			clocks = <&clkc CLKID_DOS_PARSER>, <&clkc CLKID_DOS>,
++				 <&clkc CLKID_VDEC_1>;
++			clock-names = "dos_parser", "dos", "vdec_1";
++			resets = <&reset RESET_PARSER>;
++			reset-names = "esparser";
++			amlogic,ao-sysctrl = <&pmu>;
++			amlogic,canvas = <&canvas>;
++			status = "disabled";
++		};
++	};
++
+ 	cpus {
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;

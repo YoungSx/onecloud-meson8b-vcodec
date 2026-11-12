@@ -1,0 +1,155 @@
+sw exit 0
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/meson8b-vcodec-runtime/baseline-1080p.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf60.16.100
+  Duration: 00:00:10.00, start: 0.000000, bitrate: 5922 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 5920 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc60.31.102 libx264
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> rawvideo (native))
+Output #0, framemd5, to '/tmp/meson8b-vcodec-runtime/sw-1080p.md5':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.1.100
+  Stream #0:0(und): Video: rawvideo (NV12 / 0x3231564E), nv12(progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 746496 kb/s, 30 fps, 30 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc61.3.100 rawvideo
+frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A    
+frame=    6 fps=4.0 q=-0.0 size=       1KiB time=00:00:00.43 bitrate=  11.4kbits/s speed=0.285x    
+frame=   11 fps=5.4 q=-0.0 size=       1KiB time=00:00:00.63 bitrate=  12.8kbits/s speed=0.31x    
+frame=   22 fps=8.7 q=-0.0 size=       2KiB time=00:00:01.00 bitrate=  15.2kbits/s speed=0.393x    
+frame=   36 fps= 12 q=-0.0 size=       3KiB time=00:00:01.46 bitrate=  16.5kbits/s speed=0.482x    
+frame=   50 fps= 14 q=-0.0 size=       4KiB time=00:00:01.93 bitrate=  17.1kbits/s speed=0.546x    
+frame=   64 fps= 16 q=-0.0 size=       5KiB time=00:00:02.40 bitrate=  17.5kbits/s speed=0.594x    
+frame=   76 fps= 17 q=-0.0 size=       6KiB time=00:00:02.80 bitrate=  17.8kbits/s speed=0.616x    
+frame=   91 fps= 18 q=-0.0 size=       7KiB time=00:00:03.30 bitrate=  18.0kbits/s speed=0.654x    
+frame=  104 fps= 19 q=-0.0 size=       8KiB time=00:00:03.73 bitrate=  18.1kbits/s speed=0.673x    
+frame=  117 fps= 19 q=-0.0 size=       9KiB time=00:00:04.16 bitrate=  18.2kbits/s speed=0.689x    
+frame=  132 fps= 20 q=-0.0 size=      10KiB time=00:00:04.66 bitrate=  18.3kbits/s speed=0.713x    
+frame=  147 fps= 21 q=-0.0 size=      12KiB time=00:00:05.16 bitrate=  18.4kbits/s speed=0.733x    
+frame=  162 fps= 21 q=-0.0 size=      13KiB time=00:00:05.66 bitrate=  18.5kbits/s speed=0.751x    
+frame=  178 fps= 22 q=-0.0 size=      14KiB time=00:00:06.16 bitrate=  18.6kbits/s speed=0.766x    
+frame=  192 fps= 22 q=-0.0 size=      15KiB time=00:00:06.66 bitrate=  18.6kbits/s speed=0.78x    
+frame=  206 fps= 23 q=-0.0 size=      16KiB time=00:00:07.13 bitrate=  18.6kbits/s speed=0.788x    
+frame=  218 fps= 23 q=-0.0 size=      17KiB time=00:00:07.53 bitrate=  18.7kbits/s speed=0.789x    
+frame=  231 fps= 23 q=-0.0 size=      18KiB time=00:00:07.96 bitrate=  18.7kbits/s speed=0.793x    
+frame=  244 fps= 23 q=-0.0 size=      19KiB time=00:00:08.40 bitrate=  18.7kbits/s speed=0.796x    
+frame=  258 fps= 23 q=-0.0 size=      20KiB time=00:00:08.86 bitrate=  18.7kbits/s speed=0.802x    
+frame=  275 fps= 24 q=-0.0 size=      22KiB time=00:00:09.43 bitrate=  18.8kbits/s speed=0.817x    
+frame=  295 fps= 24 q=-0.0 size=      23KiB time=N/A bitrate=N/A speed=N/A    
+[out#0/framemd5 @ 0x35dfa80] video:911250KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=  300 fps= 25 q=-0.0 Lsize=      24KiB time=00:00:10.00 bitrate=  19.4kbits/s speed=0.821x    
+
+sw frames 300
+hw exit 0
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/meson8b-vcodec-runtime/baseline-1080p.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf60.16.100
+  Duration: 00:00:10.00, start: 0.000000, bitrate: 5922 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 5920 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc60.31.102 libx264
+[h264_v4l2m2m @ 0x35db410] Using device /dev/video0
+[h264_v4l2m2m @ 0x35db410] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
+[h264_v4l2m2m @ 0x35db410] requesting formats: output=H264/none capture=NM12/yuv420p
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (h264_v4l2m2m) -> rawvideo (native))
+Output #0, framemd5, to '/tmp/meson8b-vcodec-runtime/hw-1080p.md5':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.1.100
+  Stream #0:0(und): Video: rawvideo (NV12 / 0x3231564E), nv12(progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 746496 kb/s, 30 fps, 30 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc61.3.100 rawvideo
+frame=    1 fps=0.0 q=-0.0 size=       0KiB time=00:00:00.03 bitrate=  51.8kbits/s speed=0.0667x    
+frame=    6 fps=6.0 q=-0.0 size=       1KiB time=00:00:00.20 bitrate=  24.6kbits/s speed= 0.2x    
+frame=   12 fps=8.0 q=-0.0 size=       1KiB time=00:00:00.40 bitrate=  21.9kbits/s speed=0.267x    
+frame=   17 fps=8.5 q=-0.0 size=       1KiB time=00:00:00.56 bitrate=  21.1kbits/s speed=0.283x    
+frame=   22 fps=8.8 q=-0.0 size=       2KiB time=00:00:00.73 bitrate=  20.7kbits/s speed=0.293x    
+frame=   27 fps=9.0 q=-0.0 size=       2KiB time=00:00:00.90 bitrate=  20.4kbits/s speed= 0.3x    
+frame=   33 fps=9.4 q=-0.0 size=       3KiB time=00:00:01.10 bitrate=  20.2kbits/s speed=0.314x    
+frame=   38 fps=9.5 q=-0.0 size=       3KiB time=00:00:01.26 bitrate=  20.1kbits/s speed=0.317x    
+frame=   44 fps=9.8 q=-0.0 size=       4KiB time=00:00:01.46 bitrate=  19.9kbits/s speed=0.326x    
+frame=   49 fps=9.8 q=-0.0 size=       4KiB time=00:00:01.63 bitrate=  19.9kbits/s speed=0.327x    
+frame=   54 fps=9.8 q=-0.0 size=       4KiB time=00:00:01.80 bitrate=  19.8kbits/s speed=0.327x    
+frame=   59 fps=9.8 q=-0.0 size=       5KiB time=00:00:01.96 bitrate=  19.8kbits/s speed=0.328x    
+frame=   65 fps= 10 q=-0.0 size=       5KiB time=00:00:02.16 bitrate=  19.7kbits/s speed=0.333x    
+frame=   70 fps= 10 q=-0.0 size=       6KiB time=00:00:02.33 bitrate=  19.7kbits/s speed=0.333x    
+frame=   76 fps= 10 q=-0.0 size=       6KiB time=00:00:02.53 bitrate=  19.6kbits/s speed=0.338x    
+frame=   81 fps= 10 q=-0.0 size=       6KiB time=00:00:02.70 bitrate=  19.6kbits/s speed=0.337x    
+frame=   86 fps= 10 q=-0.0 size=       7KiB time=00:00:02.86 bitrate=  19.6kbits/s speed=0.337x    
+frame=   92 fps= 10 q=-0.0 size=       7KiB time=00:00:03.06 bitrate=  19.6kbits/s speed=0.341x    
+frame=   97 fps= 10 q=-0.0 size=       8KiB time=00:00:03.23 bitrate=  19.5kbits/s speed=0.34x    
+frame=  103 fps= 10 q=-0.0 size=       8KiB time=00:00:03.43 bitrate=  19.5kbits/s speed=0.343x    
+frame=  108 fps= 10 q=-0.0 size=       9KiB time=00:00:03.60 bitrate=  19.5kbits/s speed=0.343x    
+frame=  113 fps= 10 q=-0.0 size=       9KiB time=00:00:03.76 bitrate=  19.5kbits/s speed=0.342x    
+frame=  119 fps= 10 q=-0.0 size=       9KiB time=00:00:03.96 bitrate=  19.5kbits/s speed=0.345x    
+frame=  124 fps= 10 q=-0.0 size=      10KiB time=00:00:04.13 bitrate=  19.5kbits/s speed=0.344x    
+frame=  130 fps= 10 q=-0.0 size=      10KiB time=00:00:04.33 bitrate=  19.5kbits/s speed=0.347x    
+frame=  135 fps= 10 q=-0.0 size=      11KiB time=00:00:04.50 bitrate=  19.4kbits/s speed=0.346x    
+frame=  140 fps= 10 q=-0.0 size=      11KiB time=00:00:04.66 bitrate=  19.4kbits/s speed=0.346x    
+frame=  146 fps= 10 q=-0.0 size=      12KiB time=00:00:04.86 bitrate=  19.4kbits/s speed=0.347x    
+frame=  151 fps= 10 q=-0.0 size=      12KiB time=00:00:05.03 bitrate=  19.4kbits/s speed=0.347x    
+frame=  157 fps= 10 q=-0.0 size=      12KiB time=00:00:05.23 bitrate=  19.4kbits/s speed=0.349x    
+frame=  162 fps= 10 q=-0.0 size=      13KiB time=00:00:05.40 bitrate=  19.4kbits/s speed=0.348x    
+frame=  168 fps= 10 q=-0.0 size=      13KiB time=00:00:05.60 bitrate=  19.4kbits/s speed=0.35x    
+frame=  171 fps= 10 q=-0.0 size=      13KiB time=00:00:05.70 bitrate=  19.4kbits/s speed=0.345x    
+frame=  176 fps= 10 q=-0.0 size=      14KiB time=00:00:05.86 bitrate=  19.4kbits/s speed=0.345x    
+frame=  181 fps= 10 q=-0.0 size=      14KiB time=00:00:06.03 bitrate=  19.4kbits/s speed=0.345x    
+frame=  187 fps= 10 q=-0.0 size=      15KiB time=00:00:06.23 bitrate=  19.4kbits/s speed=0.346x    
+frame=  192 fps= 10 q=-0.0 size=      15KiB time=00:00:06.40 bitrate=  19.4kbits/s speed=0.346x    
+frame=  197 fps= 10 q=-0.0 size=      16KiB time=00:00:06.56 bitrate=  19.4kbits/s speed=0.345x    
+frame=  203 fps= 10 q=-0.0 size=      16KiB time=00:00:06.76 bitrate=  19.4kbits/s speed=0.347x    
+frame=  208 fps= 10 q=-0.0 size=      16KiB time=00:00:06.93 bitrate=  19.4kbits/s speed=0.347x    
+frame=  214 fps= 10 q=-0.0 size=      17KiB time=00:00:07.13 bitrate=  19.4kbits/s speed=0.348x    
+frame=  219 fps= 10 q=-0.0 size=      17KiB time=00:00:07.30 bitrate=  19.3kbits/s speed=0.347x    
+frame=  224 fps= 10 q=-0.0 size=      18KiB time=00:00:07.46 bitrate=  19.3kbits/s speed=0.347x    
+frame=  230 fps= 10 q=-0.0 size=      18KiB time=00:00:07.66 bitrate=  19.3kbits/s speed=0.348x    
+frame=  235 fps= 10 q=-0.0 size=      18KiB time=00:00:07.83 bitrate=  19.3kbits/s speed=0.348x    
+frame=  240 fps= 10 q=-0.0 size=      19KiB time=00:00:08.00 bitrate=  19.3kbits/s speed=0.348x    
+frame=  246 fps= 10 q=-0.0 size=      19KiB time=00:00:08.20 bitrate=  19.3kbits/s speed=0.349x    
+frame=  251 fps= 10 q=-0.0 size=      20KiB time=00:00:08.36 bitrate=  19.3kbits/s speed=0.348x    
+frame=  256 fps= 10 q=-0.0 size=      20KiB time=00:00:08.53 bitrate=  19.3kbits/s speed=0.348x    
+frame=  262 fps= 10 q=-0.0 size=      21KiB time=00:00:08.73 bitrate=  19.3kbits/s speed=0.349x    
+frame=  267 fps= 10 q=-0.0 size=      21KiB time=00:00:08.90 bitrate=  19.3kbits/s speed=0.349x    
+frame=  273 fps= 10 q=-0.0 size=      21KiB time=00:00:09.10 bitrate=  19.3kbits/s speed=0.35x    
+frame=  278 fps= 10 q=-0.0 size=      22KiB time=00:00:09.26 bitrate=  19.3kbits/s speed=0.35x    
+frame=  283 fps= 10 q=-0.0 size=      22KiB time=00:00:09.43 bitrate=  19.3kbits/s speed=0.349x    
+frame=  289 fps= 11 q=-0.0 size=      23KiB time=00:00:09.63 bitrate=  19.3kbits/s speed=0.35x    
+frame=  294 fps= 10 q=-0.0 size=      23KiB time=00:00:09.80 bitrate=  19.3kbits/s speed=0.35x    
+frame=  297 fps= 10 q=-0.0 size=      23KiB time=00:00:09.90 bitrate=  19.3kbits/s speed=0.347x    
+[out#0/framemd5 @ 0x35d9840] video:911250KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=  300 fps= 10 q=-0.0 Lsize=      24KiB time=00:00:10.00 bitrate=  19.4kbits/s speed=0.348x    
+
+hw frames 300
+matching_frames 300
+unload meson_vdec 0
+unload meson8b_runtime 0
+[526199.495032] meson8b-runtime: applied volatile codec overlay 1
+[526199.531491] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[526199.531523] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[526212.778583] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+active
+active
+/openlist true 0
+/homeassistant true 0
+/arcane-agent true 0

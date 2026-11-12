@@ -1,0 +1,35 @@
+2026-11-12T21:23:21+08:00
+ 21:23:21 up 5 days, 22:29,  0 users,  load average: 0.24, 0.78, 1.04
+Linux wanos 5.15.79-meson #trunk SMP Fri Nov 18 04:13:49 UTC 2022 armv7l armv7l armv7l GNU/Linux
+  filebrowser.service              loaded active running WanOS Filebrowser                                       
+  pansou.service                   loaded active running WanOS PanSou                                            
+  quarkpan-client.service          loaded active running WanOS 夸克网盘                                          
+  sublinkpro.service               loaded active running SublinkPro subscription panel                           
+  tailscale-panel.service          loaded active running WanOS Tailscale Web Panel                               
+  ttyd.service                     loaded active running WanOS Terminal                                          
+  vocat.service                    loaded active running vocat cellular and VoWiFi control service               
+  wanos-rescue.service             loaded active running WanOS Rescue Service                                    
+  wanos-wallpaper.service          loaded active running WanOS Wallpaper                                         
+  wanos-wifi-drivers-panel.service loaded active running WanOS USB WiFi Drivers Panel                            
+  wanos.service                    loaded active running WanOS Main Service                                      
+  wol-network-wakeup.service       loaded active running WanOS WOL Network Wakeup                                
+/openlist Running=true RestartCount=0 StartedAt=2026-11-11T17:44:56.997525104Z
+/homeassistant Running=true RestartCount=0 StartedAt=2026-11-11T17:44:57.330547372Z
+/arcane-agent Running=true RestartCount=0 StartedAt=2026-11-12T05:23:05.71274032Z
+HTTP 5245 200
+HTTP 8000 200
+HTTP 7575 200
+HTTP 8123 200
+ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
+built with gcc 6.3.0 (Debian 6.3.0-18+deb9u1) 20170516
+configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libfribidi --enable-libass --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libxml2 --enable-libxvid --enable-libzimg
+ VFS..D h264                 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10
+ V..... h264_v4l2m2m         V4L2 mem2mem H.264 decoder wrapper (codec h264)
+ V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)
+ V....D libx264rgb           libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 RGB (codec h264)
+ V..... h264_v4l2m2m         V4L2 mem2mem H.264 encoder wrapper (codec h264)
+ V....D h264_vaapi           H.264/AVC (VAAPI) (codec h264)
+9bba56f8271913cc288132687bda03d8cbc166954e90ed6ff3e183361130dff0  /boot/uImage
+6d3293ab4826f9d428a96e0113c88316f776b6b386f3d37d734acd119da7765d  /boot/boot.scr
+3cef31a4c621a5bedc3e2a6eb47ae49ab1d4a32902fb108b0bdcbd9223e8046f  /boot/uInitrd
+5a15fe1e899a0e0df8269a5f65d81062837de78e21bcfda55ae564a5ccc53869  /boot/dtb/meson8b-onecloud.dtb

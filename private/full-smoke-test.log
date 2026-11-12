@@ -1,0 +1,55 @@
+sw exit 0
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/meson8b-vcodec-runtime/smoke.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf60.16.100
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 328 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 320x240 [SAR 1:1 DAR 4:3], 324 kb/s, 25 fps, 25 tbr, 12800 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc60.31.102 libx264
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> rawvideo (native))
+Output #0, framemd5, to '/tmp/meson8b-vcodec-runtime/sw-smoke.md5':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf61.1.100
+  Stream #0:0(und): Video: rawvideo (I420 / 0x30323449), yuv420p(progressive), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 23040 kb/s, 25 fps, 25 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc61.3.100 rawvideo
+[out#0/framemd5 @ 0x35da3f0] video:5625KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+frame=   50 fps=0.0 q=-0.0 Lsize=       4KiB time=00:00:02.00 bitrate=  16.9kbits/s speed=13.4x    
+
+hw exit -9
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/meson8b-vcodec-runtime/smoke.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf60.16.100
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 328 kb/s
+  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 320x240 [SAR 1:1 DAR 4:3], 324 kb/s, 25 fps, 25 tbr, 12800 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc60.31.102 libx264
+[h264_v4l2m2m @ 0x35df5b0] Using device /dev/video0
+[h264_v4l2m2m @ 0x35df5b0] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
+[h264_v4l2m2m @ 0x35df5b0] requesting formats: output=H264/none capture=NM12/yuv420p
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (h264_v4l2m2m) -> rawvideo (native))
+
+[517431.395348] meson8b-runtime: applied volatile codec overlay 1
+[517431.432086] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[517431.432123] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[517432.800079] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+Traceback (most recent call last):
+  File "<stdin>", line 12, in <module>
+AssertionError

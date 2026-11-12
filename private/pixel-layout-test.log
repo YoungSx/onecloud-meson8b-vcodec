@@ -1,0 +1,9 @@
+[516692.730478] meson8b-runtime: applied volatile codec overlay 1
+[516692.769971] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[516692.770006] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[516693.118937] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+  File "/usr/lib/python3.8/subprocess.py", line 516, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['timeout', '-s', 'INT', '-k', '5s', '20s', '/usr/local/bin/ffmpeg', '-nostdin', '-hide_banner', '-v', 'warning', '-c:v', 'h264_v4l2m2m', '-num_output_buffers', '4', '-num_capture_buffers', '8', '-i', '/tmp/meson8b-vcodec-runtime/smoke.mp4', '-frames:v', '1', '-an', '-pix_fmt', 'yuv420p', '-f', 'rawvideo', '-y', '/tmp/meson8b-vcodec-runtime/hw-first.yuv']' died with <Signals.SIGKILL: 9>.

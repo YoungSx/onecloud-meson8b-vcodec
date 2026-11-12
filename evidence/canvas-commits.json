@@ -1,0 +1,802 @@
+[
+  {
+    "sha": "4dd10fbbeb9c33709edc89916e19c03c780a0751",
+    "node_id": "C_kwDOACN7MtoAKDRkZDEwZmJiZWI5YzMzNzA5ZWRjODk5MTZlMTljMDNjNzgwYTA3NTE",
+    "commit": {
+      "author": {
+        "name": "Kees Cook",
+        "email": "kees+treewide@kernel.org",
+        "date": "2026-10-29T06:16:33Z"
+      },
+      "committer": {
+        "name": "Kees Cook",
+        "email": "kees@kernel.org",
+        "date": "2026-11-06T05:55:50Z"
+      },
+      "message": "treewide: Convert devm_kmalloc() family to the devm_kmalloc_obj() family\n\nMirroring the earlier kmalloc_obj() conversion, convert the\ndevice-managed allocators over to the type-based API using the now\nupdated scripts/coccinelle/api/kmalloc_objs.cocci. The size is derived\nfrom the type rather than written out as a sizeof(), and the result is\na pointer to that type rather than void *, so a mismatch between the\nsize requested and the variable assigned becomes a build error instead\nof being silently accepted.\n\nThe conversions break down as:\n\n\t6713\tdevm_kzalloc_obj()\n\t1749\tdevm_kzalloc_objs()\n\t 307\tdevm_kzalloc_flex()\n\t  91\tdevm_kmalloc_objs()\n\t  82\tdevm_kmalloc_obj()\n\t   2\tdevm_kmalloc_flex()\n\nThe rules deliberately leave alone allocations sized by a string or a\nbyte-sized type, or assigned to a pointer to a byte-sized type, since\nthose are byte buffers rather than objects. Allocations sized by a\nmulti-byte integer type are only converted when they are assigned to a\npointer to that same type, and allocations of pointers to integers or of\nvoid pointers are left alone too. After this change, 528 files still\ncall devm_kmalloc(), devm_kzalloc(), devm_kcalloc(), or\ndevm_kmalloc_array().\n\nBuild tested with allmodconfig on x86_64, arm64, i386, arm, riscv, s390,\nm68k, mips, parisc, sparc, loongarch, arc, xtensa, and openrisc with GCC\n16.2.0 with no new warnings.\n\nSigned-off-by: Kees Cook <kees+treewide@kernel.org>",
+      "tree": {
+        "sha": "9871d2e04bda459c4982438d837e3255d0857cac",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/9871d2e04bda459c4982438d837e3255d0857cac"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/4dd10fbbeb9c33709edc89916e19c03c780a0751",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/4dd10fbbeb9c33709edc89916e19c03c780a0751",
+    "html_url": "https://github.com/torvalds/linux/commit/4dd10fbbeb9c33709edc89916e19c03c780a0751",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/4dd10fbbeb9c33709edc89916e19c03c780a0751/comments",
+    "author": null,
+    "committer": {
+      "login": "kees",
+      "id": 1110841,
+      "node_id": "MDQ6VXNlcjExMTA4NDE=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1110841?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/kees",
+      "html_url": "https://github.com/kees",
+      "followers_url": "https://api.github.com/users/kees/followers",
+      "following_url": "https://api.github.com/users/kees/following{/other_user}",
+      "gists_url": "https://api.github.com/users/kees/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/kees/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/kees/subscriptions",
+      "organizations_url": "https://api.github.com/users/kees/orgs",
+      "repos_url": "https://api.github.com/users/kees/repos",
+      "events_url": "https://api.github.com/users/kees/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/kees/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "bcd347f31e84ecfb1e45be488b1c7c835b8feb4c",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/bcd347f31e84ecfb1e45be488b1c7c835b8feb4c",
+        "html_url": "https://github.com/torvalds/linux/commit/bcd347f31e84ecfb1e45be488b1c7c835b8feb4c"
+      }
+    ]
+  },
+  {
+    "sha": "075daf22641870e435a16ec2129bfd3b3134c487",
+    "node_id": "C_kwDOACN7MtoAKDA3NWRhZjIyNjQxODcwZTQzNWExNmVjMjEyOWJmZDNiMzEzNGM0ODc",
+    "commit": {
+      "author": {
+        "name": "Johan Hovold",
+        "email": "johan@kernel.org",
+        "date": "2025-09-26T14:24:54Z"
+      },
+      "committer": {
+        "name": "Neil Armstrong",
+        "email": "neil.armstrong@linaro.org",
+        "date": "2025-10-21T12:20:29Z"
+      },
+      "message": "soc: amlogic: canvas: simplify lookup error handling\n\nSimplify the canvas lookup error handling by dropping the OF node\nreference sooner.\n\nSigned-off-by: Johan Hovold <johan@kernel.org>\nReviewed-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>\nLink: https://patch.msgid.link/20250926142454.5929-3-johan@kernel.org\nSigned-off-by: Neil Armstrong <neil.armstrong@linaro.org>",
+      "tree": {
+        "sha": "596dea15c39f4e9e057bf73be50bc72b92d2661d",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/596dea15c39f4e9e057bf73be50bc72b92d2661d"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/075daf22641870e435a16ec2129bfd3b3134c487",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/075daf22641870e435a16ec2129bfd3b3134c487",
+    "html_url": "https://github.com/torvalds/linux/commit/075daf22641870e435a16ec2129bfd3b3134c487",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/075daf22641870e435a16ec2129bfd3b3134c487/comments",
+    "author": {
+      "login": "jhovold",
+      "id": 601896,
+      "node_id": "MDQ6VXNlcjYwMTg5Ng==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/601896?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/jhovold",
+      "html_url": "https://github.com/jhovold",
+      "followers_url": "https://api.github.com/users/jhovold/followers",
+      "following_url": "https://api.github.com/users/jhovold/following{/other_user}",
+      "gists_url": "https://api.github.com/users/jhovold/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/jhovold/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/jhovold/subscriptions",
+      "organizations_url": "https://api.github.com/users/jhovold/orgs",
+      "repos_url": "https://api.github.com/users/jhovold/repos",
+      "events_url": "https://api.github.com/users/jhovold/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/jhovold/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "superna9999",
+      "id": 492099,
+      "node_id": "MDQ6VXNlcjQ5MjA5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/492099?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/superna9999",
+      "html_url": "https://github.com/superna9999",
+      "followers_url": "https://api.github.com/users/superna9999/followers",
+      "following_url": "https://api.github.com/users/superna9999/following{/other_user}",
+      "gists_url": "https://api.github.com/users/superna9999/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/superna9999/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/superna9999/subscriptions",
+      "organizations_url": "https://api.github.com/users/superna9999/orgs",
+      "repos_url": "https://api.github.com/users/superna9999/repos",
+      "events_url": "https://api.github.com/users/superna9999/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/superna9999/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "32200f4828de9d7e6db379909898e718747f4e18",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/32200f4828de9d7e6db379909898e718747f4e18",
+        "html_url": "https://github.com/torvalds/linux/commit/32200f4828de9d7e6db379909898e718747f4e18"
+      }
+    ]
+  },
+  {
+    "sha": "32200f4828de9d7e6db379909898e718747f4e18",
+    "node_id": "C_kwDOACN7MtoAKDMyMjAwZjQ4MjhkZTlkN2U2ZGIzNzk5MDk4OThlNzE4NzQ3ZjRlMTg",
+    "commit": {
+      "author": {
+        "name": "Johan Hovold",
+        "email": "johan@kernel.org",
+        "date": "2025-09-26T14:24:53Z"
+      },
+      "committer": {
+        "name": "Neil Armstrong",
+        "email": "neil.armstrong@linaro.org",
+        "date": "2025-10-21T12:20:29Z"
+      },
+      "message": "soc: amlogic: canvas: fix device leak on lookup\n\nMake sure to drop the reference taken to the canvas platform device when\nlooking up its driver data.\n\nNote that holding a reference to a device does not prevent its driver\ndata from going away so there is no point in keeping the reference.\n\nAlso note that commit 28f851e6afa8 (\"soc: amlogic: canvas: add missing\nput_device() call in meson_canvas_get()\") fixed the leak in a lookup\nerror path, but the reference is still leaking on success.\n\nFixes: d4983983d987 (\"soc: amlogic: add meson-canvas driver\")\nCc: stable@vger.kernel.org\t# 4.20: 28f851e6afa8\nCc: Yu Kuai <yukuai3@huawei.com>\nSigned-off-by: Johan Hovold <johan@kernel.org>\nReviewed-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>\nLink: https://patch.msgid.link/20250926142454.5929-2-johan@kernel.org\nSigned-off-by: Neil Armstrong <neil.armstrong@linaro.org>",
+      "tree": {
+        "sha": "a06f8f1485ff77a549dbd3e596f7ac7a1709ab40",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/a06f8f1485ff77a549dbd3e596f7ac7a1709ab40"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/32200f4828de9d7e6db379909898e718747f4e18",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/32200f4828de9d7e6db379909898e718747f4e18",
+    "html_url": "https://github.com/torvalds/linux/commit/32200f4828de9d7e6db379909898e718747f4e18",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/32200f4828de9d7e6db379909898e718747f4e18/comments",
+    "author": {
+      "login": "jhovold",
+      "id": 601896,
+      "node_id": "MDQ6VXNlcjYwMTg5Ng==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/601896?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/jhovold",
+      "html_url": "https://github.com/jhovold",
+      "followers_url": "https://api.github.com/users/jhovold/followers",
+      "following_url": "https://api.github.com/users/jhovold/following{/other_user}",
+      "gists_url": "https://api.github.com/users/jhovold/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/jhovold/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/jhovold/subscriptions",
+      "organizations_url": "https://api.github.com/users/jhovold/orgs",
+      "repos_url": "https://api.github.com/users/jhovold/repos",
+      "events_url": "https://api.github.com/users/jhovold/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/jhovold/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "superna9999",
+      "id": 492099,
+      "node_id": "MDQ6VXNlcjQ5MjA5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/492099?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/superna9999",
+      "html_url": "https://github.com/superna9999",
+      "followers_url": "https://api.github.com/users/superna9999/followers",
+      "following_url": "https://api.github.com/users/superna9999/following{/other_user}",
+      "gists_url": "https://api.github.com/users/superna9999/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/superna9999/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/superna9999/subscriptions",
+      "organizations_url": "https://api.github.com/users/superna9999/orgs",
+      "repos_url": "https://api.github.com/users/superna9999/repos",
+      "events_url": "https://api.github.com/users/superna9999/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/superna9999/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "3a8660878839faadb4f1a6dd72c3179c1df56787",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/3a8660878839faadb4f1a6dd72c3179c1df56787",
+        "html_url": "https://github.com/torvalds/linux/commit/3a8660878839faadb4f1a6dd72c3179c1df56787"
+      }
+    ]
+  },
+  {
+    "sha": "584ed6d4afca4824f3bf18e588cc0cb555278bff",
+    "node_id": "C_kwDOACN7MtoAKDU4NGVkNmQ0YWZjYTQ4MjRmM2JmMThlNTg4Y2MwY2I1NTUyNzhiZmY",
+    "commit": {
+      "author": {
+        "name": "Rob Herring",
+        "email": "robh@kernel.org",
+        "date": "2023-07-14T17:51:23Z"
+      },
+      "committer": {
+        "name": "Neil Armstrong",
+        "email": "neil.armstrong@linaro.org",
+        "date": "2023-08-04T13:18:42Z"
+      },
+      "message": "soc: amlogic: Explicitly include correct DT includes\n\nThe DT of_device.h and of_platform.h date back to the separate\nof_platform_bus_type before it as merged into the regular platform bus.\nAs part of that merge prepping Arm DT support 13 years ago, they\n\"temporarily\" include each other. They also include platform_device.h\nand of.h. As a result, there's a pretty much random mix of those include\nfiles used throughout the tree. In order to detangle these headers and\nreplace the implicit includes with struct declarations, users need to\nexplicitly include the correct includes.\n\nSigned-off-by: Rob Herring <robh@kernel.org>\nReviewed-by: Neil Armstrong <neil.armstrong@linaro.org>\nLink: https://lore.kernel.org/r/20230714175124.4066972-1-robh@kernel.org\nSigned-off-by: Neil Armstrong <neil.armstrong@linaro.org>",
+      "tree": {
+        "sha": "a48a8991052facf204ed60e7ad27dc659db5ee08",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/a48a8991052facf204ed60e7ad27dc659db5ee08"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/584ed6d4afca4824f3bf18e588cc0cb555278bff",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/584ed6d4afca4824f3bf18e588cc0cb555278bff",
+    "html_url": "https://github.com/torvalds/linux/commit/584ed6d4afca4824f3bf18e588cc0cb555278bff",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/584ed6d4afca4824f3bf18e588cc0cb555278bff/comments",
+    "author": {
+      "login": "robherring",
+      "id": 13259058,
+      "node_id": "MDQ6VXNlcjEzMjU5MDU4",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13259058?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/robherring",
+      "html_url": "https://github.com/robherring",
+      "followers_url": "https://api.github.com/users/robherring/followers",
+      "following_url": "https://api.github.com/users/robherring/following{/other_user}",
+      "gists_url": "https://api.github.com/users/robherring/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/robherring/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/robherring/subscriptions",
+      "organizations_url": "https://api.github.com/users/robherring/orgs",
+      "repos_url": "https://api.github.com/users/robherring/repos",
+      "events_url": "https://api.github.com/users/robherring/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/robherring/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "superna9999",
+      "id": 492099,
+      "node_id": "MDQ6VXNlcjQ5MjA5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/492099?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/superna9999",
+      "html_url": "https://github.com/superna9999",
+      "followers_url": "https://api.github.com/users/superna9999/followers",
+      "following_url": "https://api.github.com/users/superna9999/following{/other_user}",
+      "gists_url": "https://api.github.com/users/superna9999/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/superna9999/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/superna9999/subscriptions",
+      "organizations_url": "https://api.github.com/users/superna9999/orgs",
+      "repos_url": "https://api.github.com/users/superna9999/repos",
+      "events_url": "https://api.github.com/users/superna9999/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/superna9999/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "cb6cc4507e80d17f98fa26c356032975b4649c55",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/cb6cc4507e80d17f98fa26c356032975b4649c55",
+        "html_url": "https://github.com/torvalds/linux/commit/cb6cc4507e80d17f98fa26c356032975b4649c55"
+      }
+    ]
+  },
+  {
+    "sha": "97a4a24087ce354ce0318449e6bd9e660f5c573b",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODo5N2E0YTI0MDg3Y2UzNTRjZTAzMTg0NDllNmJkOWU2NjBmNWM1NzNi",
+    "commit": {
+      "author": {
+        "name": "Cai Huoqing",
+        "email": "caihuoqing@baidu.com",
+        "date": "2021-09-08T07:15:42Z"
+      },
+      "committer": {
+        "name": "Neil Armstrong",
+        "email": "narmstrong@baylibre.com",
+        "date": "2021-09-13T07:43:00Z"
+      },
+      "message": "soc: amlogic: canvas: Make use of the helper function devm_platform_ioremap_resource()\n\nUse the devm_platform_ioremap_resource() helper instead of\ncalling platform_get_resource() and devm_ioremap_resource()\nseparately\n\nSigned-off-by: Cai Huoqing <caihuoqing@baidu.com>\nReviewed-by: Neil Armstrong <narmstrong@baylibre.com>\nSigned-off-by: Neil Armstrong <narmstrong@baylibre.com>\nLink: https://lore.kernel.org/r/20210908071544.603-1-caihuoqing@baidu.com",
+      "tree": {
+        "sha": "eee9f245a7f5fd665f329e8e8276b11daff7b54f",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/eee9f245a7f5fd665f329e8e8276b11daff7b54f"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/97a4a24087ce354ce0318449e6bd9e660f5c573b",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/97a4a24087ce354ce0318449e6bd9e660f5c573b",
+    "html_url": "https://github.com/torvalds/linux/commit/97a4a24087ce354ce0318449e6bd9e660f5c573b",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/97a4a24087ce354ce0318449e6bd9e660f5c573b/comments",
+    "author": {
+      "login": "caihuoqing1990",
+      "id": 124869035,
+      "node_id": "U_kgDOB3FZqw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/124869035?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/caihuoqing1990",
+      "html_url": "https://github.com/caihuoqing1990",
+      "followers_url": "https://api.github.com/users/caihuoqing1990/followers",
+      "following_url": "https://api.github.com/users/caihuoqing1990/following{/other_user}",
+      "gists_url": "https://api.github.com/users/caihuoqing1990/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/caihuoqing1990/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/caihuoqing1990/subscriptions",
+      "organizations_url": "https://api.github.com/users/caihuoqing1990/orgs",
+      "repos_url": "https://api.github.com/users/caihuoqing1990/repos",
+      "events_url": "https://api.github.com/users/caihuoqing1990/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/caihuoqing1990/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "superna9999",
+      "id": 492099,
+      "node_id": "MDQ6VXNlcjQ5MjA5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/492099?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/superna9999",
+      "html_url": "https://github.com/superna9999",
+      "followers_url": "https://api.github.com/users/superna9999/followers",
+      "following_url": "https://api.github.com/users/superna9999/following{/other_user}",
+      "gists_url": "https://api.github.com/users/superna9999/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/superna9999/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/superna9999/subscriptions",
+      "organizations_url": "https://api.github.com/users/superna9999/orgs",
+      "repos_url": "https://api.github.com/users/superna9999/repos",
+      "events_url": "https://api.github.com/users/superna9999/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/superna9999/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "ca8d1fda5b7d2f81ba9c5649462a7c0b64ae9dcd",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/ca8d1fda5b7d2f81ba9c5649462a7c0b64ae9dcd",
+        "html_url": "https://github.com/torvalds/linux/commit/ca8d1fda5b7d2f81ba9c5649462a7c0b64ae9dcd"
+      }
+    ]
+  },
+  {
+    "sha": "28f851e6afa858f182802e23ac60c3ed7d1c04a1",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODoyOGY4NTFlNmFmYTg1OGYxODI4MDJlMjNhYzYwYzNlZDdkMWMwNGEx",
+    "commit": {
+      "author": {
+        "name": "Yu Kuai",
+        "email": "yukuai3@huawei.com",
+        "date": "2020-11-17T01:13:22Z"
+      },
+      "committer": {
+        "name": "Kevin Hilman",
+        "email": "khilman@baylibre.com",
+        "date": "2020-12-01T00:22:48Z"
+      },
+      "message": "soc: amlogic: canvas: add missing put_device() call in meson_canvas_get()\n\nif of_find_device_by_node() succeed, meson_canvas_get() doesn't have\na corresponding put_device(). Thus add put_device() to fix the exception\nhandling for this function implementation.\n\nFixes: 382f8be04551 (\"soc: amlogic: canvas: Fix meson_canvas_get when probe failed\")\nSigned-off-by: Yu Kuai <yukuai3@huawei.com>\nReviewed-by: Neil Armstrong <narmstrong@baylibre.com>\nSigned-off-by: Kevin Hilman <khilman@baylibre.com>\nLink: https://lore.kernel.org/r/20201117011322.522477-1-yukuai3@huawei.com",
+      "tree": {
+        "sha": "6a1dad51678e4cc39c4827ac6ad03a910d0284cd",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/6a1dad51678e4cc39c4827ac6ad03a910d0284cd"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/28f851e6afa858f182802e23ac60c3ed7d1c04a1",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/28f851e6afa858f182802e23ac60c3ed7d1c04a1",
+    "html_url": "https://github.com/torvalds/linux/commit/28f851e6afa858f182802e23ac60c3ed7d1c04a1",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/28f851e6afa858f182802e23ac60c3ed7d1c04a1/comments",
+    "author": {
+      "login": "YuKuai-huawei",
+      "id": 186183967,
+      "node_id": "U_kgDOCxjxHw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/186183967?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/YuKuai-huawei",
+      "html_url": "https://github.com/YuKuai-huawei",
+      "followers_url": "https://api.github.com/users/YuKuai-huawei/followers",
+      "following_url": "https://api.github.com/users/YuKuai-huawei/following{/other_user}",
+      "gists_url": "https://api.github.com/users/YuKuai-huawei/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/YuKuai-huawei/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/YuKuai-huawei/subscriptions",
+      "organizations_url": "https://api.github.com/users/YuKuai-huawei/orgs",
+      "repos_url": "https://api.github.com/users/YuKuai-huawei/repos",
+      "events_url": "https://api.github.com/users/YuKuai-huawei/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/YuKuai-huawei/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "khilman",
+      "id": 1063422,
+      "node_id": "MDQ6VXNlcjEwNjM0MjI=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1063422?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/khilman",
+      "html_url": "https://github.com/khilman",
+      "followers_url": "https://api.github.com/users/khilman/followers",
+      "following_url": "https://api.github.com/users/khilman/following{/other_user}",
+      "gists_url": "https://api.github.com/users/khilman/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/khilman/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/khilman/subscriptions",
+      "organizations_url": "https://api.github.com/users/khilman/orgs",
+      "repos_url": "https://api.github.com/users/khilman/repos",
+      "events_url": "https://api.github.com/users/khilman/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/khilman/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "4a434abc40d2a0c15032f88e30aeb7ad271ba795",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/4a434abc40d2a0c15032f88e30aeb7ad271ba795",
+        "html_url": "https://github.com/torvalds/linux/commit/4a434abc40d2a0c15032f88e30aeb7ad271ba795"
+      }
+    ]
+  },
+  {
+    "sha": "9a98fdf5b6e635d9d9710f87e1da42aeab12ff0d",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODo5YTk4ZmRmNWI2ZTYzNWQ5ZDk3MTBmODdlMWRhNDJhZWFiMTJmZjBk",
+    "commit": {
+      "author": {
+        "name": "Martin Blumenstingl",
+        "email": "martin.blumenstingl@googlemail.com",
+        "date": "2019-05-20T19:43:50Z"
+      },
+      "committer": {
+        "name": "Kevin Hilman",
+        "email": "khilman@baylibre.com",
+        "date": "2019-05-23T01:19:14Z"
+      },
+      "message": "soc: amlogic: canvas: add support for Meson8, Meson8b and Meson8m2\n\nThe canvas IP on Meson8, Meson8b and Meson8m2 is mostly identical to the\none on GXBB and newer. The only known difference so far is that that the\n\"endianness\" bits are not supported on Meson8m2 and earlier.\n\nAdd new compatible strings and a check in meson_canvas_config() to\nvalidate that the endianness bits cannot be configured on the 32-bit\nSoCs.\n\nSigned-off-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>\nReviewed-by: Maxime Jourdan <mjourdan@baylibre.com>\nSigned-off-by: Kevin Hilman <khilman@baylibre.com>",
+      "tree": {
+        "sha": "efde2f37232b4160c3ccb8c105644628e7285f7f",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/efde2f37232b4160c3ccb8c105644628e7285f7f"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/9a98fdf5b6e635d9d9710f87e1da42aeab12ff0d",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/9a98fdf5b6e635d9d9710f87e1da42aeab12ff0d",
+    "html_url": "https://github.com/torvalds/linux/commit/9a98fdf5b6e635d9d9710f87e1da42aeab12ff0d",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/9a98fdf5b6e635d9d9710f87e1da42aeab12ff0d/comments",
+    "author": {
+      "login": "xdarklight",
+      "id": 5102713,
+      "node_id": "MDQ6VXNlcjUxMDI3MTM=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5102713?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/xdarklight",
+      "html_url": "https://github.com/xdarklight",
+      "followers_url": "https://api.github.com/users/xdarklight/followers",
+      "following_url": "https://api.github.com/users/xdarklight/following{/other_user}",
+      "gists_url": "https://api.github.com/users/xdarklight/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/xdarklight/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/xdarklight/subscriptions",
+      "organizations_url": "https://api.github.com/users/xdarklight/orgs",
+      "repos_url": "https://api.github.com/users/xdarklight/repos",
+      "events_url": "https://api.github.com/users/xdarklight/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/xdarklight/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "khilman",
+      "id": 1063422,
+      "node_id": "MDQ6VXNlcjEwNjM0MjI=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1063422?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/khilman",
+      "html_url": "https://github.com/khilman",
+      "followers_url": "https://api.github.com/users/khilman/followers",
+      "following_url": "https://api.github.com/users/khilman/following{/other_user}",
+      "gists_url": "https://api.github.com/users/khilman/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/khilman/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/khilman/subscriptions",
+      "organizations_url": "https://api.github.com/users/khilman/orgs",
+      "repos_url": "https://api.github.com/users/khilman/repos",
+      "events_url": "https://api.github.com/users/khilman/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/khilman/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "a0b2ff531582c510af11b6d548732eb2fd7772ff",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/a0b2ff531582c510af11b6d548732eb2fd7772ff",
+        "html_url": "https://github.com/torvalds/linux/commit/a0b2ff531582c510af11b6d548732eb2fd7772ff"
+      }
+    ]
+  },
+  {
+    "sha": "382f8be04551d60c3e0c4103ce2941c3f335279e",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODozODJmOGJlMDQ1NTFkNjBjM2UwYzQxMDNjZTI5NDFjM2YzMzUyNzll",
+    "commit": {
+      "author": {
+        "name": "Neil Armstrong",
+        "email": "narmstrong@baylibre.com",
+        "date": "2019-02-04T09:49:37Z"
+      },
+      "committer": {
+        "name": "Kevin Hilman",
+        "email": "khilman@baylibre.com",
+        "date": "2019-02-08T00:31:30Z"
+      },
+      "message": "soc: amlogic: canvas: Fix meson_canvas_get when probe failed\n\nWhen probe fails, a platforn_device is still associated to the node,\nbut dev_get_drvdata() returns NULL.\n\nHandle this case by returning a consistent error.\n\nFixes: d4983983d987 (\"soc: amlogic: add meson-canvas driver\")\nSigned-off-by: Neil Armstrong <narmstrong@baylibre.com>\nReviewed-by: Maxime Jourdan <mjourdan@baylibre.com>\n[khilman: fixed minor typo in comment ]\nSigned-off-by: Kevin Hilman <khilman@baylibre.com>",
+      "tree": {
+        "sha": "c17f3860fc982b3fae15a01579be02c7257971fc",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/c17f3860fc982b3fae15a01579be02c7257971fc"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/382f8be04551d60c3e0c4103ce2941c3f335279e",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/382f8be04551d60c3e0c4103ce2941c3f335279e",
+    "html_url": "https://github.com/torvalds/linux/commit/382f8be04551d60c3e0c4103ce2941c3f335279e",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/382f8be04551d60c3e0c4103ce2941c3f335279e/comments",
+    "author": {
+      "login": "superna9999",
+      "id": 492099,
+      "node_id": "MDQ6VXNlcjQ5MjA5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/492099?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/superna9999",
+      "html_url": "https://github.com/superna9999",
+      "followers_url": "https://api.github.com/users/superna9999/followers",
+      "following_url": "https://api.github.com/users/superna9999/following{/other_user}",
+      "gists_url": "https://api.github.com/users/superna9999/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/superna9999/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/superna9999/subscriptions",
+      "organizations_url": "https://api.github.com/users/superna9999/orgs",
+      "repos_url": "https://api.github.com/users/superna9999/repos",
+      "events_url": "https://api.github.com/users/superna9999/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/superna9999/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "khilman",
+      "id": 1063422,
+      "node_id": "MDQ6VXNlcjEwNjM0MjI=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1063422?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/khilman",
+      "html_url": "https://github.com/khilman",
+      "followers_url": "https://api.github.com/users/khilman/followers",
+      "following_url": "https://api.github.com/users/khilman/following{/other_user}",
+      "gists_url": "https://api.github.com/users/khilman/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/khilman/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/khilman/subscriptions",
+      "organizations_url": "https://api.github.com/users/khilman/orgs",
+      "repos_url": "https://api.github.com/users/khilman/repos",
+      "events_url": "https://api.github.com/users/khilman/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/khilman/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "99e5a8df8b3627239ecef09547931a81618d0851",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/99e5a8df8b3627239ecef09547931a81618d0851",
+        "html_url": "https://github.com/torvalds/linux/commit/99e5a8df8b3627239ecef09547931a81618d0851"
+      }
+    ]
+  },
+  {
+    "sha": "99e5a8df8b3627239ecef09547931a81618d0851",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODo5OWU1YThkZjhiMzYyNzIzOWVjZWYwOTU0NzkzMWE4MTYxOGQwODUx",
+    "commit": {
+      "author": {
+        "name": "wen yang",
+        "email": "yellowriver2010@hotmail.com",
+        "date": "2019-02-05T05:07:26Z"
+      },
+      "committer": {
+        "name": "Kevin Hilman",
+        "email": "khilman@baylibre.com",
+        "date": "2019-02-07T04:03:02Z"
+      },
+      "message": "soc: amlogic: add missing of_node_put()\n\nThe call to of_parse_phandle returns a node pointer with refcount\nincremented thus it must be explicitly decremented here after the last\nusage.\n\nSigned-off-by: Wen Yang <yellowriver2010@hotmail.com>\nReviewed-by: Neil Armstrong <narmstrong@baylibre.com>\nFixes: d4983983d987 (\"soc: amlogic: add meson-canvas driver\")\nSigned-off-by: Kevin Hilman <khilman@baylibre.com>",
+      "tree": {
+        "sha": "c983bb28224130d6fe49e59c84a6d8e291f872a2",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/c983bb28224130d6fe49e59c84a6d8e291f872a2"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/99e5a8df8b3627239ecef09547931a81618d0851",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/99e5a8df8b3627239ecef09547931a81618d0851",
+    "html_url": "https://github.com/torvalds/linux/commit/99e5a8df8b3627239ecef09547931a81618d0851",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/99e5a8df8b3627239ecef09547931a81618d0851/comments",
+    "author": {
+      "login": "taskset",
+      "id": 27471416,
+      "node_id": "MDQ6VXNlcjI3NDcxNDE2",
+      "avatar_url": "https://avatars.githubusercontent.com/u/27471416?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/taskset",
+      "html_url": "https://github.com/taskset",
+      "followers_url": "https://api.github.com/users/taskset/followers",
+      "following_url": "https://api.github.com/users/taskset/following{/other_user}",
+      "gists_url": "https://api.github.com/users/taskset/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/taskset/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/taskset/subscriptions",
+      "organizations_url": "https://api.github.com/users/taskset/orgs",
+      "repos_url": "https://api.github.com/users/taskset/repos",
+      "events_url": "https://api.github.com/users/taskset/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/taskset/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "khilman",
+      "id": 1063422,
+      "node_id": "MDQ6VXNlcjEwNjM0MjI=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1063422?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/khilman",
+      "html_url": "https://github.com/khilman",
+      "followers_url": "https://api.github.com/users/khilman/followers",
+      "following_url": "https://api.github.com/users/khilman/following{/other_user}",
+      "gists_url": "https://api.github.com/users/khilman/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/khilman/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/khilman/subscriptions",
+      "organizations_url": "https://api.github.com/users/khilman/orgs",
+      "repos_url": "https://api.github.com/users/khilman/repos",
+      "events_url": "https://api.github.com/users/khilman/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/khilman/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "bfeffd155283772bbe78c6a05dec7c0128ee500c",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/bfeffd155283772bbe78c6a05dec7c0128ee500c",
+        "html_url": "https://github.com/torvalds/linux/commit/bfeffd155283772bbe78c6a05dec7c0128ee500c"
+      }
+    ]
+  },
+  {
+    "sha": "d4983983d98710e4927fdb8de8e987c303b3fba3",
+    "node_id": "MDY6Q29tbWl0MjMyNTI5ODpkNDk4Mzk4M2Q5ODcxMGU0OTI3ZmRiOGRlOGU5ODdjMzAzYjNmYmEz",
+    "commit": {
+      "author": {
+        "name": "Maxime Jourdan",
+        "email": "mjourdan@baylibre.com",
+        "date": "2018-08-23T11:49:53Z"
+      },
+      "committer": {
+        "name": "Kevin Hilman",
+        "email": "khilman@baylibre.com",
+        "date": "2018-09-13T04:38:45Z"
+      },
+      "message": "soc: amlogic: add meson-canvas driver\n\nAmlogic SoCs have a repository of 256 canvas which they use to\ndescribe pixel buffers.\n\nThey contain metadata like width, height, block mode, endianness [..]\n\nMany IPs within those SoCs like vdec/vpu rely on those canvas to read/write\npixels.\n\nReviewed-by: Jerome Brunet <jbrunet@baylibre.com>\nTested-by: Neil Armstrong <narmstrong@baylibre.com>\nSigned-off-by: Maxime Jourdan <mjourdan@baylibre.com>\nSigned-off-by: Kevin Hilman <khilman@baylibre.com>",
+      "tree": {
+        "sha": "60753c338e54e10008487e0a9d896d7bfc3a122a",
+        "url": "https://api.github.com/repos/torvalds/linux/git/trees/60753c338e54e10008487e0a9d896d7bfc3a122a"
+      },
+      "url": "https://api.github.com/repos/torvalds/linux/git/commits/d4983983d98710e4927fdb8de8e987c303b3fba3",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/torvalds/linux/commits/d4983983d98710e4927fdb8de8e987c303b3fba3",
+    "html_url": "https://github.com/torvalds/linux/commit/d4983983d98710e4927fdb8de8e987c303b3fba3",
+    "comments_url": "https://api.github.com/repos/torvalds/linux/commits/d4983983d98710e4927fdb8de8e987c303b3fba3/comments",
+    "author": {
+      "login": "Elyotna",
+      "id": 147899,
+      "node_id": "MDQ6VXNlcjE0Nzg5OQ==",
+      "avatar_url": "https://avatars.githubusercontent.com/u/147899?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/Elyotna",
+      "html_url": "https://github.com/Elyotna",
+      "followers_url": "https://api.github.com/users/Elyotna/followers",
+      "following_url": "https://api.github.com/users/Elyotna/following{/other_user}",
+      "gists_url": "https://api.github.com/users/Elyotna/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/Elyotna/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Elyotna/subscriptions",
+      "organizations_url": "https://api.github.com/users/Elyotna/orgs",
+      "repos_url": "https://api.github.com/users/Elyotna/repos",
+      "events_url": "https://api.github.com/users/Elyotna/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/Elyotna/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "khilman",
+      "id": 1063422,
+      "node_id": "MDQ6VXNlcjEwNjM0MjI=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1063422?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/khilman",
+      "html_url": "https://github.com/khilman",
+      "followers_url": "https://api.github.com/users/khilman/followers",
+      "following_url": "https://api.github.com/users/khilman/following{/other_user}",
+      "gists_url": "https://api.github.com/users/khilman/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/khilman/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/khilman/subscriptions",
+      "organizations_url": "https://api.github.com/users/khilman/orgs",
+      "repos_url": "https://api.github.com/users/khilman/repos",
+      "events_url": "https://api.github.com/users/khilman/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/khilman/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "5516803d48ed946320aba48fdf45bad383252891",
+        "url": "https://api.github.com/repos/torvalds/linux/commits/5516803d48ed946320aba48fdf45bad383252891",
+        "html_url": "https://github.com/torvalds/linux/commit/5516803d48ed946320aba48fdf45bad383252891"
+      }
+    ]
+  }
+]

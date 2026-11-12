@@ -1,0 +1,92 @@
+[515971.693353] [<c034461c>] (worker_thread) from [<c034c0b0>] (kthread+0x158/0x174)
+[515971.693369] [<c034c0b0>] (kthread) from [<c0300130>] (ret_from_fork+0x14/0x24)
+[515971.693385] Exception stack(0xc5b91fb0 to 0xc5b91ff8)
+[515971.693395] 1fa0:                                     00000000 00000000 00000000 00000000
+[515971.693404] 1fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[515971.693412] 1fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+[515971.693421] ---[ end trace 6c9782d7a8483520 ]---
+[515971.693433] ------------[ cut here ]------------
+[515971.693438] WARNING: CPU: 2 PID: 15308 at lib/refcount.c:28 fwnode_get_next_parent+0x44/0x54
+[515971.693452] refcount_t: underflow; use-after-free.
+[515971.693456] Modules linked in: videobuf2_vmalloc videobuf2_dma_contig videobuf2_memops v4l2_mem2mem videobuf2_v4l2 videobuf2_common videodev mc xt_nat veth ip6t_REJECT nf_reject_ipv6 ipt_REJECT nf_reject_ipv4 xt_set ip_set tls bluetooth ecdh_generic ecc libaes xt_REDIRECT xt_owner xt_multiport xt_TPROXY nf_tproxy_ipv6 nf_tproxy_ipv4 xt_connmark ip6table_mangle iptable_mangle xt_tcpudp xt_mark xt_conntrack xt_MASQUERADE nf_conntrack_netlink xfrm_user xfrm_algo xt_addrtype br_netfilter bridge stp llc binfmt_misc tun nf_tables nfnetlink ip6table_nat ip6table_filter ip6_tables iptable_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 iptable_filter bpfilter tcp_diag udp_diag inet_diag rfkill meson_ir rc_core thermal_generic_adc snd_soc_meson_aiu snd_soc_hdmi_codec snd_soc_meson_codec_glue snd_soc_core snd_pcm meson_saradc snd_timer snd soundcore evdev sch_fq_codel ramoops reed_solomon efi_pstore pstore_blk pstore_zone pstore nfsd ip_tables x_tables uas [last unloaded: meson8b_runtime]
+[515971.694041] CPU: 2 PID: 15308 Comm: kworker/2:1 Tainted: G        W  OE     5.15.79-meson #trunk
+[515971.694067] Hardware name: Amlogic Meson platform
+[515971.694084] Workqueue: events_long device_link_release_fn
+[515971.694114] [<c0310bd8>] (unwind_backtrace) from [<c030b60c>] (show_stack+0x10/0x14)
+[515971.694165] [<c030b60c>] (show_stack) from [<c1194098>] (dump_stack_lvl+0x40/0x4c)
+[515971.694210] [<c1194098>] (dump_stack_lvl) from [<c032790c>] (__warn+0xec/0x104)
+[515971.694249] [<c032790c>] (__warn) from [<c1189110>] (warn_slowpath_fmt+0x98/0xbc)
+[515971.694285] [<c1189110>] (warn_slowpath_fmt) from [<c0d843e4>] (fwnode_get_next_parent+0x44/0x54)
+[515971.694306] [<c0d843e4>] (fwnode_get_next_parent) from [<c0d8446c>] (fwnode_get_nth_parent+0x18/0x38)
+[515971.694331] [<c0d8446c>] (fwnode_get_nth_parent) from [<c0c5bee8>] (fwnode_full_name_string+0x34/0xa0)
+[515971.694367] [<c0c5bee8>] (fwnode_full_name_string) from [<c0c5db54>] (device_node_string+0x29c/0x4f4)
+[515971.694387] [<c0c5db54>] (device_node_string) from [<c0c5f494>] (pointer+0x458/0x598)
+[515971.694405] [<c0c5f494>] (pointer) from [<c0c5f6f0>] (vsnprintf+0x11c/0x3b8)
+[515971.694422] [<c0c5f6f0>] (vsnprintf) from [<c038b858>] (vprintk_store+0x118/0x40c)
+[515971.694443] [<c038b858>] (vprintk_store) from [<c038bc14>] (vprintk_emit+0xc8/0x1cc)
+[515971.694471] [<c038bc14>] (vprintk_emit) from [<c038bd38>] (vprintk_default+0x20/0x28)
+[515971.694488] [<c038bd38>] (vprintk_default) from [<c11898c0>] (_printk+0x34/0x58)
+[515971.694510] [<c11898c0>] (_printk) from [<c0c50ce4>] (kobject_put+0x98/0x100)
+[515971.694526] [<c0c50ce4>] (kobject_put) from [<c0d7fe44>] (platform_device_release+0x10/0x3c)
+[515971.694541] [<c0d7fe44>] (platform_device_release) from [<c0d77698>] (device_release+0x30/0xa0)
+[515971.694583] [<c0d77698>] (device_release) from [<c0c50ce4>] (kobject_put+0x98/0x100)
+[515971.694610] [<c0c50ce4>] (kobject_put) from [<c0d77a3c>] (device_link_release_fn+0x38/0x58)
+[515971.694638] [<c0d77a3c>] (device_link_release_fn) from [<c03442a8>] (process_one_work+0x22c/0x55c)
+[515971.694657] [<c03442a8>] (process_one_work) from [<c034461c>] (worker_thread+0x44/0x5c8)
+[515971.694671] [<c034461c>] (worker_thread) from [<c034c0b0>] (kthread+0x158/0x174)
+[515971.694686] [<c034c0b0>] (kthread) from [<c0300130>] (ret_from_fork+0x14/0x24)
+[515971.694699] Exception stack(0xc5b91fb0 to 0xc5b91ff8)
+[515971.694708] 1fa0:                                     00000000 00000000 00000000 00000000
+[515971.694717] 1fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[515971.694725] 1fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+[515971.694733] ---[ end trace 6c9782d7a8483521 ]---
+[515971.694746] ------------[ cut here ]------------
+[515971.694751] WARNING: CPU: 2 PID: 15308 at lib/refcount.c:22 kobject_get+0x8c/0xa4
+[515971.694764] refcount_t: saturated; leaking memory.
+[515971.694767] Modules linked in: videobuf2_vmalloc videobuf2_dma_contig videobuf2_memops v4l2_mem2mem videobuf2_v4l2 videobuf2_common videodev mc xt_nat veth ip6t_REJECT nf_reject_ipv6 ipt_REJECT nf_reject_ipv4 xt_set ip_set tls bluetooth ecdh_generic ecc libaes xt_REDIRECT xt_owner xt_multiport xt_TPROXY nf_tproxy_ipv6 nf_tproxy_ipv4 xt_connmark ip6table_mangle iptable_mangle xt_tcpudp xt_mark xt_conntrack xt_MASQUERADE nf_conntrack_netlink xfrm_user xfrm_algo xt_addrtype br_netfilter bridge stp llc binfmt_misc tun nf_tables nfnetlink ip6table_nat ip6table_filter ip6_tables iptable_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 iptable_filter bpfilter tcp_diag udp_diag inet_diag rfkill meson_ir rc_core thermal_generic_adc snd_soc_meson_aiu snd_soc_hdmi_codec snd_soc_meson_codec_glue snd_soc_core snd_pcm meson_saradc snd_timer snd soundcore evdev sch_fq_codel ramoops reed_solomon efi_pstore pstore_blk pstore_zone pstore nfsd ip_tables x_tables uas [last unloaded: meson8b_runtime]
+[515971.695137] CPU: 2 PID: 15308 Comm: kworker/2:1 Tainted: G        W  OE     5.15.79-meson #trunk
+[515971.695167] Hardware name: Amlogic Meson platform
+[515971.695188] Workqueue: events_long device_link_release_fn
+[515971.695229] [<c0310bd8>] (unwind_backtrace) from [<c030b60c>] (show_stack+0x10/0x14)
+[515971.695267] [<c030b60c>] (show_stack) from [<c1194098>] (dump_stack_lvl+0x40/0x4c)
+[515971.695301] [<c1194098>] (dump_stack_lvl) from [<c032790c>] (__warn+0xec/0x104)
+[515971.695336] [<c032790c>] (__warn) from [<c1189110>] (warn_slowpath_fmt+0x98/0xbc)
+[515971.695379] [<c1189110>] (warn_slowpath_fmt) from [<c0c50b58>] (kobject_get+0x8c/0xa4)
+[515971.695421] [<c0c50b58>] (kobject_get) from [<c0efe910>] (of_node_get+0x14/0x1c)
+[515971.695461] [<c0efe910>] (of_node_get) from [<c0efd788>] (of_fwnode_get+0x34/0x40)
+[515971.695479] [<c0efd788>] (of_fwnode_get) from [<c0d84464>] (fwnode_get_nth_parent+0x10/0x38)
+[515971.695495] [<c0d84464>] (fwnode_get_nth_parent) from [<c0c5bee8>] (fwnode_full_name_string+0x34/0xa0)
+[515971.695514] [<c0c5bee8>] (fwnode_full_name_string) from [<c0c5db54>] (device_node_string+0x29c/0x4f4)
+[515971.695532] [<c0c5db54>] (device_node_string) from [<c0c5f494>] (pointer+0x458/0x598)
+[515971.695550] [<c0c5f494>] (pointer) from [<c0c5f6f0>] (vsnprintf+0x11c/0x3b8)
+[515971.695566] [<c0c5f6f0>] (vsnprintf) from [<c038b858>] (vprintk_store+0x118/0x40c)
+[515971.695589] [<c038b858>] (vprintk_store) from [<c038bc14>] (vprintk_emit+0xc8/0x1cc)
+[515971.695619] [<c038bc14>] (vprintk_emit) from [<c038bd38>] (vprintk_default+0x20/0x28)
+[515971.695653] [<c038bd38>] (vprintk_default) from [<c11898c0>] (_printk+0x34/0x58)
+[515971.695671] [<c11898c0>] (_printk) from [<c0c50ce4>] (kobject_put+0x98/0x100)
+[515971.695685] [<c0c50ce4>] (kobject_put) from [<c0d7fe44>] (platform_device_release+0x10/0x3c)
+[515971.695713] [<c0d7fe44>] (platform_device_release) from [<c0d77698>] (device_release+0x30/0xa0)
+[515971.695748] [<c0d77698>] (device_release) from [<c0c50ce4>] (kobject_put+0x98/0x100)
+[515971.695789] [<c0c50ce4>] (kobject_put) from [<c0d77a3c>] (device_link_release_fn+0x38/0x58)
+[515971.695827] [<c0d77a3c>] (device_link_release_fn) from [<c03442a8>] (process_one_work+0x22c/0x55c)
+[515971.695857] [<c03442a8>] (process_one_work) from [<c034461c>] (worker_thread+0x44/0x5c8)
+[515971.695872] [<c034461c>] (worker_thread) from [<c034c0b0>] (kthread+0x158/0x174)
+[515971.695887] [<c034c0b0>] (kthread) from [<c0300130>] (ret_from_fork+0x14/0x24)
+[515971.695901] Exception stack(0xc5b91fb0 to 0xc5b91ff8)
+[515971.695912] 1fa0:                                     00000000 00000000 00000000 00000000
+[515971.695921] 1fc0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[515971.695931] 1fe0: 00000000 00000000 00000000 00000000 00000013 00000000
+[515971.695953] ---[ end trace 6c9782d7a8483522 ]---
+[515971.692391] OF: ERROR: memory leak before free overlay changeset,  /soc/video-decoder@d0050000
+[516244.801035] meson8b-runtime: applied volatile codec overlay 1
+[516244.829950] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[516244.829980] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[516334.175751] usb 1-1: usbfs: usb_submit_urb returned -121
+[516334.684240] usb 1-1: usbfs: usb_submit_urb returned -121
+516483.90 1714483.31
+12800
+active
+active
+/openlist true 0
+/homeassistant true 0
+/arcane-agent true 0

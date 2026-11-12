@@ -1,0 +1,59 @@
+Linux wanos 5.15.79-meson #trunk SMP Fri Nov 18 04:13:49 UTC 2022 armv7l armv7l armv7l GNU/Linux
+
+--- runtime facilities ---
+CONFIG_KEXEC=y
+CONFIG_MODULES=y
+CONFIG_OF_OVERLAY=y
+CONFIG_MESON_WATCHDOG=y
+CONFIG_MEDIA_SUPPORT=m
+CONFIG_VIDEO_MESON_GE2D=m
+CONFIG_CONFIGFS_FS=y
+total 0
+drwxr-xr-x 2 root root 0 Jan  1  1970 cluster
+drwxr-xr-x 2 root root 0 Jan  1  1970 dlm
+drwxr-xr-x 3 root root 0 Jan  1  1970 iio
+0
+
+--- exported symbols ---
+c0cc3f7c T meson_canvas_get
+c0cc3fe0 T meson_canvas_config
+c0d80a24 T platform_device_register_full
+c0efbccc T of_find_device_by_node
+c0efc1b8 T of_platform_device_create
+c0eff008 T of_attach_node
+c0eff86c T of_changeset_apply
+c0f03ba8 T of_overlay_fdt_apply
+
+--- module metadata ---
+5.15.79-meson SMP mod_unload ARMv7 p2v8 
+
+--- watchdog state (no open) ---
+/sys/class/watchdog/watchdog0/identity
+meson_wdt
+/sys/class/watchdog/watchdog0/state
+inactive
+/sys/class/watchdog/watchdog0/status
+0x0
+/sys/class/watchdog/watchdog0/nowayout
+0
+/sys/class/watchdog/watchdog0/timeout
+8
+
+--- firmware and module counts ---
+/lib/modules/5.15.79-meson
+/lib/modules/5.15.79-meson/kernel/drivers/iio/adc/meson_saradc.ko
+/lib/modules/5.15.79-meson/kernel/drivers/reset/reset-meson-audio-arb.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/common/v4l2-tpg
+/lib/modules/5.15.79-meson/kernel/drivers/media/common/v4l2-tpg/v4l2-tpg.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/common/videobuf2/videobuf2-v4l2.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/rc/meson-ir.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/rc/meson-ir-tx.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/v4l2-core
+/lib/modules/5.15.79-meson/kernel/drivers/media/v4l2-core/v4l2-fwnode.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/v4l2-core/v4l2-dv-timings.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/v4l2-core/v4l2-async.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/v4l2-core/v4l2-mem2mem.ko
+/lib/modules/5.15.79-meson/kernel/drivers/media/platform/meson
+/lib/modules/5.15.79-meson/kernel/sound/soc/meson
+/lib/modules/5.15.79-meson/kernel/sound/soc/meson/snd-soc-meson-aiu.ko
+/lib/modules/5.15.79-meson/kernel/sound/soc/meson/snd-soc-meson-codec-glue.ko

@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-13T01:40+08:00",
+  "method": "unattended nohup A/B on quiet target, framemd5 output, 1080p 300 frames; CPU via /proc/stat deltas (HZ=100)",
+  "wall_time_seconds": {"sw_h264": 10.77, "hw_v4l2m2m": 28.17},
+  "recheck_1080p_cycle": {"sw_h264_fps": 29, "hw_v4l2m2m_fps": 11, "matching_frames": "300/300"},
+  "system_cpu_seconds_proc_stat": {
+    "sw_h264": {"user": 13.85, "system_irq_softirq": 1.84, "total": 15.69},
+    "hw_v4l2m2m": {"user": 2.11, "system_irq_softirq": 28.42, "total": 30.53}
+  },
+  "ffmpeg_process_cpu_seconds_os_times": {
+    "sw_h264": {"user": 13.14, "sys": 0.58},
+    "hw_v4l2m2m": {"user": 0.29, "sys": 0.31, "note": "kernel swap-copy runs in kworker, not charged to ffmpeg"}
+  },
+  "correctness": "MD5 of all 300 frames identical between sw and hw (cmp of framemd5 outputs)",
+  "conclusion": "hw decode correct but slower (2.6x wall) and higher total CPU (2x) than sw decode with current CPU-copy capture path; CPU benefit requires zero-copy/GE2D path"
+}

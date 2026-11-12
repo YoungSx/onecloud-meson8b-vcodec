@@ -1,0 +1,21 @@
+int meson_canvas_config(struct meson_canvas *canvas, u8 canvas_index,
+			u32 addr, u32 stride, u32 height,
+			unsigned int wrap,
+			unsigned int blkmode,
+			unsigned int endian)
+{
+	unsigned long flags;
+
+	if (endian && !canvas->supports_endianness) {
+		dev_err(canvas->dev,
+			"Endianness is not supported on this SoC\n");
+		return -EINVAL;
+	}
+static const struct of_device_id canvas_dt_match[] = {
+	{ .compatible = "amlogic,meson8-canvas", .data = (void *)false, },
+	{ .compatible = "amlogic,meson8b-canvas", .data = (void *)false, },
+	{ .compatible = "amlogic,meson8m2-canvas", .data = (void *)false, },
+	{ .compatible = "amlogic,canvas", .data = (void *)true, },
+	{}
+};
+MODULE_DEVICE_TABLE(of, canvas_dt_match);
