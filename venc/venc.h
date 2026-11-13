@@ -59,6 +59,13 @@ struct venc_ctx {
 	u32 width, height;
 	u32 quant;
 	u32 gop_size, gop_idx;
+
+	/* optional CBR (V4L2_CID_MPEG_VIDEO_BITRATE); 0 = fixed QP */
+	u32 bitrate;
+	u64 rc_bits;			/* bits encoded since rate-control start */
+	u32 rc_frames;			/* frames since rate-control start */
+	s32 rc_qp;			/* QP the controller walks */
+	struct v4l2_fract timeperframe;	/* feeds the CBR budget only */
 	u32 src_fmt;			/* V4L2_PIX_FMT_*, M-variant */
 
 	/* single big buffer laid out per vendor buffspec */

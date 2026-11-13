@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <media/v4l2-event.h>
@@ -23,6 +24,9 @@
 #define ENC_QUANT_DEFAULT	26
 #define ENC_GOP_DEFAULT		12
 #define ENC_TIMEOUT_MS		5000
+#define ENC_RC_MIN_QP		10
+#define ENC_RC_MAX_QP		48
+#define ENC_RC_MAX_STEP		4
 
 /*
  * Vendor HDEC_319M: fclk_div4 (2550 MHz / 4) / 2. Must be exact: the hcodec
@@ -319,6 +323,37 @@ static void venc_init_assit_buffer(struct venc_ctx *ctx)
 {
 	/* MEM_OFFSET_REG */
 	venc_write(ctx->core, HENC_SCRATCH_1, ctx->mem.assit);
+}
+
+/*
+ * Optional CBR controller. The vendor driver applies whatever per-frame
+ * quant userspace supplies; the hardware has no built-in rate control.
+ * When userspace sets V4L2_CID_MPEG_VIDEO_BITRATE we walk the QP around
+ * the target instead: after each picture, compare accumulated bits with
+ * the budget and step QP (bounded) toward convergence. Deliberately
+ * conservative and single-loop — no lookahead, no per-MB adaptation.
+ * ponytail: additive controller; replace with a PID if drift matters.
+ */
+static void venc_rc_picture_done(struct venc_ctx *ctx, u32 es_bytes, u32 fps)
+{
+	u64 per_frame, budget;
+
+	if (!ctx->bitrate || !fps)
+		return;
+
+	ctx->rc_bits += (u64)es_bytes * 8;
+	ctx->rc_frames++;
+
+	per_frame = div64_u64(ctx->bitrate, fps);
+	budget = per_frame * ctx->rc_frames;
+
+	if (ctx->rc_bits > budget)
+		ctx->rc_qp += ENC_RC_MAX_STEP;		/* over budget: coarser */
+	else if (budget - ctx->rc_bits > per_frame)
+		ctx->rc_qp -= 1;			/* under budget: finer */
+
+	ctx->rc_qp = clamp(ctx->rc_qp, ENC_RC_MIN_QP, ENC_RC_MAX_QP);
+	ctx->quant = ctx->rc_qp;
 }
 
 /*
@@ -1007,6 +1042,10 @@ static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
 	}
 
 	venc_frame_done(ctx, idr);
+	/* timeperframe is N/M seconds per frame, so fps = M/N */
+	venc_rc_picture_done(ctx, es_size,
+			     ctx->timeperframe.denominator /
+			     max(ctx->timeperframe.numerator, 1u));
 
 	if (++ctx->gop_idx >= ctx->gop_size)
 		ctx->gop_idx = 0;
@@ -1298,21 +1337,31 @@ static int venc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 
 static int venc_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
+	struct venc_ctx *ctx = venc_fh_to_ctx(file);
+
 	if (a->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
 	memset(&a->parm, 0, sizeof(a->parm));
 	a->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
-	a->parm.output.timeperframe.numerator = 1;
-	a->parm.output.timeperframe.denominator = 30;
+	a->parm.output.timeperframe = ctx->timeperframe;
 
 	return 0;
 }
 
 static int venc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
+	struct venc_ctx *ctx = venc_fh_to_ctx(file);
+	u32 num, den;
+
 	if (a->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
-	/* frame rate is not consumed by the hardware */
+	num = a->parm.output.timeperframe.numerator;
+	den = a->parm.output.timeperframe.denominator;
+	if (num && den) {
+		ctx->timeperframe.numerator = num;
+		ctx->timeperframe.denominator = den;
+		/* frame rate only feeds the CBR budget, not the hardware */
+	}
 	return 0;
 }
 
@@ -1366,6 +1415,19 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		ctx->gop_size = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_VIDEO_BITRATE:
+		ctx->bitrate = ctrl->val;
+		if (ctx->bitrate) {
+			/* reset the controller and resume walking from QP 26 */
+			ctx->rc_bits = 0;
+			ctx->rc_frames = 0;
+			ctx->rc_qp = ENC_QUANT_DEFAULT;
+			ctx->quant = ctx->rc_qp;
+		} else {
+			/* CBR off: back to the fixed quant the QP range asks for */
+			ctx->quant = ENC_QUANT_DEFAULT;
+		}
+		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
 		/* clamp the fixed quant into the requested QP range */
@@ -1376,7 +1438,7 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		ctx->quant = clamp(ENC_QUANT_DEFAULT, min_qp->val, max_qp->val);
 		break;
 	default:
-		/* B_FRAMES/BITRATE/HEADER_MODE/PROFILE: stored, no-op */
+		/* B_FRAMES/HEADER_MODE/PROFILE: stored, no-op */
 		break;
 	}
 	return 0;
@@ -1412,6 +1474,8 @@ static int venc_open(struct file *file)
 	ctx->src_fmt = V4L2_PIX_FMT_NV12M;
 	ctx->quant = ENC_QUANT_DEFAULT;
 	ctx->gop_size = ENC_GOP_DEFAULT;
+	ctx->timeperframe.numerator = 1;
+	ctx->timeperframe.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
 	ret = v4l2_ctrl_handler_init(hdl, 6);
@@ -1421,7 +1485,7 @@ static int venc_open(struct file *file)
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_B_FRAMES,
 			  0, 0, 1, 0);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
-			  1000, 100000000, 1, 4000000);
+			  0, 100000000, 1, 0);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_GOP_SIZE,
 			  0, 65535, 1, ENC_GOP_DEFAULT);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
