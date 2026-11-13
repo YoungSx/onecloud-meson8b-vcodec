@@ -49,5 +49,13 @@
     "array": "MicroCode",
     "sha256": "b982ba5642bcc5d80e7c378ec5c464e95f39283a71ee23ac173b66b281b27d8b",
     "output_sha256": "0663ff7ddff846598af8e0605c5b0105609e2ca5d11f55a3c1a2f8f683dbf3ab"
+  },
+  "mpeg4": {
+    "path": "drivers/amlogic/amports/m8/ucode/mpeg4/vmpeg4_mc.c",
+    "words": 3196,
+    "array": "vmpeg4_mc_5",
+    "sha256": "062ffabaafc800b912696a26ff01519bdbbae77d4c41675440a1729858aae9ad",
+    "output_sha256": "7a342188a26128b048371088b4d11375688df37eb2faae0aec3b90a9b7fd7710",
+    "sentinel": false
   }
 }

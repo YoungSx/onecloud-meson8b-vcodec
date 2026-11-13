@@ -11,7 +11,7 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-def _words(text, expected_words, array):
+def _words(text, expected_words, array, sentinel=True):
     """Extract the hex words of a pinned vendor u32 array."""
     match = re.search(
         r"const\s+u32\s+" + array + r"\s*\[\s*\]\s*__attribute__\s*"
@@ -21,14 +21,18 @@ def _words(text, expected_words, array):
     if not match:
         raise ValueError(f"Unexpected {array} declaration")
     tokens = match[1].strip().rstrip(",").split(",")
-    # Each pinned vendor array has one trailing zero outside memcpy's length.
-    if len(tokens) != expected_words + 1 or any(
+    # Most pinned vendor arrays carry one trailing zero outside memcpy's
+    # length; the mpeg4 arrays end on a real word instead.
+    expected = expected_words + 1 if sentinel else expected_words
+    if len(tokens) != expected or any(
         not re.fullmatch(r"\s*0x[0-9a-fA-F]{1,8}\s*", token) for token in tokens
     ):
         raise ValueError("Unexpected microcode length or non-hexadecimal word")
-    if int(tokens[-1], 16) != 0:
-        raise ValueError("Nonzero vendor sentinel")
-    return struct.pack("<" + "I" * expected_words, *(int(t, 16) for t in tokens[:-1]))
+    if sentinel:
+        if int(tokens[-1], 16) != 0:
+            raise ValueError("Nonzero vendor sentinel")
+        tokens = tokens[:-1]
+    return struct.pack("<" + "I" * expected_words, *(int(t, 16) for t in tokens))
 
 
 def _load_vendor(entry, commit):
@@ -46,7 +50,8 @@ def _load_vendor(entry, commit):
     if hashlib.sha256(data).hexdigest() != entry["sha256"]:
         raise ValueError(f"Source checksum mismatch: {path}")
     text = re.sub(r"/\*.*?\*/|//[^\n]*", "", data.decode(), flags=re.S)
-    return _words(text, entry["words"], entry.get("array", "MicroCode"))
+    return _words(text, entry["words"], entry.get("array", "MicroCode"),
+                  entry.get("sentinel", True))
 
 
 def main():
@@ -79,6 +84,14 @@ def main():
     if hashlib.sha256(blob).hexdigest() != avc_enc["output_sha256"]:
         raise ValueError("AVC encoder firmware output checksum or layout mismatch")
     outputs.append((blob, ROOT / "firmware/meson/venc/meson8b_avc_enc.bin"))
+
+    # MPEG-4 part 2: vmpeg4_mc_5[] (the vendor MPEG4_5 variant used for
+    # DivX/Xvid content), zero-padded to one 16K IMEM image.
+    mpeg4 = manifest["mpeg4"]
+    blob = _load_vendor(mpeg4, manifest["commit"]).ljust(16 * 1024, b"\0")
+    if hashlib.sha256(blob).hexdigest() != mpeg4["output_sha256"]:
+        raise ValueError("MPEG-4 firmware output checksum or layout mismatch")
+    outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_mpeg4.bin"))
 
     for blob, out in outputs:
         out.parent.mkdir(parents=True, exist_ok=True)
