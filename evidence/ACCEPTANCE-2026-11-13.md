@@ -18,7 +18,7 @@ SHA-256 3144c1a5...（完整清单见 samples/SHA256SUMS）。
 ## 性能与 CPU（验收 4）：**达标（缓存别名拷贝路径，2026-11-13 复测）**
 
 首版 shadow 拷贝在 coherent 内存上逐字节读，整机 CPU 反超软解（旧数据见 git
-历史）。改用 vmap 缓存别名 + `dma_sync_single_for_cpu` 后（commit 1817393），
+历史）。改用 vmap 缓存别名 + `dma_sync_single_for_cpu` 后（commit f7e3761），
 `syscpu-bench.py` 无值守复测（`/proc/stat` 系统级增量，CLK_TCK=100，含内核
 kworker，1080p 300 帧完整解码）：
 
@@ -73,7 +73,7 @@ dummy read 时序，然后才复位。见 `vdec/vdec_1.c` `vdec_1_stop()`。
 内存无泄漏（MemFree 改善 10.9MB，slab +28KB 属正常抖动）。
 CMA 压力测试：tmpfs 挤压 CmaFree 至 56KB 时解码仍通过 300/300。
 
-## P1-5 分辨率切换：通过（2026-11-13，commit 1a48649）
+## P1-5 分辨率切换：通过（2026-11-13，commit 1b3e94f）
 
 样片 `samples/res-switch.h264`（前 50 帧 320x240 → 300 帧 1920x1080，7.2MB）。
 
