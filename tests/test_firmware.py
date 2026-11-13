@@ -14,13 +14,13 @@ spec.loader.exec_module(fw)
 class FirmwareTests(unittest.TestCase):
     def test_words_are_little_endian_and_sentinel_is_not_copied(self):
         text = 'const u32 MicroCode[] __attribute__ ((aligned (8))) = {0x12345678,0x0};'
-        self.assertEqual(fw.parse_words(text, 1), b'\x78\x56\x34\x12')
+        self.assertEqual(fw._words(text, 1, 'MicroCode'), b'\x78\x56\x34\x12')
 
     def test_rejects_truncated_array_and_nonzero_sentinel(self):
         for words in ['0x1', '0x1,0x2', '0x1,arbitrary()', '0x100000000,0x0']:
             text = f'const u32 MicroCode[] __attribute__ ((aligned (8))) = {{{words}}};'
             with self.assertRaises(ValueError):
-                fw.parse_words(text, 1)
+                fw._words(text, 1, 'MicroCode')
 
     def test_matches_vendor_c_copy_sizes(self):
         # Independently compile the vendor arrays, then copy the sizes used by

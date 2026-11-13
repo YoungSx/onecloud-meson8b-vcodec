@@ -19,17 +19,12 @@ bool meson8b_runtime_ready(void)
 }
 EXPORT_SYMBOL_GPL(meson8b_runtime_ready);
 
-static int meson8b_remove_overlay(void)
+static void meson8b_destroy_codec(const char *compatible)
 {
 	struct platform_device *pdev;
 	struct device_node *np;
 
-	/*
-	 * 5.15.79 releases device links on system_long_wq. Destroy our device
-	 * and finish those releases before OF frees its overlay-owned nodes.
-	 * Newer kernels provide device_link_wait_removal() for this ordering.
-	 */
-	np = of_find_compatible_node(NULL, NULL, "amlogic,meson8b-vdec");
+	np = of_find_compatible_node(NULL, NULL, compatible);
 	if (np) {
 		pdev = of_find_device_by_node(np);
 		if (pdev) {
@@ -38,6 +33,17 @@ static int meson8b_remove_overlay(void)
 		}
 		of_node_put(np);
 	}
+}
+
+static int meson8b_remove_overlay(void)
+{
+	/*
+	 * 5.15.79 releases device links on system_long_wq. Destroy our devices
+	 * and finish those releases before OF frees its overlay-owned nodes.
+	 * Newer kernels provide device_link_wait_removal() for this ordering.
+	 */
+	meson8b_destroy_codec("amlogic,meson8b-vdec");
+	meson8b_destroy_codec("amlogic,meson8b-venc");
 	flush_workqueue(system_long_wq);
 	return of_overlay_remove(&overlay_id);
 }
@@ -53,6 +59,11 @@ static int __init meson8b_runtime_init(void)
 		return -ENODEV;
 
 	np = of_find_compatible_node(NULL, NULL, "amlogic,meson8b-vdec");
+	if (np) {
+		of_node_put(np);
+		return -EEXIST;
+	}
+	np = of_find_compatible_node(NULL, NULL, "amlogic,meson8b-venc");
 	if (np) {
 		of_node_put(np);
 		return -EEXIST;

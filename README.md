@@ -1,17 +1,19 @@
-# meson8b-vcodec — 玩客云 (S805/Meson8b) 硬件 H.264 解码，运行时加载、免重启
+# meson8b-vcodec — 玩客云 (S805/Meson8b) 硬件 H.264 编解码，运行时加载、免重启
 
 在不动目标机内核、设备树、`/boot` 的前提下，为 Linux `5.15.79-meson`（OneCloud/玩客云，
-WanOS/HiNAS 底座）提供可通过 ffmpeg `h264_v4l2m2m` 使用的 V4L2 M2M 硬件 H.264 解码。
+WanOS/HiNAS 底座）提供可通过 ffmpeg `h264_v4l2m2m` 使用的 V4L2 M2M 硬件 H.264 解码与编码。
 
 **实测状态（2026-11-13，目标机 100.87.212.107）**：1080p H.264 300 帧硬解输出与软解基线
-逐帧 MD5 300/300 一致。模块可正常卸载，卸载后系统恢复原状，在役服务（OpenList、
-Home Assistant、Arcane agent、sublinkPro、VoCat）全程正常。
+逐帧 MD5 300/300 一致；P0 零拷贝路径后整机 CPU 减半。**HCODEC 编码（P3）**：
+1080p30 H.264，ffmpeg `-c:v h264_v4l2m2m` 编码可用，输出软解可播，矩阵 PSNR
+42.6-45.7 dB（nv12/nv21/yuv420p，320x240-1920x1080）；1080p30 编码 CPU 5.85s vs
+软编 23.89s（-75%），28.4 fps 接近实时（libx264 ultrafast 19.5 fps）。
+模块可正常卸载，卸载后系统恢复原状，在役服务（OpenList、Home Assistant、
+Arcane agent、sublinkPro、VoCat）全程正常。
 
-**如实声明**：当前实现的输出路径含内核态 CPU 字节序拷贝，实测整机 CPU 与 wall time
-均**高于**软解（无值守测量：硬解 28s/30CPU-s vs 软解 10.8s/15.7CPU-s）。
-即：功能正确、可释放 ffmpeg 解码线程，但不省整机 CPU。省 CPU 需零拷贝路径，
-见 ROADMAP P0-2。另：同一模块加载下第二个解码会话会挂起（ROADMAP P0-1）。
-编码（amvenc_avc）未实现。
+**编码已知限制**：固定 QP=26（vendor fixed-quant 模型，码率控制 no-op）；
+同一时刻单编码会话；宽 16-1920。裸流 PSNR 比较前须 `setpts=N/(fps*TB)`
+重定时（elementary stream 无时间戳，否则 framesync 错配出假低值）。
 
 ## 为什么需要两个模块 + 一个固件文件
 
@@ -25,8 +27,12 @@ Home Assistant、Arcane agent、sublinkPro、VoCat）全程正常。
 2. **`meson-vdec.ko`** — staging meson-vdec 驱动的 Meson8b 移植：新增
    `amlogic,meson8b-vdec` 平台数据、厂商复位序列、独立 shadow 参考帧缓冲 +
    CPU 字节序转换的 capture 路径（原因见下）。
-3. **`firmware/meson/vdec/meson8b_h264.bin`** — 从 Hardkernel ODROID-C1 3.10
-   厂商内核固定提交提取的 M8 H.264 微码（36864 字节，来源与哈希见
+3. **`meson-venc.ko`** — HCODEC H.264 编码器的 Meson8b 移植（P3）：厂商
+   供电/时钟/微码加载序列 + V4L2 M2M 接口。设备树节点同样由 runtime
+   overlay 注入（AO 寄存器映射两窗口 + DOS/HCODEC）。
+4. **`firmware/meson/vdec/meson8b_h264.bin`**、
+   **`firmware/meson/venc/meson8b_avc_enc.bin`** — 从 Hardkernel ODROID-C1
+   3.10 厂商内核固定提交提取的微码（来源与哈希见
    `firmware/sources.json`）。
 
 Overlay 里的 phandle 是针对目标机**运行中的设备树**生成的（`scripts/make-overlay.py`
@@ -53,8 +59,9 @@ endian-swap 位（提交 `9a98fdf5b6e6`），而 staging 驱动的 YUV420M 输�
 ```
 runtime/    meson8b-runtime.ko 源码（overlay 注入/移除）
 vdec/       meson-vdec.ko 源码（Meson8b 平台接入 + capture 转换）
-firmware/   meson8b_h264.bin 提取脚本与来源记录（bin 本体在 dist/）
-scripts/    make-overlay.py（从活设备树生成 dtbo）、extract-firmware.py
+venc/       meson-venc.ko 源码（HCODEC H.264 编码器移植）
+firmware/   微码提取脚本与来源记录（bin 本体在 dist/）
+scripts/    make-overlay.py、extract-firmware.py、wdt-guard.py、venc-bench.py
 tests/      字节序转换单测（host 可跑）、overlay 生成单测、probe 工具
 build/      构建产物（.ko、.dtbo、combined.dtb，gitignore）
 private/    目标机实测脚本与日志（smoke/1080p 验证循环、CPU 基准）
@@ -109,7 +116,29 @@ dtc -@ -I dts -O dtb -o /lib/firmware/meson/vdec/meson8b-runtime.dtbo my.dts
 结果证据在 `evidence/`。
 
 已知限制（详见外层 `BLOCKERS.md`）：仅 H.264 解码；分辨率切换/EOS/错误恢复路径
-未做长时压测；输出含 CPU 拷贝；编码未实现。
+未做长时压测；输出含 CPU 拷贝（P0 后已解决）；编码见上节限制。
+
+## 编码使用（目标机）
+
+```sh
+modprobe v4l2_mem2mem && modprobe videobuf2_vmalloc
+insmod meson8b-runtime.ko        # overlay 含 vdec + venc 节点
+insmod meson-venc.ko             # 生成 /dev/video1（HCODEC encoder）
+mkdir -p /lib/firmware/meson/venc
+cp meson8b_avc_enc.bin /lib/firmware/meson/venc/   # 首次 STREAMON 时加载
+
+# ffmpeg 7：nv12/nv21/yuv420p（MPLANE 自动别名），宽 16-1920
+ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=30 \
+    -pix_fmt nv12 -c:v h264_v4l2m2m -f h264 out.h264
+
+rmmod meson-venc
+rmmod meson8b-runtime            # 恢复原状
+```
+
+EOS drain 按 v4l2-mem2mem 契约（`V4L2_EVENT_EOS` + `V4L2_BUF_FLAG_LAST`）；
+同一时刻仅支持一个编码会话。质量/性能测量用 `scripts/venc-bench.py`
+（无值守 nohup，须配合 `scripts/wdt-guard.py` 看门狗护栏运行，方法见
+`evidence/ENCODE-ACCEPTANCE-2026-11-13.md`）。
 
 ## License
 

@@ -1,0 +1,10 @@
+=== 2026-11-13 20:01:30 encode bench 1080p30 x150
+  hw run0: {'rc': 0, 'wall_s': 5.32, 'user_s': 5.19, 'sys_s': 0.67, 'bytes': 8030122}
+  hw run1: {'rc': 0, 'wall_s': 5.28, 'user_s': 5.13, 'sys_s': 0.72, 'bytes': 8030094}
+  hw run2: {'rc': 0, 'wall_s': 4.57, 'user_s': 5.1, 'sys_s': 0.58, 'bytes': 8030081}
+  sw run0: {'rc': 0, 'wall_s': 8.44, 'user_s': 22.97, 'sys_s': 0.87, 'bytes': 9701086}
+  sw run1: {'rc': 0, 'wall_s': 8.47, 'user_s': 23.32, 'sys_s': 0.95, 'bytes': 9701086}
+  sw run2: {'rc': 0, 'wall_s': 7.9, 'user_s': 23.04, 'sys_s': 0.85, 'bytes': 9701086}
+  hw psnr: [Parsed_psnr_3 @ 0xb0401ca0] PSNR y:46.394019 u:44.197030 v:44.617882 average:45.624155 min:44.448112 max:48.161573
+  sw psnr: [Parsed_psnr_3 @ 0xb0401ca0] PSNR y:52.764162 u:50.814330 v:51.084856 average:52.070708 min:51.070711 max:54.573251
+=== done hw=5.85s sw=23.89s cpu-75% hw_fps=28.4

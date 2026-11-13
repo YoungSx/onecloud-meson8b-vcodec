@@ -1,0 +1,135 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
+/*
+ * HCODEC encoder registers, Amlogic Meson8b.
+ *
+ * Vendor word addresses (reg.txt) x4 = DOS byte offset; the HCODEC
+ * block (0x1xxx words) lives at (word & 0xfff) * 4 + 0x4000.
+ * WRITE_HREG(r) in the vendor driver == DOS_REG_ADDR(r | 0x1000).
+ */
+#ifndef __HCODEC_REGS_H_
+#define __HCODEC_REGS_H_
+
+/* HCODEC block */
+#define HREG(w)		((((w) & 0xfff) * 4) + 0x4000)
+
+#define HCODEC_ASSIST_MMC_CTRL1	HREG(0x1002)
+#define HCODEC_ASSIST_AMR1_INT0	HREG(0x1025)
+#define HCODEC_ASSIST_AMR1_INT1	HREG(0x1026)
+#define HCODEC_ASSIST_AMR1_INT2	HREG(0x1027)
+#define HCODEC_ASSIST_AMR1_INT3	HREG(0x1028)
+#define HCODEC_ASSIST_AMR1_INT4	HREG(0x1029)
+#define HCODEC_ASSIST_DMA_INT_MSK	HREG(0x1065)
+#define HCODEC_ASSIST_DMA_INT_MSK2	HREG(0x1067)
+#define HCODEC_ASSIST_MBOX2_CLR_REG	HREG(0x1079)
+#define HCODEC_ASSIST_MBOX2_MASK	HREG(0x107a)
+
+#define HCODEC_MFDIN_REG1_CTRL	HREG(0x1011)
+#define HCODEC_MFDIN_REG3_CANV	HREG(0x1013)
+#define HCODEC_MFDIN_REG4_LNR0	HREG(0x1014)
+#define HCODEC_MFDIN_REG5_LNR1	HREG(0x1015)
+#define HCODEC_MFDIN_REG8_DMBL	HREG(0x1018)
+#define HCODEC_MFDIN_REG9_ENDN	HREG(0x1019)
+
+#define HCODEC_MPSR		HREG(0x1301)
+#define HCODEC_CPSR		HREG(0x1321)
+#define HCODEC_CCPU_INTR_MSK	HREG(0x1324)
+#define HCODEC_IMEM_DMA_ADR	HREG(0x1341)
+#define HCODEC_IMEM_DMA_COUNT	HREG(0x1342)
+#define HCODEC_IMEM_DMA_CTRL	HREG(0x1340)
+
+#define HCODEC_ANC0_CANVAS_ADDR	HREG(0x1990)
+#define HCODEC_DBKR_CANVAS_ADDR	HREG(0x19b0)
+#define HCODEC_DBKW_CANVAS_ADDR	HREG(0x19b1)
+#define HCODEC_REC_CANVAS_ADDR	HREG(0x19b2)
+#define HCODEC_CURR_CANVAS_CTRL	HREG(0x19b3)
+
+#define HENC_SCRATCH_0		HREG(0x1ac0)
+#define HENC_SCRATCH_1		HREG(0x1ac1)	/* MEM_OFFSET_REG */
+#define HENC_SCRATCH_5		HREG(0x1ac5)	/* IDR_PIC_ID */
+#define HENC_SCRATCH_6		HREG(0x1ac6)	/* FRAME_NUMBER */
+#define HENC_SCRATCH_7		HREG(0x1ac7)	/* PIC_ORDER_CNT_LSB */
+#define HENC_SCRATCH_8		HREG(0x1ac8)	/* LOG2_MAX_PIC_ORDER_CNT_LSB */
+#define HENC_SCRATCH_9		HREG(0x1ac9)	/* LOG2_MAX_FRAME_NUM */
+#define HENC_SCRATCH_A		HREG(0x1aca)	/* ANC0_BUFFER_ID */
+#define HENC_SCRATCH_B		HREG(0x1acb)	/* QPPICTURE */
+#define HENC_SCRATCH_D		HREG(0x1acd)	/* IE_ME_MB_TYPE */
+#define HENC_SCRATCH_E		HREG(0x1ace)	/* IE_ME_MODE */
+#define HENC_SCRATCH_F		HREG(0x1acf)	/* IE_REF_SEL */
+#define HENC_SCRATCH_G		HREG(0x1ad0)	/* P_INTRA_CONFIG */
+#define HENC_SCRATCH_I		HREG(0x1ad2)	/* P_MB_QUANT_CONFIG */
+#define HENC_SCRATCH_J		HREG(0x1ad3)	/* P_MB_QUANT_INC_CFG */
+#define HENC_SCRATCH_K		HREG(0x1ad4)	/* P_MB_QUANT_DEC_CFG */
+#define HENC_SCRATCH_L		HREG(0x1ad5)	/* FIXED_SLICE_CFG */
+#define HENC_SCRATCH_M		HREG(0x1ad6)	/* BITS_INFO_DDR_START */
+#define HENC_SCRATCH_N		HREG(0x1ad7)	/* MV_INFO_DDR_START */
+
+#define IE_DATA_FEED_BUFF_INFO	HREG(0x1ad8)
+
+#define IGNORE_CONFIG		HREG(0x1f02)
+#define IGNORE_CONFIG_2		HREG(0x1f03)
+#define QDCT_MB_START_PTR	HREG(0x1f10)
+#define QDCT_MB_END_PTR		HREG(0x1f11)
+#define QDCT_MB_WR_PTR		HREG(0x1f12)
+#define QDCT_MB_RD_PTR		HREG(0x1f13)
+#define QDCT_MB_CONTROL		HREG(0x1f15)
+#define QDCT_MB_BUFF		HREG(0x1f17)
+#define QDCT_Q_QUANT_I		HREG(0x1f1c)
+#define QDCT_Q_QUANT_P		HREG(0x1f1d)
+#define IE_CONTROL		HREG(0x1f40)
+#define SAD_CONTROL		HREG(0x1f43)
+#define IE_RESULT_BUFFER	HREG(0x1f44)
+#define ME_SKIP_LINE		HREG(0x1f4d)
+#define ME_SAD_ENOUGH_01	HREG(0x1f50)
+#define ME_SAD_ENOUGH_23	HREG(0x1f51)
+#define ME_STEP0_CLOSE_MV	HREG(0x1f52)
+#define ME_F_SKIP_SAD		HREG(0x1f53)
+#define ME_F_SKIP_WEIGHT	HREG(0x1f54)
+#define ME_MV_MERGE_CTL		HREG(0x1f55)
+#define ME_MV_WEIGHT_01		HREG(0x1f56)
+#define ME_MV_WEIGHT_23		HREG(0x1f57)
+#define ME_SAD_RANGE_INC	HREG(0x1f58)
+
+#define VLC_CONFIG		HREG(0x1d01)
+#define VLC_VB_START_PTR	HREG(0x1d10)
+#define VLC_VB_END_PTR		HREG(0x1d11)
+#define VLC_VB_WR_PTR		HREG(0x1d12)
+#define VLC_VB_SW_RD_PTR	HREG(0x1d14)
+#define VLC_VB_CONTROL		HREG(0x1d16)
+#define VLC_VB_MEM_CTL		HREG(0x1d17)
+#define VLC_TOTAL_BYTES		HREG(0x1d1a)
+#define VLC_INT_CONTROL		HREG(0x1d30)
+#define VLC_PIC_SIZE		HREG(0x1d31)
+#define VLC_PIC_POSITION	HREG(0x1d33)
+#define VLC_HCMD_CONFIG		HREG(0x1d54)
+
+/* ENCODER_STATUS protocol (HENC_SCRATCH_0) */
+#define ENCODER_IDLE		0
+#define ENCODER_SEQUENCE	1
+#define ENCODER_PICTURE		2
+#define ENCODER_IDR		3
+#define ENCODER_NON_IDR		4
+#define ENCODER_SEQUENCE_DONE	7
+#define ENCODER_PICTURE_DONE	8
+#define ENCODER_IDR_DONE	9
+#define ENCODER_NON_IDR_DONE	10
+#define ENCODER_ERROR		0xff
+
+/* ie_me_mb_type encoding (vendor HENC_MB_Type_*) */
+#define HENC_MB_Type_I4MB	0x9
+#define HENC_MB_Type_AUTO	0xf
+#define HENC_SKIP_RUN_AUTO	0xffff
+
+/* DOS block (word x4) */
+#define DOS_SW_RESET1		(0x3f07 * 4)
+#define DOS_GCLK_EN0		(0x3f01 * 4)
+#define DOS_GEN_CTRL0		(0x3f02 * 4)
+#define DOS_MEM_PD_HCODEC	(0x3f32 * 4)
+
+/* AO registers (aobus byte offsets). Only two small windows are mapped
+ * (ao-pwr at 0xc8100010, ao-sleep at 0xc81000e8) to avoid overlapping other
+ * aobus users; the venc_*_ao accessors translate into those windows. */
+#define AO_RTI_PWR_CNTL_REG0	0x10
+#define AO_RTI_GEN_PWR_SLEEP0	0xe8
+#define AO_RTI_GEN_PWR_ISO0	0xec
+
+#endif

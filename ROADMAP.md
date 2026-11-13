@@ -1,8 +1,9 @@
 # 下一步任务计划
 
-当前状态（2026-11-13 晚）：H.264 1080p 硬解**验收 1-4 全部通过**（正确性 300/300
-MD5、CPU 总量 16.1→7.9 CPU-s 即 1/2、user 态 15 倍降低；P1 加固三项全部完成：
-压测 10+50 轮、分辨率切换 350/350、损坏输入不崩溃）。免重启可回滚。
+当前状态（2026-11-13 晚）：硬解验收 1-4 全部通过；**P3 编码（HCODEC
+H.264 encoder）三项全部完成**：1080p V4L2 M2M 编码可用（ffmpeg
+`h264_v4l2m2m`），矩阵 PSNR 42.6-45.7 dB，1080p30 编码 CPU -75%、
+28.4fps 近实时。免重启可回滚。
 剩余工作按优先级：
 
 ## 已完成（历史存档）
@@ -36,11 +37,19 @@ MD5、CPU 总量 16.1→7.9 CPU-s 即 1/2、user 态 15 倍降低；P1 加固三
 
 体量约为解码移植的 2-3 倍，独立推进：
 
-10. 寄存器级调研：HCODEC 供电/时钟、输入 canvas、码率控制命令队列、
-    输出码流 FIFO、中断语义（底料已在 `evidence/vendor-avc-protocol.txt`）。
-11. 最小可用 encoder：1080p H.264 CBR，V4L2 M2M 接口，ffmpeg
-    `h264_v4l2m2m` encoder 可调；验收 = 编码结果软解可播。
-12. 编码质量/性能测量。
+10. ~~寄存器级调研~~：完成（`evidence/vendor-avc-protocol.txt`）。
+11. ~~最小可用 encoder~~：完成 —— 1080p H.264，V4L2 M2M，ffmpeg
+    `h264_v4l2m2m` 可调，输出软解可播，矩阵 PSNR 42.6-45.7 dB
+    （nv12/nv21/yuv420p，320x240-1920x1080），EOS drain 按
+    v4l2-mem2mem 契约。数据见 `evidence/ENCODE-ACCEPTANCE-2026-11-13.md`。
+    关键坑：HCODEC 时钟必须 fclk_div4/2 精确 318.75MHz（MPLL2 是
+    以太网参考钟，CCF 重parent 会静默断网）；AO 寄存器两个窗口
+    需偏移换算；canvas 地址是绝对总线地址（含 buffer 基址）。
+12. ~~编码质量/性能测量~~：完成 —— 1080p30×150 帧：CPU 5.85s vs
+    软编 23.89s（**-75%**），28.4fps 接近实时（软编 19.5fps），
+    PSNR 45.6dB（QP 固定 26，vendor 模型）。注意：裸流 PSNR 比较前
+    必须 `setpts=N/(fps*TB)` 重定时，否则 framesync 错配读到假 23dB。
+    `scripts/venc-bench.py`。
 
 ## P4 — 上游化（可选，长期）
 

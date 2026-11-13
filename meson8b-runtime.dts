@@ -18,6 +18,17 @@
                 amlogic,canvas = <49>;
                 status = "okay";
             };
+            video-encoder@d0050000 {
+                compatible = "amlogic,meson8b-venc";
+                reg = <0xd0050000 0x10000>, <0xc8100010 0x4>, <0xc81000e8 0x8>;
+                reg-names = "dos", "ao-pwr", "ao-sleep";
+                interrupts = <0 45 1>;
+                interrupt-names = "venc";
+                clocks = <3 17>, <3 199>;
+                clock-names = "dos", "vdec_hcodec";
+                amlogic,canvas = <49>;
+                status = "okay";
+            };
         };
     };
 };

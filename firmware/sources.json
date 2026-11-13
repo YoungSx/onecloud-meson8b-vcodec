@@ -42,5 +42,12 @@
     "array": "vmpeg12_mc",
     "sha256": "dbc22bd3e8da19c6a71c7f7b20a01f213c37d4a8eb734009c9c4a9b2b203866e",
     "output_sha256": "fc0bb328bf49e882809e4f46c5539a4c39b3e18865b4b883961c73db20e91b37"
+  },
+  "avc_enc": {
+    "path": "drivers/amlogic/amports/m8/ucode/encoder/h264_enc_mix_dump_dblk.h",
+    "words": 2383,
+    "array": "MicroCode",
+    "sha256": "b982ba5642bcc5d80e7c378ec5c464e95f39283a71ee23ac173b66b281b27d8b",
+    "output_sha256": "0663ff7ddff846598af8e0605c5b0105609e2ca5d11f55a3c1a2f8f683dbf3ab"
   }
 }

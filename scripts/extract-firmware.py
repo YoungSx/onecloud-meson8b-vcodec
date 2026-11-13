@@ -71,6 +71,15 @@ def main():
         raise ValueError("MPEG-1/2 firmware output checksum or layout mismatch")
     outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_mpeg12.bin"))
 
+    # AVC encoder: MicroCode[] of h264_enc_mix_dump_dblk.h (the vendor M8B
+    # FULL-mode default, mix_dump_mc_dblk with enable_dblk=1), zero-padded to
+    # one 16K IMEM image (vendor amvenc_loadmc memcpy's MC_SIZE bytes).
+    avc_enc = manifest["avc_enc"]
+    blob = _load_vendor(avc_enc, manifest["commit"]).ljust(16 * 1024, b"\0")
+    if hashlib.sha256(blob).hexdigest() != avc_enc["output_sha256"]:
+        raise ValueError("AVC encoder firmware output checksum or layout mismatch")
+    outputs.append((blob, ROOT / "firmware/meson/venc/meson8b_avc_enc.bin"))
+
     for blob, out in outputs:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(blob)

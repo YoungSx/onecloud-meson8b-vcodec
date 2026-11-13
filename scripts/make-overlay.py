@@ -31,6 +31,8 @@ def render(tree):
             raise ValueError('Unexpected SoC address layout')
     if any(b'amlogic,meson8b-vdec' in strings(p) for p in tree.rglob('compatible')):
         raise ValueError('A decoder node already exists')
+    if any(b'amlogic,meson8b-venc' in strings(p) for p in tree.rglob('compatible')):
+        raise ValueError('An encoder node already exists')
     clkc = provider(tree, 'amlogic,meson8b-clkc')
     canvas = provider(tree, 'amlogic,meson8b-canvas')
     pmu = provider(tree, 'amlogic,meson8b-pmu')
@@ -52,6 +54,17 @@ def render(tree):
                 resets = <{reset} 40>;
                 reset-names = "esparser";
                 amlogic,ao-sysctrl = <{pmu}>;
+                amlogic,canvas = <{canvas}>;
+                status = "okay";
+            }};
+            video-encoder@d0050000 {{
+                compatible = "amlogic,meson8b-venc";
+                reg = <0xd0050000 0x10000>, <0xc8100010 0x4>, <0xc81000e8 0x8>;
+                reg-names = "dos", "ao-pwr", "ao-sleep";
+                interrupts = <0 45 1>;
+                interrupt-names = "venc";
+                clocks = <{clkc} 17>, <{clkc} 199>;
+                clock-names = "dos", "vdec_hcodec";
                 amlogic,canvas = <{canvas}>;
                 status = "okay";
             }};
