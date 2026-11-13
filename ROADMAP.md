@@ -1,9 +1,10 @@
 # 下一步任务计划
 
-当前状态（2026-11-13 晚）：硬解验收 1-4 全部通过；**P3 编码（HCODEC
+当前状态（2026-11-13 深夜）：硬解验收 1-4 全部通过；**P3 编码（HCODEC
 H.264 encoder）三项全部完成**：1080p V4L2 M2M 编码可用（ffmpeg
 `h264_v4l2m2m`），矩阵 PSNR 42.6-45.7 dB，1080p30 编码 CPU -75%、
-28.4fps 近实时。免重启可回滚。
+28.4fps 近实时；**P4-14 CBR 码率控制完成**（误差 ≤1.4%）。
+免重启可回滚。
 剩余工作按优先级：
 
 ## 已完成（历史存档）
@@ -51,9 +52,35 @@ H.264 encoder）三项全部完成**：1080p V4L2 M2M 编码可用（ffmpeg
     必须 `setpts=N/(fps*TB)` 重定时，否则 framesync 错配读到假 23dB。
     `scripts/venc-bench.py`。
 
-## P4 — 上游化（可选，长期）
+## P4 — 能力补全（2026-11-13 晚新增，按推荐优先级）
 
-13. Meson8b 平台数据 + capture 路径整理成 linux-media RFC 补丁。
+14. ~~CBR 码率控制~~：完成（ba4f124）—— 厂商 amvenc 无硬件码率
+    控制，但 quant 逐帧可变（ISR 置 need_reset → 每帧 prot_init）。
+    加法式控制器：`V4L2_CID_MPEG_VIDEO_BITRATE` 非零开启（默认 0 =
+    固定 QP 26），5M/8M 目标实测误差 -1.4%/-0.3%，固定 QP 会话
+    零回归。两个 ffmpeg 交互坑：BITRATE 默认必须为 0（ffmpeg 总是
+    发送 bit_rate，默认非 0 会让"固定 QP"静默变 CBR）；控件默认值
+    不能与常用目标重合（v4l2 core 对值未变的 set 跳过 s_ctrl）。
+    timeperframe（G/S_PARM）只喂预算。数据见
+    `evidence/RC-MPEG4-ACCEPTANCE-2026-11-13.md`。
+15. ~~B 帧编码~~：**N/A** —— 厂商 M8B encoder 命令集只有
+    SEQUENCE/PICTURE/IDR/NON_IDR/MB_HEADER/MB_DATA（encoder.h），
+    无 B-picture 命令，硬件不支持。（早期 ROADMAP 曾写"微码支持
+    bframes"，系误判，更正。）
+16. MPEG-4 Part 2 解码：vmpeg4_mc_5 微码（无尾部零哨兵，末词
+    0x00400000 是真代码，words=3196）+ codec_mpeg4.c。协议要点见
+    evidence：4 解码槽 `((reg&7)-1)&3`、回收 `~(1<<idx)` 反相位
+    掩码（与 mpeg12 的 idx+1 不同）、AV_SCRATCH_F 是 MEM_OFFSET_REG
+    （workspace - 0x01400000 换算）非 fatal-error、AV_SCRATCH_C
+    是固件写入的流偏移（只读）。320x240 I-only 与单 GOP 流 150/148
+    帧解码通过；720p 帧到用户态路径待修（目标机 SSH 中断暂停）。
+17. VC-1 / AVS 解码：厂商 ucode 存在（vc1/、avs/ 目录），mpeg4
+    落地后按同模式评估。H.263 N/A（h263_mc 在厂商树中未定义）、
+    HEVC 解码 N/A（M8B 无 HEVC 核）、encoder 多会话 N/A。
+
+## P5 — 上游化（可选，长期）
+
+18. Meson8b 平台数据 + capture 路径整理成 linux-media RFC 补丁。
     resume 竞态修复（capture_queue_fits）值得单独提交上游——它是通用
     stateful decoder 竞态，GXL/G12A 同样受影响。
 
