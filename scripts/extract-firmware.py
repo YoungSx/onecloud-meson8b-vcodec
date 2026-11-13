@@ -14,8 +14,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 def _words(text, expected_words, array, sentinel=True):
     """Extract the hex words of a pinned vendor u32 array."""
     match = re.search(
-        r"const\s+u32\s+" + array + r"\s*\[\s*\]\s*__attribute__\s*"
-        r"\(\(aligned\s*\(8\)\)\)\s*=\s*\{([^{}]*)\}",
+        r"const\s+(?:u32\s+" + array + r"\s*\[\s*\]\s*__attribute__\s*"
+        r"\(\(aligned\s*\(8\)\)\)|unsigned\s+" + array + r"\s*\[\s*\])"
+        r"\s*=\s*\{([^{}]*)\}",
         text,
     )
     if not match:
@@ -92,6 +93,14 @@ def main():
     if hashlib.sha256(blob).hexdigest() != mpeg4["output_sha256"]:
         raise ValueError("MPEG-4 firmware output checksum or layout mismatch")
     outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_mpeg4.bin"))
+
+    # VC-1: the MicroCode[] body of the wrapper header (vc1_mc.c's
+    # #define MicroCode vc1_mc include), zero-padded to one 16K image.
+    vc1 = manifest["vc1"]
+    blob = _load_vendor(vc1, manifest["commit"]).ljust(16 * 1024, b"\0")
+    if hashlib.sha256(blob).hexdigest() != vc1["output_sha256"]:
+        raise ValueError("VC-1 firmware output checksum or layout mismatch")
+    outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_vc1.bin"))
 
     for blob, out in outputs:
         out.parent.mkdir(parents=True, exist_ok=True)

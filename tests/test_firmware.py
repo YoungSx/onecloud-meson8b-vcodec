@@ -27,6 +27,12 @@ class FirmwareTests(unittest.TestCase):
         self.assertEqual(fw._words(text, 2, 'vmpeg4_mc_5', sentinel=False),
                          b'\x01\x00\x00\x00\x00\x00\x40\x00')
 
+    def test_plain_unsigned_wrapper_arrays_parse(self):
+        # vc1 ucode ships as "const unsigned MicroCode[] =" via #define
+        text = 'const unsigned MicroCode[] = {0xdeadbeef,0x0};'
+        self.assertEqual(fw._words(text, 2, 'MicroCode', sentinel=False),
+                         b'\xef\xbe\xad\xde\x00\x00\x00\x00')
+
     def test_matches_vendor_c_copy_sizes(self):
         # Independently compile the vendor arrays, then copy the sizes used by
         # amvdec_loadmc() and vh264_init(), instead of relying on our parser.

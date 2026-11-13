@@ -57,5 +57,13 @@
     "sha256": "062ffabaafc800b912696a26ff01519bdbbae77d4c41675440a1729858aae9ad",
     "output_sha256": "7a342188a26128b048371088b4d11375688df37eb2faae0aec3b90a9b7fd7710",
     "sentinel": false
+  },
+  "vc1": {
+    "path": "drivers/amlogic/amports/m8/ucode/vc1/vc1_vc1_linux.h",
+    "words": 3293,
+    "array": "MicroCode",
+    "sha256": "9fe189a01170a09b777a582d7e8a0edb7d9bbe9a87597b9ab2ce42fdc27655f0",
+    "output_sha256": "af8166265eccd516d3a6bf43aaa58c2e6bc35e5869634f39d43c1c30555e1976",
+    "sentinel": false
   }
 }
