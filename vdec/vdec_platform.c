@@ -12,6 +12,7 @@
 #include "vdec_1.h"
 #include "vdec_hevc.h"
 #include "codec_mpeg12.h"
+#include "codec_mpeg4.h"
 #include "codec_h264.h"
 #include "codec_vp9.h"
 
@@ -52,6 +53,18 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.firmware_path = "meson/vdec/meson8b_mpeg12.bin",
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
+		.pixfmt = V4L2_PIX_FMT_MPEG4,
+		/* the ucode has exactly four decode canvas slots */
+		.min_buffers = 4,
+		.max_buffers = 4,
+		.max_width = 1920,
+		.max_height = 1080,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_mpeg4_ops,
+		.firmware_path = "meson/vdec/meson8b_mpeg4.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	},
 };
 
@@ -66,6 +79,7 @@ const struct vdec_platform vdec_platform_meson8b = {
 
 MODULE_FIRMWARE("meson/vdec/meson8b_h264.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mpeg12.bin");
+MODULE_FIRMWARE("meson/vdec/meson8b_mpeg4.bin");
 
 static const struct amvdec_format vdec_formats_gxbb[] = {
 	{
