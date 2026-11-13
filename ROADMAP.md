@@ -77,9 +77,24 @@ H.264 encoder）三项全部完成**：1080p V4L2 M2M 编码可用（ffmpeg
     0.21s），mpeg12 回归干净，rmmod 回退干净。"只到 2 帧"是裸流
     ts=0 被 ffmpeg framesync 丢弃的测试假象（setpts 重定时解决）。
     数据见 `evidence/RC-MPEG4-ACCEPTANCE-2026-11-13.md`。
-17. VC-1 / AVS 解码：厂商 ucode 存在（vc1/、avs/ 目录），mpeg4
-    落地后按同模式评估。H.263 N/A（h263_mc 在厂商树中未定义）、
+17. ~~VC-1 / AVS 解码~~：VC-1 完成（ccbbbb8 / d750ab9）——
+    meson8b_vc1.bin（vc1_vc1_linux.h 的 MicroCode 数组，plain
+    `unsigned[]` 声明，16K 补零）+ codec_vc1.c。仅选通 advanced
+    profile（WVC1 / V4L2_PIX_FMT_VC1_ANNEX_G）；AV_SCRATCH_4=1
+    是格式选择（0=WMV3 simple/main），漏写即 0 帧输出。VC-1 特有：
+    VIFIFO 水位 (2/8)（厂商仅 vc1/avs 抬高）、独立 2MB workspace
+    （GXL 模型，MEM_OFFSET_REG = paddr - 0x01f00000）、M8B 复位
+    序列不同（BIT7|6|4 脉冲两次 + BIT9|8）。验收：5 个 fate 样片
+    （176x144–1920x1080、逐行+隔行、含 B 帧）唯一帧哈希与软解
+    **bit-exact**（hw_only=0），差异仅为已知 2 帧 drain 边界与 RPS
+    重复显示帧（硬件每图只出一帧，属显示特性非解码错误）；mpeg12/
+    mpeg4 回归干净（88/88 帧、逐帧 PSNR 全部 ≥40dB，末 2 帧 drain
+    边界与 P4-16 基线一致）。AVS **N/A** —— 内核 uapi 无
+    V4L2_PIX_FMT_AVS，ffmpeg 亦无 v4l2m2m 包装，集成层无落点。
+    WMV3（simple/main）未选通：fate 无样片，留待有需求时翻转
+    AV_SCRATCH_4 并补验收。H.263 N/A（h263_mc 在厂商树中未定义）、
     HEVC 解码 N/A（M8B 无 HEVC 核）、encoder 多会话 N/A。
+    数据见 `evidence/RC-VC1-ACCEPTANCE-2026-11-13.md`。
 
 ## P5 — 上游化（可选，长期）
 
