@@ -17,6 +17,7 @@
 | CI、版本标签、Release 草稿与发布 | [Release process](release.md) |
 | 提交和测试约定 | [Contributing](../CONTRIBUTING.md) |
 | 当前后续工作 | [Roadmap](../ROADMAP.md) |
+| 下一阶段顺序、验收门槛与范围 | [Development plan](development-plan.md) |
 | 发布历史 | [Changelog](../CHANGELOG.md) |
 
 [2026-11-14 部署快照](rollout-status.md)记录当时安装的 `bd1cb79` 包，

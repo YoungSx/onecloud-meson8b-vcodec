@@ -5,6 +5,8 @@ pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
 
 ## Unreleased
 
+- Plan staged encoder controls, raw formats, DMA input, multi-slice and
+  measured pipeline improvements; defer HEVC encoding research.
 - Document the S805 HEVC encoding hardware boundary and evidence-backed
   H.264/JPEG extension paths; preserve both README languages and source provenance.
 
