@@ -1437,6 +1437,9 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 					V4L2_CID_MPEG_VIDEO_H264_MAX_QP);
 		ctx->quant = clamp(ENC_QUANT_DEFAULT, min_qp->val, max_qp->val);
 		break;
+	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
+		ctx->gop_idx = 0;	/* next frame must be an IDR */
+		break;
 	default:
 		/* B_FRAMES/HEADER_MODE/PROFILE: stored, no-op */
 		break;
@@ -1478,7 +1481,7 @@ static int venc_open(struct file *file)
 	ctx->timeperframe.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(hdl, 6);
+	ret = v4l2_ctrl_handler_init(hdl, 7);
 	if (ret)
 		goto err_free;
 
@@ -1492,6 +1495,9 @@ static int venc_open(struct file *file)
 			  0, 51, 1, 0);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
 			  0, 51, 1, 51);
+	/* button control: the next queued frame becomes an IDR */
+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
+			  0, 0, 0, 0);
 	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
 			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
