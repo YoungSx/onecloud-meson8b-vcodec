@@ -5,7 +5,8 @@ pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
 
 ## Unreleased
 
-No changes yet.
+- Document the S805 HEVC encoding hardware boundary and evidence-backed
+  H.264/JPEG extension paths; preserve both README languages and source provenance.
 
 ## v0.1.0 — 2026-11-14 (pre-release)
 

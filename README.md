@@ -27,6 +27,9 @@ VC-1 and MJPEG have documented drain/chroma limits. Output still uses CPU
 byte-order conversion and copies. Autoload start/stop was tested without
 rebooting; there is no current-mainline port or published linux-media RFC.
 See [capabilities and limits](docs/validation.md).
+S805's documented encoder formats are H.264 and JPEG; HEVC is decode-only.
+[Encoding feasibility](docs/encoding-feasibility.md) records the hardware
+evidence and further H.264/JPEG development paths.
 
 ## Start here
 

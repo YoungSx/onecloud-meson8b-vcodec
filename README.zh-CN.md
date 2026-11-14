@@ -24,6 +24,8 @@ HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧
 色度限制见验收记录。输出仍有 CPU 字节序转换和拷贝。自动加载启停已经
 测试，未重启验收；当前主线移植与公开 linux-media RFC 尚未完成。
 详见[能力与边界](docs/validation.md)。
+S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
+[编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
 
 ## 开始使用
 

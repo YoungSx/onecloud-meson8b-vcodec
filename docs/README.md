@@ -12,6 +12,7 @@
 | 模块职责、共享资源、输出数据路径 | [Architecture](architecture.md) |
 | 复现微码、上游源码与许可证 | [Firmware](firmware.md) |
 | 实机能力、帧数、性能、已知限制 | [Validation](validation.md) |
+| HEVC 硬编可行性与 H.264/JPEG 编码扩展 | [Encoding feasibility](encoding-feasibility.md) |
 | probe、CMA、队列和错误恢复问题 | [Troubleshooting](troubleshooting.md) |
 | CI、版本标签、Release 草稿与发布 | [Release process](release.md) |
 | 提交和测试约定 | [Contributing](../CONTRIBUTING.md) |
