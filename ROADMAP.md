@@ -96,6 +96,31 @@ H.264 encoder）三项全部完成**：1080p V4L2 M2M 编码可用（ffmpeg
     HEVC 解码 N/A（M8B 无 HEVC 核）、encoder 多会话 N/A。
     数据见 `evidence/RC-VC1-ACCEPTANCE-2026-11-13.md`。
 
+## P6 — 能力扩展（2026-11-14 新增，按推荐优先级）
+
+19. ~~MJPEG 硬解 + FORCE_KEY_FRAME 编码控件~~：完成（00491e9 /
+    4f35deb / a18e820）—— meson8b_mjpeg.bin + codec_mjpeg.c。
+    三个关键发现：(a) MJPEG 微码写**平面 Y/U/V**（厂商表
+    AV_SCRATCH_4-7 每槽三个 canvas），2-plane NV12 表会使 U/V
+    别名、V 覆盖 U —— set_canvas_mjpeg() 分配三 canvas，capture
+    copy 时交织成 NV12M；(b) 微码只在 host 清零 MREG_FROM_AMRISC
+    后才发下一帧 picinfo，ISR 漏清即"只解一帧"；(c) vb2 把 OUTPUT
+    队列的 start_streaming 延迟到首个 OUTPUT QBUF（REQBUFS 后
+    不 QBUF 的客户端），落在 STREAMON(CAPTURE) 之后，原有的
+    STATUS_INIT+CAPTURE resume 门永不再触发 —— poweron 路径补
+    OUTPUT 侧 resume 门（对 mpeg12/mpeg4/vc1 各序均恰好触发一次）。
+    PSCALE 三角滤波表 + 相位步进 + pscaler 复位缺一不可（无
+    in-stream 头，全靠 host 编程）。验收：320x240/720p/1080p 各
+    30 帧 EOS 干净（33 buffer），luma PSNR 33-39 / chroma 30-36
+    （含厂商全量程 YCbCr 增益 0.86/0.88，线性拟合扣除后残差），
+    mpeg2 回归 96 帧不变，rmmod 回退干净。harness 增加 MJPEG SOI
+    分块 + V4L2_BUF_FLAG_LAST 干净退出 + FOURCC 参数化。
+    FORCE_KEY_FRAME（0x009909e5 button 型）S_EXT_CTRLS 验证通过。
+20. JPEG 硬编码（HCODEC + jpeg_encoder_mc，AVC/JPEG 仲裁）。
+21. 硬解→硬编转码管线（VDEC1+HCODEC 并发审计 + 压测）。
+22. HEVC 解码（HEVC_ASSIST_SCRATCH_* 寄存器考古，M8B 无独立
+    HEVC 核 —— 大概率 N/A，先做可行性结论）。
+
 ## P5 — 上游化（可选，长期）
 
 18. Meson8b 平台数据 + capture 路径整理成 linux-media RFC 补丁。
