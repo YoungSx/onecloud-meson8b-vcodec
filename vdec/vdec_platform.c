@@ -14,6 +14,7 @@
 #include "codec_mpeg12.h"
 #include "codec_mpeg4.h"
 #include "codec_vc1.h"
+#include "codec_mjpeg.h"
 #include "codec_h264.h"
 #include "codec_vp9.h"
 
@@ -79,6 +80,19 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.firmware_path = "meson/vdec/meson8b_vc1.bin",
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
+		/* Motion JPEG; the ucode learns frame height from the
+		 * MREG_DECODE_PARAM write, not from stream headers */
+		.pixfmt = V4L2_PIX_FMT_MJPEG,
+		.min_buffers = 4,
+		.max_buffers = 4,
+		.max_width = 1920,
+		.max_height = 1080,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_mjpeg_ops,
+		.firmware_path = "meson/vdec/meson8b_mjpeg.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	},
 };
 
@@ -95,6 +109,7 @@ MODULE_FIRMWARE("meson/vdec/meson8b_h264.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mpeg12.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mpeg4.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_vc1.bin");
+MODULE_FIRMWARE("meson/vdec/meson8b_mjpeg.bin");
 
 static const struct amvdec_format vdec_formats_gxbb[] = {
 	{

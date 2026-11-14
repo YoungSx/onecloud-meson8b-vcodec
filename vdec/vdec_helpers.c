@@ -143,6 +143,68 @@ static int set_canvas_yuv420m(struct amvdec_session *sess,
 	return 0;
 }
 
+/* The MJPEG microcode always writes planar Y/U/V (vendor vmjpeg.c
+ * programs three distinct canvases per slot in its non-NV21 path; a
+ * 2-plane NV12 table makes U and V alias and the V plane overwrites
+ * the U plane). Give U and V separate canvases on the shadow block
+ * and interleave them into NV12M at copy time (meson8b-capture.c).
+ * Layout inside the shadow block: Y | U (luma/4) | V (luma/4).
+ */
+static int set_canvas_mjpeg(struct amvdec_session *sess,
+			    struct vb2_buffer *vb, u32 width,
+			    u32 height, u32 reg)
+{
+	struct amvdec_core *core = sess->core;
+	u8 canvas_id[3]; /* Y U V */
+	dma_addr_t buf_paddr[2];
+	u32 luma = amvdec_get_output_size(sess);
+	int ret, i;
+
+	if (core->platform->revision != VDEC_REVISION_MESON8B)
+		return -EINVAL; /* shadow-canvas path is M8B-only */
+
+	for (i = 0; i < 3; ++i) {
+		ret = canvas_alloc(sess, &canvas_id[i]);
+		if (ret)
+			return ret;
+	}
+
+	ret = amvdec_meson8b_capture_addr(sess, vb, buf_paddr);
+	if (ret)
+		return ret;
+
+	/* Y plane */
+	ret = meson_canvas_config(core->canvas, canvas_id[0], buf_paddr[0],
+				  width, height, MESON_CANVAS_WRAP_NONE,
+				  MESON_CANVAS_BLKMODE_LINEAR, 0);
+	if (ret)
+		return ret;
+
+	/* U plane */
+	ret = meson_canvas_config(core->canvas, canvas_id[1], buf_paddr[1],
+				  width / 2, height / 2,
+				  MESON_CANVAS_WRAP_NONE,
+				  MESON_CANVAS_BLKMODE_LINEAR, 0);
+	if (ret)
+		return ret;
+
+	/* V plane */
+	ret = meson_canvas_config(core->canvas, canvas_id[2],
+				  buf_paddr[1] + luma / 4,
+				  width / 2, height / 2,
+				  MESON_CANVAS_WRAP_NONE,
+				  MESON_CANVAS_BLKMODE_LINEAR, 0);
+	if (ret)
+		return ret;
+
+	amvdec_write_dos(core, reg,
+			 ((canvas_id[2]) << 16) |
+			 ((canvas_id[1]) << 8)  |
+			 (canvas_id[0]));
+
+	return 0;
+}
+
 static int set_canvas_nv12m(struct amvdec_session *sess,
 			    struct vb2_buffer *vb, u32 width,
 			    u32 height, u32 reg)
@@ -214,6 +276,20 @@ int amvdec_set_canvases(struct amvdec_session *sess,
 			return -EINVAL;
 
 		reg_cur = reg_base[reg_base_cur] + reg_num_cur * 4;
+
+		if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG) {
+			ret = set_canvas_mjpeg(sess, &buf->vb.vb2_buf, width,
+					       height, reg_cur);
+			if (ret)
+				return ret;
+			reg_num_cur++;
+			if (reg_num_cur >= reg_num[reg_base_cur]) {
+				reg_base_cur++;
+				reg_num_cur = 0;
+			}
+			sess->fw_idx_to_vb2_idx[i++] = buf->vb.vb2_buf.index;
+			continue;
+		}
 
 		switch (pixfmt) {
 		case V4L2_PIX_FMT_NV12M:

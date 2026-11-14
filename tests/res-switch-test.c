@@ -32,6 +32,19 @@ struct buffer {
 static int fd;
 static struct buffer outbufs[N_OUT], capbufs[MAX_CAP];
 static int ncap;
+/* when FRAME_DUMP is set, every decoded frame's planes are appended
+ * there (Y then UV) so the output can be diffed against software
+ * decode frame by frame */
+static FILE *dumpf;
+
+static void dump_frame(struct v4l2_buffer *b)
+{
+	if (!dumpf)
+		return;
+	for (int j = 0; j < capbufs[b->index].nplanes; j++)
+		fwrite(capbufs[b->index].planes[j].start, 1,
+		       b->m.planes[j].bytesused, dumpf);
+}
 
 static void xioctl(int req, void *arg, const char *what)
 {
@@ -41,14 +54,15 @@ static void xioctl(int req, void *arg, const char *what)
 	}
 }
 
+static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+
 static void setup_output(int w, int h)
 {
 	struct v4l2_format fmt = {0};
-	struct v4l2_create_buffers cb = {0};
 	struct v4l2_requestbuffers rb = {0};
 
 	fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-	fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_H264;
+	fmt.fmt.pix_mp.pixelformat = out_fourcc;
 	fmt.fmt.pix_mp.width = w;
 	fmt.fmt.pix_mp.height = h;
 	fmt.fmt.pix_mp.plane_fmt[0].sizeimage = 1 << 20;
@@ -173,15 +187,38 @@ int main(int argc, char **argv)
 	size_t *chunks;
 	size_t nchunks = 0, chunk_idx = 0, espos = 0;
 
-	if (argc != 3) {
-		fprintf(stderr, "usage: %s DEVICE ELEMENTARY_STREAM\n", argv[0]);
+	if (argc < 3 || argc > 6) {
+		fprintf(stderr, "usage: %s DEVICE ELEMENTARY_STREAM "
+			"[FOURCC [WIDTH HEIGHT]]\n", argv[0]);
 		return 2;
+	}
+	{
+		const char *p = getenv("FRAME_DUMP");
+
+		if (p) {
+			dumpf = fopen(p, "wb");
+			if (!dumpf) {
+				perror(p);
+				return 1;
+			}
+		}
 	}
 	fd = open(argv[1], O_RDWR | O_NONBLOCK);
 	if (fd < 0) {
 		perror("open");
 		return 1;
 	}
+	if (argc >= 4) {
+		const char *f = argv[3];
+
+		if (strlen(f) != 4) {
+			fprintf(stderr, "fourcc must be 4 chars\n");
+			return 2;
+		}
+		out_fourcc = f[0] | f[1] << 8 | f[2] << 16 | f[3] << 24;
+	}
+	if (argc == 6)
+		setup_output(atoi(argv[4]), atoi(argv[5]));
 	es = fopen(argv[2], "rb");
 	if (!es) {
 		perror(argv[2]);
@@ -200,11 +237,27 @@ int main(int argc, char **argv)
 	/* Aggregate into access units: a new AU starts at a
 	 * slice (nal 1/5) or SPS (7) start code; SEI/AUD/PPS are
 	 * folded into the AU they precede. Boundaries are 3- or
-	 * 4-byte start codes (00 00 01 / 00 00 00 01). */
+	 * 4-byte start codes (00 00 01 / 00 00 00 01).
+	 * Motion-JPEG instead delimits frames with SOI (ff d8 ff),
+	 * so split there. */
 	chunks = malloc(sizeof(size_t) * (eslen + 2));
 	{
 		long pos = 0;
 
+		if (out_fourcc == V4L2_PIX_FMT_MJPEG) {
+			while (pos < eslen) {
+				long next = eslen;
+
+				for (long scan = pos + 3; scan < eslen - 2; scan++)
+					if (esbuf[scan] == 0xff && esbuf[scan + 1] == 0xd8 &&
+					    esbuf[scan + 2] == 0xff) {
+						next = scan;
+						break;
+					}
+				chunks[nchunks++] = next - pos;
+				pos = next;
+			}
+		} else
 		while (pos < eslen) {
 			long next = eslen;
 			long scan;
@@ -233,7 +286,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	setup_output(1920, 1080);
+	if (argc < 6)
+		setup_output(1920, 1080);
 	setup_capture();
 	xioctl(VIDIOC_SUBSCRIBE_EVENT, &sub, "SUBSCRIBE_EVENT");
 	xioctl(VIDIOC_STREAMON, &out_type, "STREAMON(OUTPUT)");
@@ -327,8 +381,12 @@ int main(int argc, char **argv)
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
 				frames++;
-				printf("FRAME %lu %ux%u\n", frames,
-				       b.m.planes[0].bytesused ? 0 : 0, 0);
+				dump_frame(&b);
+				if (b.flags & V4L2_BUF_FLAG_LAST) {
+					printf("EOS frames=%lu resolutions=%lu\n",
+					       frames, resolutions);
+					return 0;
+				}
 				xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 			}
 			continue;
@@ -371,7 +429,7 @@ int main(int argc, char **argv)
 					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
 						break;
 					frames++;
-					printf("FRAME %lu\n", frames);
+					dump_frame(&b);
 					xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 				}
 			}

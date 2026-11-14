@@ -439,6 +439,20 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 		}
 	}
 
+	/* This call just powered the core on (STOPPED -> INIT). When the
+	 * capture STREAMON was already consumed before the OUTPUT queue's
+	 * start_streaming ran (its start is deferred until the first
+	 * OUTPUT QBUF), the capture-side gate above can never fire and
+	 * the codec resume would be skipped entirely: run it here so the
+	 * firmware picks up canvases and geometry before ES starts.
+	 */
+	if (sess->streamon_cap &&
+	    !(sess->fmt_out->flags & V4L2_FMT_FLAG_DYN_RESOLUTION) &&
+	    codec_ops->resume) {
+		codec_ops->resume(sess);
+		sess->status = STATUS_RUNNING;
+	}
+
 	schedule_work(&sess->esparser_queue_work);
 	return 0;
 

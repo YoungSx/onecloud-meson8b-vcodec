@@ -132,10 +132,31 @@ int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
 	dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
 				DMA_FROM_DEVICE);
 	src = shadow->cached;
-	for (i = 0; i < 2; i++) {
-		if (meson8b_copy_swap64(dst[i], src, size[i]))
+	if (meson8b_copy_swap64(dst[0], src, size[0]))
+		return -EINVAL;
+	src += size[0];
+
+	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_MJPEG) {
+		if (meson8b_copy_swap64(dst[1], src, size[1]))
 			return -EINVAL;
-		src += size[i];
+		return 0;
+	}
+
+	/* MJPEG writes planar U then V (luma/4 each): interleave them
+	 * into the NV12M UV plane.
+	 */
+	for (i = 0; i < size[1] / 2; i += 8) {
+		u64 u, v;
+		u8 *out = dst[1];
+		int j;
+
+		if (meson8b_copy_swap64(&u, src + i, 8) ||
+		    meson8b_copy_swap64(&v, src + size[1] / 2 + i, 8))
+			return -EINVAL;
+		for (j = 0; j < 8; j++) {
+			out[i * 2 + j * 2] = ((u8 *)&u)[j];
+			out[i * 2 + j * 2 + 1] = ((u8 *)&v)[j];
+		}
 	}
 	return 0;
 }
