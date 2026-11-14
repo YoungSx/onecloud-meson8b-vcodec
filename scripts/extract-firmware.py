@@ -102,6 +102,13 @@ def main():
         raise ValueError("VC-1 firmware output checksum or layout mismatch")
     outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_vc1.bin"))
 
+    # MJPEG: vmjpeg_mc[], zero-padded to one 16K image.
+    mjpeg = manifest["mjpeg"]
+    blob = _load_vendor(mjpeg, manifest["commit"]).ljust(16 * 1024, b"\0")
+    if hashlib.sha256(blob).hexdigest() != mjpeg["output_sha256"]:
+        raise ValueError("MJPEG firmware output checksum or layout mismatch")
+    outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_mjpeg.bin"))
+
     for blob, out in outputs:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(blob)
