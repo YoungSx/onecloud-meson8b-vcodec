@@ -10781,7 +10781,7 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# Makefile for the Amlogic meson8b HCODEC H.264 encoder driver
 +
-+meson-venc-objs := venc.o jpeg.o
++meson-venc-objs := venc.o jpeg.o input.o
 +
 +obj-m += meson-venc.o
 --- /dev/null
@@ -11098,6 +11098,178 @@
 +#define AO_RTI_GEN_PWR_ISO0	0xec
 +
 +#endif
+--- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/venc/input.c
+@@ -0,0 +1,169 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * OUTPUT (raw frame) buffer memory. MMAP buffers stay vmalloc and are
++ * copied into the staging buffer, so queued frames cost no CMA. DMA-BUF
++ * imports are attached to the encoder for DMA: one that maps to a single
++ * contiguous range can feed MFDIN directly, any other is read through a
++ * CPU mapping into the staging buffer.
++ */
++#include <linux/dma-buf.h>
++#include <linux/dma-mapping.h>
++#include <linux/scatterlist.h>
++#include <linux/slab.h>
++
++#include "venc.h"
++
++struct venc_import {
++	struct dma_buf_attachment *attach;
++	struct sg_table *sgt;		/* while mapped */
++	struct dma_buf_map map;		/* CPU mapping, made on first use */
++	dma_addr_t dma_addr;
++	unsigned long size;
++	bool contiguous;
++};
++
++static void *venc_in_attach(struct vb2_buffer *vb, struct device *dev,
++			    struct dma_buf *dbuf, unsigned long size)
++{
++	struct venc_import *buf;
++
++	if (dbuf->size < size)
++		return ERR_PTR(-EFAULT);
++	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
++	if (!buf)
++		return ERR_PTR(-ENOMEM);
++	buf->size = size;
++	buf->attach = dma_buf_attach(dbuf, dev);
++	if (IS_ERR(buf->attach)) {
++		void *error = buf->attach;
++
++		kfree(buf);
++		return error;
++	}
++	return buf;
++}
++
++static void venc_in_detach(void *buf_priv)
++{
++	struct venc_import *buf = buf_priv;
++
++	dma_buf_detach(buf->attach->dmabuf, buf->attach);
++	kfree(buf);
++}
++
++static int venc_in_map(void *buf_priv)
++{
++	struct venc_import *buf = buf_priv;
++	struct scatterlist *sg;
++	dma_addr_t expected;
++	unsigned long contiguous = 0;
++	unsigned int i;
++
++	buf->sgt = dma_buf_map_attachment(buf->attach, DMA_TO_DEVICE);
++	if (IS_ERR(buf->sgt)) {
++		int ret = PTR_ERR(buf->sgt);
++
++		buf->sgt = NULL;
++		return ret;
++	}
++	expected = sg_dma_address(buf->sgt->sgl);
++	for_each_sgtable_dma_sg(buf->sgt, sg, i) {
++		if (sg_dma_address(sg) != expected)
++			break;
++		expected += sg_dma_len(sg);
++		contiguous += sg_dma_len(sg);
++	}
++	buf->dma_addr = sg_dma_address(buf->sgt->sgl);
++	buf->contiguous = contiguous >= buf->size;
++	return 0;
++}
++
++static void venc_in_unmap(void *buf_priv)
++{
++	struct venc_import *buf = buf_priv;
++
++	if (buf->map.vaddr) {
++		dma_buf_vunmap(buf->attach->dmabuf, &buf->map);
++		dma_buf_map_clear(&buf->map);
++	}
++	dma_buf_unmap_attachment(buf->attach, buf->sgt, DMA_TO_DEVICE);
++	buf->sgt = NULL;
++}
++static void *venc_in_vaddr(struct vb2_buffer *vb, void *buf_priv)
++{
++	struct venc_import *buf = buf_priv;
++
++	if (vb->memory != V4L2_MEMORY_DMABUF)
++		return vb2_vmalloc_memops.vaddr(vb, buf_priv);
++	if (!buf->map.vaddr && dma_buf_vmap(buf->attach->dmabuf, &buf->map))
++		return NULL;
++	return buf->map.is_iomem ? NULL : buf->map.vaddr;
++}
++
++/* MMAP buffers are plain vb2-vmalloc ones. */
++static void *venc_in_alloc(struct vb2_buffer *vb, struct device *dev,
++			   unsigned long size)
++{
++	return vb2_vmalloc_memops.alloc(vb, dev, size);
++}
++
++static void venc_in_put(void *buf_priv)
++{
++	vb2_vmalloc_memops.put(buf_priv);
++}
++
++static struct dma_buf *venc_in_get_dmabuf(struct vb2_buffer *vb, void *buf_priv,
++					  unsigned long flags)
++{
++	return vb2_vmalloc_memops.get_dmabuf(vb, buf_priv, flags);
++}
++
++static int venc_in_mmap(void *buf_priv, struct vm_area_struct *vma)
++{
++	return vb2_vmalloc_memops.mmap(buf_priv, vma);
++}
++
++static unsigned int venc_in_num_users(void *buf_priv)
++{
++	return vb2_vmalloc_memops.num_users(buf_priv);
++}
++
++const struct vb2_mem_ops venc_input_memops = {
++	.alloc = venc_in_alloc,
++	.put = venc_in_put,
++	.get_dmabuf = venc_in_get_dmabuf,
++	.mmap = venc_in_mmap,
++	.num_users = venc_in_num_users,
++	.attach_dmabuf = venc_in_attach,
++	.detach_dmabuf = venc_in_detach,
++	.map_dmabuf = venc_in_map,
++	.unmap_dmabuf = venc_in_unmap,
++	.vaddr = venc_in_vaddr,
++};
++
++/* Bus address of a DMA-BUF plane mapped as one contiguous range, else 0 */
++dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane)
++{
++	struct venc_import *buf = vb->planes[plane].mem_priv;
++
++	if (vb->memory != V4L2_MEMORY_DMABUF || !buf->sgt || !buf->contiguous)
++		return 0;
++	return buf->dma_addr;
++}
++
++/* CPU view of a plane for the copy path; imports are bracketed for access. */
++void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane)
++{
++	void *vaddr = vb2_plane_vaddr(vb, plane);
++
++	if (vaddr && vb->memory == V4L2_MEMORY_DMABUF &&
++	    dma_buf_begin_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE))
++		return NULL;
++	return vaddr;
++}
++
++void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane)
++{
++	if (vb->memory == V4L2_MEMORY_DMABUF)
++		dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
++}
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/jpeg-header.h
 @@ -0,0 +1,210 @@
@@ -11557,7 +11729,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2090 @@
+@@ -0,0 +1,2156 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -11568,6 +11740,7 @@
 + * author Simon Zheng), running the vendor FULL-mode microcode
 + * (mix_dump_mc_dblk) on the block's ARM core.
 + */
++#include <linux/debugfs.h>
 +#include <linux/delay.h>
 +#include <linux/gcd.h>
 +#include <linux/interrupt.h>
@@ -12024,7 +12197,7 @@
 +		   (0x40 << 24) | (0x30 << 16) | (0x20 << 8) | 0x30);
 +	venc_write(core, ME_MV_WEIGHT_23, (0x40 << 8) | 0x30);
 +	venc_write(core, ME_SAD_RANGE_INC, 0x03030303);
-+	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
++	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 +
 +	venc_write(core, HENC_SCRATCH_G, (30 << 16) | 0xffff); /* P_INTRA_CONFIG */
 +	venc_write(core, HENC_SCRATCH_I,		/* P_MB_QUANT_CONFIG */
@@ -12077,31 +12250,29 @@
 +		   (idx1_bppx << 26) | (idx0_bppx << 24));
 +	venc_write(core, HCODEC_MFDIN_REG4_LNR0, linear ?
 +		   (3 << 16) | venc_canvas_bytes(fmt, ctx->coded_width, 0) : 0);
-+	venc_write(core, HCODEC_MFDIN_REG5_LNR1, linear ? ctx->mem.dct_start : 0);
++	venc_write(core, HCODEC_MFDIN_REG5_LNR1, linear ? ctx->input[0] : 0);
 +	venc_write(core, HCODEC_MFDIN_REG8_DMBL,
 +		   (ctx->coded_width << 12) | ALIGN(ctx->height, 16));
 +	venc_write(core, HCODEC_MFDIN_REG9_ENDN, fmt->endn ?: ENDN_DEFAULT);
 +}
 +
 +/*
-+ * Vendor set_input_format, LOCAL_BUFF path: the frame has been staged
-+ * into the input buffer; point one MFDIN canvas at each staged plane.
++ * Vendor set_input_format, LOCAL_BUFF path: point one MFDIN canvas at each
++ * plane venc_stage_input() chose, staged or in place.
 + */
 +static void venc_set_input_format(struct venc_ctx *ctx)
 +{
 +	struct venc_core *core = ctx->core;
 +	const struct venc_format *fmt = ctx->src;
-+	u32 address = ctx->mem.dct_start, rows = ALIGN(ctx->height, 16);
-+	u32 input = 0, width;
++	u32 rows = ALIGN(ctx->height, 16), input = 0;
 +	unsigned int i;
 +
 +	for (i = 0; i < fmt->planes; i++) {
-+		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
-+		meson_canvas_config(core->canvas, ctx->canvas[6 + i], address, width,
++		meson_canvas_config(core->canvas, ctx->canvas[6 + i], ctx->input[i],
++				    venc_canvas_bytes(fmt, ctx->coded_width, i),
 +				    rows / fmt->vsub[i], MESON_CANVAS_WRAP_NONE,
 +				    MESON_CANVAS_BLKMODE_LINEAR, 0);
 +		input |= ctx->canvas[6 + i] << (8 * i);
-+		address += width * rows / fmt->vsub[i];
 +	}
 +	venc_mfdin_basic(ctx, input);
 +}
@@ -12250,7 +12421,7 @@
 +	reinit_completion(&core->done);
 +	core->done_pending = true;
 +	venc_write(core, HENC_SCRATCH_0, cmd);	/* ENCODER_STATUS */
-+	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
++	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 +
 +	return 0;
 +}
@@ -12377,7 +12548,7 @@
 +	venc_write(core, HENC_SCRATCH_D, 0);	/* IE_ME_MB_TYPE */
 +	venc_init_ie_me_parameter(ctx);
 +	venc_write(core, HENC_SCRATCH_0, ENCODER_IDLE);
-+	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
++	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 +	venc_amrisc_start(core);
 +
 +	return 0;
@@ -12424,17 +12595,35 @@
 +}
 +
 +/*
++ * FIXED_SLICE_CFG for the vendor MULTI_SLICE_MC microcode: whole macroblock
++ * rows per slice in both halves, 0 for one slice. MAX_MB is rounded down
++ * to whole rows and to at least one.
++ */
++static u32 venc_slice_cfg(struct venc_ctx *ctx)
++{
++	u32 width_mbs = ctx->coded_width / 16;
++	u32 rows = ctx->slice_max_mb / width_mbs;
++
++	if (!ctx->multi_slice)
++		return 0;
++	rows = clamp(rows, 1u, DIV_ROUND_UP(ctx->height, 16));
++	return rows == DIV_ROUND_UP(ctx->height, 16) ? 0 : rows << 16 | rows;
++}
++
++/*
 + * Coded width in whole macroblocks. On the target the AVC microcode times
-+ * out on pictures 1 or 65 macroblocks wide and garbles 2-wide ones (widths
-+ * 1..120 scanned), so those get padding macroblocks that the SPS crops.
++ * out on pictures 1 or 65 macroblocks wide (widths 1..120 scanned),
++ * garbles 2-wide ones and corrupts about one 3-wide session in ten in any
++ * input format; 4 and 5 passed 20 of 20. Those widths get padding
++ * macroblocks that the SPS crops.
 + */
 +static u32 venc_coded_width(struct venc_ctx *ctx)
 +{
 +	u32 mbs = DIV_ROUND_UP(ctx->width, 16);
 +
 +	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG) {
-+		if (mbs < 3)
-+			mbs = 3;
++		if (mbs < 4)
++			mbs = 4;
 +		else if (mbs == 65)
 +			mbs = 66;
 +	}
@@ -12480,6 +12669,9 @@
 +	int ret, i;
 +
 +	ctx->coded_width = venc_coded_width(ctx);
++	mutex_lock(ctx->ctrl_handler.lock);
++	ctx->slice_cfg = venc_slice_cfg(ctx);
++	mutex_unlock(ctx->ctrl_handler.lock);
 +	ret = venc_alloc_buffers(ctx);
 +	if (ret)
 +		return ret;
@@ -12632,30 +12824,54 @@
 +}
 +
 +/*
-+ * Copy the queued source frame into the staging buffer as the canvases
-+ * of venc_set_input_format() expect it. Rows and columns outside the
-+ * visible size stay as zeroed at allocation, so edge macroblocks encode
++ * Point ctx->input at this frame's planes. A DMA-BUF NV12/NV21 frame whose
++ * planes each map to one contiguous range with the canvas line width feeds
++ * MFDIN in place. Anything else is copied into the staging buffer as the
++ * canvases of venc_set_input_format() expect it; rows and columns outside
++ * the visible size stay as zeroed at allocation, so edge macroblocks encode
 + * deterministic data. Source strides are the negotiated ones.
 + */
-+static void venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
++static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 +{
 +	const struct venc_format *fmt = ctx->src;
 +	struct v4l2_pix_format_mplane pix = {
 +		.width = ctx->width, .height = ctx->height,
 +	};
-+	u8 *dst = ctx->buffers[VENC_INPUT].vaddr;
++	dma_addr_t staging = ctx->buffers[VENC_INPUT].paddr;
++	u8 *dst = ctx->buffers[VENC_INPUT].vaddr, *src;
 +	u32 rows = ALIGN(ctx->height, 16), width;
++	bool direct = fmt->planes == 2;
 +	unsigned int i;
++	ktime_t start;
 +
 +	venc_fill_out_fmt(&pix, fmt);
 +	for (i = 0; i < fmt->planes; i++) {
++		ctx->input[i] = venc_input_dma(b, i);
++		direct &= ctx->input[i] && !(ctx->input[i] & 7) &&
++			  pix.plane_fmt[i].bytesperline ==
++			  venc_canvas_bytes(fmt, ctx->coded_width, i);
++	}
++	if (direct) {
++		ctx->core->direct_frames++;
++		return 0;
++	}
++	start = ktime_get();
++	for (i = 0; i < fmt->planes; i++) {
 +		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
-+		venc_copy_rows(dst, width, vb2_plane_vaddr(b, i),
-+			       pix.plane_fmt[i].bytesperline,
++		src = venc_input_begin_cpu(b, i);
++		if (!src)
++			return -EFAULT;
++		venc_copy_rows(dst, width, src, pix.plane_fmt[i].bytesperline,
 +			       ctx->width * fmt->halves[i] / 2,
 +			       ctx->height / fmt->vsub[i], vb2_plane_size(b, i));
++		venc_input_end_cpu(b, i);
++		ctx->input[i] = staging;
++		staging += width * rows / fmt->vsub[i];
 +		dst += width * rows / fmt->vsub[i];
 +	}
++	ctx->core->copied_frames++;
++	ctx->core->copy_ns += ktime_to_ns(ktime_sub(ktime_get(), start));
++	return 0;
 +}
 +
 +static void venc_frame_done(struct venc_ctx *ctx, bool idr)
@@ -12685,8 +12901,9 @@
 +	u32 es_size;
 +	int ret;
 +
-+	venc_stage_input(ctx, src);
-+
++	ret = venc_stage_input(ctx, src);
++	if (ret)
++		return ret;
 +	ret = venc_start_cmd(ctx, idr ? ENCODER_IDR : ENCODER_NON_IDR);
 +	if (ret)
 +		return ret;
@@ -12743,7 +12960,9 @@
 +	u32 size, ptr;
 +	int ret;
 +
-+	venc_stage_input(ctx, src);
++	ret = venc_stage_input(ctx, src);
++	if (ret)
++		return ret;
 +	venc_amrisc_stop(core);
 +	venc_set_input_format(ctx);
 +	venc_jpeg_init(ctx);
@@ -12922,7 +13141,8 @@
 +	src_vq->drv_priv = ctx;
 +	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
 +	src_vq->ops = &venc_vb2_ops;
-+	src_vq->mem_ops = &vb2_vmalloc_memops;
++	src_vq->mem_ops = &venc_input_memops;
++	src_vq->dev = ctx->core->dev;	/* DMA-BUF imports attach to the encoder */
 +	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 +	src_vq->lock = &ctx->core->lock;
 +	ret = vb2_queue_init(src_vq);
@@ -12963,14 +13183,15 @@
 +};
 +
 +/*
-+ * Pick the next picture's type and QP from the control state. A new
-+ * session restarts the GOP.
++ * Pick the next picture's type, QP and slicing from the control state.
++ * A new session restarts the GOP.
 + */
 +static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 +{
 +	bool idr;
 +
 +	mutex_lock(ctx->ctrl_handler.lock);
++	ctx->slice_cfg = venc_slice_cfg(ctx);
 +	if (new_session)
 +		ctx->gop_idx = 0;
 +	idr = ctx->force_key || !ctx->gop_idx ||
@@ -13353,6 +13574,12 @@
 +	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
 +		ctx->force_key = true;
 +		break;
++	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE:
++		ctx->multi_slice = ctrl->val == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB;
++		break;
++	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB:
++		ctx->slice_max_mb = ctrl->val;
++		break;
 +	default:
 +		/* B_FRAMES and HEADER_MODE accept their single supported value. */
 +		break;
@@ -13398,7 +13625,7 @@
 +	ctx->rc.denominator = 30;
 +
 +	hdl = &ctx->ctrl_handler;
-+	ret = v4l2_ctrl_handler_init(hdl, 12);
++	ret = v4l2_ctrl_handler_init(hdl, 14);
 +	if (ret)
 +		goto err_free;
 +	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_JPEG_COMPRESSION_QUALITY,
@@ -13427,6 +13654,12 @@
 +	/* button control: the next queued frame becomes an IDR */
 +	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 +			  0, 0, 0, 0);
++	/* whole macroblock rows per slice; every slice ends with its picture */
++	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE,
++			       V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB, 0,
++			       V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE);
++	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
++			  1, 120 * 68, 1, 120 * 68);
 +	/* SPS/PPS lead every IDR; a separate header buffer is not produced */
 +	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
 +			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
@@ -13610,6 +13843,10 @@
 +		goto err_m2m;
 +	}
 +
++	core->debugfs = debugfs_create_dir("meson-venc", NULL);
++	debugfs_create_u64("direct_frames", 0444, core->debugfs, &core->direct_frames);
++	debugfs_create_u64("copied_frames", 0444, core->debugfs, &core->copied_frames);
++	debugfs_create_u64("copy_ns", 0444, core->debugfs, &core->copy_ns);
 +	dev_info(dev, "registered %s as /dev/video%d\n",
 +		 vdev->name, vdev->num);
 +	return 0;
@@ -13627,6 +13864,7 @@
 +{
 +	struct venc_core *core = platform_get_drvdata(pdev);
 +
++	debugfs_remove_recursive(core->debugfs);
 +	video_unregister_device(core->vdev_ptr);
 +	v4l2_m2m_release(core->m2m_dev);
 +	v4l2_device_unregister(&core->v4l2_dev);
@@ -13650,7 +13888,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.h
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,173 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Amlogic Meson8b (S805) HCODEC H.264 hardware encoder,
@@ -13694,6 +13932,9 @@
 +	struct clk *hcodec_clk;
 +
 +	struct venc_ctx *ctx;		/* single active instance */
++	struct dentry *debugfs;
++	/* frames read straight from a DMA-BUF / copied into staging, copy time */
++	u64 direct_frames, copied_frames, copy_ns;
 +
 +	u32 hw_status;
 +	bool need_reset;
@@ -13741,6 +13982,9 @@
 +	bool rc_restart;		/* reset the rate control before the next picture */
 +	struct venc_rc rc;		/* bitrate, frame rate, QP range and RC state */
 +	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */
++	bool multi_slice;		/* MULTI_SLICE_MODE is MAX_MB */
++	u32 slice_max_mb;
++	u32 slice_cfg;			/* FIXED_SLICE_CFG of this picture */
 +	struct v4l2_fract timeperframe;	/* feeds the rate control only */
 +	const struct venc_format *src;	/* negotiated raw input */
 +	u32 src_fourcc;			/* its spelling as negotiated */
@@ -13768,6 +14012,7 @@
 +	} mem;
 +
 +	u8 canvas[9];			/* 0-2 dec0, 3-5 dec1, 6-8 input */
++	dma_addr_t input[3];		/* this frame's planes for MFDIN */
 +	u32 dblk_canvas, ref_canvas;
 +	u32 idr_pic_id, frame_number, poc_lsb;
 +
@@ -13786,6 +14031,11 @@
 +}
 +
 +void venc_jpeg_init(struct venc_ctx *ctx);
++
++extern const struct vb2_mem_ops venc_input_memops;
++dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane);
++void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane);
++void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
 +
 +static inline u32 venc_read(struct venc_core *core, u32 reg)
 +{
