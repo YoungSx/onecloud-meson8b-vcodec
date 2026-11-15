@@ -43,12 +43,14 @@ previous install. The bd1cb79 installation was removed first and the new one
 installed with a fresh state directory; see evidence/p6-2026-11-15/deploy.log
 for upgrade, rollback rehearsal and restart results.
 
-The 30-minute soak was cut short at 191 iterations (0 failures) by two hard
-resets. After them the USB disk behind /mnt/sda2 stopped enumerating, so
-Docker, SublinkPro and VoCat are unavailable until it is serviced; the codec
-stack itself recovered automatically and passed decode and encode retests.
-See evidence/p6-2026-11-15/outage-2026-11-15.md. A full 30-minute, 2-hour
-and overnight soak is still outstanding.
+The 30-minute soak stopped after 191 iterations (0 failures), short of its
+window, and the box reset afterwards. The USB disk behind /mnt/sda2 then
+stopped enumerating, so Docker, SublinkPro and VoCat are unavailable until it
+is serviced; the codec stack itself recovered automatically and passed decode
+and encode retests. Log timestamps on this box are unreliable (no RTC, clock
+restored at boot), so the evidence records order and counts rather than a
+timeline. See evidence/p6-2026-11-15/outage-2026-11-15.md. A full 30-minute,
+2-hour and overnight soak is still outstanding.
 
 Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
 After ending codec clients, roll back using:
