@@ -4,6 +4,21 @@
 本轮不研究 HEVC 硬编或 HEVC 混合编码。这里的阶段、目标和验收是待执行
 计划，不是已完成能力。实现依据见[编码可行性](encoding-feasibility.md)。
 
+## 执行状态
+
+2026-11-15 状态，实机结果来自替换编码模块的候选版本，测试后恢复已安装的
+`bd1cb79`：
+
+| 阶段 | 状态 | 记录 |
+| --- | --- | --- |
+| P0 | 完成：基线工具、三尺寸三内容基线；发现并修复 CBR 码流、QP 控件死锁与溢出等待 | [Controls](../evidence/ENCODER-CONTROLS-2026-11-15.md) |
+| P1 | 完成：I/P QP、QP 范围、GOP 0、漏桶码率控制，P 帧 QP 上限 32 | 同上 |
+| P2 | 完成：YUV444/YUYV/UYVY/RGB24/32 位 RGB、BT.601/709；非整宏块宽度裁剪 | [Input](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md) |
+| P3 | 完成：连续 DMA-BUF NV12/NV21 直读，其他导入拷贝 | 同上 |
+| P4 | 完成多分片；微码无 slice 中断，不提供逐片低延迟 | 同上 |
+| P5 | 进行中 | — |
+| P6 | 未开始 | — |
+
 ## 目标与约束
 
 优先提高编码控制的正确性、输入兼容性、CPU/内存效率和延迟，再扩大
@@ -53,8 +68,8 @@ P0 完成条件：当前有效路径可重复通过内容和帧数检查，得�
 
 先核对 QP min/max、GOP、FORCE_KEY_FRAME、HEADER_MODE 的实际行为。
 QP 范围用标准控件关系校验，动态设置与编码 work 同步；CBR 调节也遵守
-用户 QP 范围。HEADER_MODE 当前未驱动行为，落实标准语义或收窄为实际
-支持值，回归原 FFmpeg 的调用顺序。
+用户 QP 范围。HEADER_MODE 收窄为实际支持的 joined-with-first-frame，
+回归原 FFmpeg 的调用顺序。
 
 在微码证据与码流测试支持下增加 I/P 帧 QP 控制。VUI 的色彩/帧率信息
 先确认固件生成头部能否配置；没有接口时，不在 host 随意拼补 SPS。

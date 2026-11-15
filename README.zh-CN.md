@@ -16,14 +16,15 @@ ARMv7 hard-float。
 | 路径 | 支持及验证范围 |
 | --- | --- |
 | 解码 | H.264、HEVC Main 8-bit、MPEG-1/2、MPEG-4 Part 2、VC-1 advanced、MJPEG |
-| H.264 编码 | NV12/NV21/YUV420 输入；固定 QP 或软件 CBR；无 B 帧编码 |
+| H.264 编码 | 4:2:0、4:2:2、4:4:4 与 RGB 输入；固定 I/P QP 或码率控制；多分片；DMA-BUF 输入；无 B 帧编码 |
 | JPEG 编码 | 质量 1–100；全量程 YCbCr 输入；标准 V4L2 客户端 |
 | 并发转码 | 一个解码会话加一个编码会话；原 64 MiB CMA 下验证 1080p H.264 B 帧输入 |
 
 HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧尾及
 色度限制见验收记录。输出仍有 CPU 字节序转换和拷贝。自动加载启停已经
 测试，未重启验收；当前主线移植与公开 linux-media RFC 尚未完成。
-详见[能力与边界](docs/validation.md)。
+详见[能力与边界](docs/validation.md)。上表的编码扩展于 2026-11-15 用替换的
+候选模块实机验证，已安装的 `bd1cb79` 包不含这些功能。
 S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
 [编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
 

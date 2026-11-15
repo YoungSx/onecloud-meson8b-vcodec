@@ -1,0 +1,71 @@
+encoder /dev/video1 from fa17e35d50f986d2
+PASS 640x360 NV21 bit-exact with NV12
+PASS 640x360 YU12 bit-exact with NV12
+PASS 640x360 YM24 bit-exact with NV12
+PASS 640x360 YUYV bit-exact with NV12
+PASS 640x360 UYVY bit-exact with NV12
+PASS 640x360 RGB3 BT.601 psnr_y 40.969420
+PASS 640x360 BX24 BT.601 bit-exact with RGB3
+PASS 640x360 XR24 BT.601 bit-exact with RGB3
+PASS 640x360 XB24 BT.601 bit-exact with RGB3
+PASS 640x360 RX24 BT.601 bit-exact with RGB3
+PASS 640x360 RGB3 BT.709 psnr_y 40.872793
+PASS 640x360 BX24 BT.709 bit-exact with RGB3
+PASS 640x360 XR24 BT.709 bit-exact with RGB3
+PASS 640x360 XB24 BT.709 bit-exact with RGB3
+PASS 640x360 RX24 BT.709 bit-exact with RGB3
+PASS 854x480 NV21 bit-exact with NV12
+PASS 854x480 YU12 bit-exact with NV12
+PASS 854x480 YM24 bit-exact with NV12
+PASS 854x480 YUYV bit-exact with NV12
+PASS 854x480 UYVY bit-exact with NV12
+PASS 854x480 RGB3 BT.601 psnr_y 40.972101
+PASS 854x480 BX24 BT.601 bit-exact with RGB3
+PASS 854x480 XR24 BT.601 bit-exact with RGB3
+PASS 854x480 XB24 BT.601 bit-exact with RGB3
+PASS 854x480 RX24 BT.601 bit-exact with RGB3
+PASS 854x480 RGB3 BT.709 psnr_y 40.873180
+PASS 854x480 BX24 BT.709 bit-exact with RGB3
+PASS 854x480 XR24 BT.709 bit-exact with RGB3
+PASS 854x480 XB24 BT.709 bit-exact with RGB3
+PASS 854x480 RX24 BT.709 bit-exact with RGB3
+PASS 1920x1080 NV21 bit-exact with NV12
+PASS 1920x1080 YU12 bit-exact with NV12
+PASS 1920x1080 YM24 bit-exact with NV12
+PASS 1920x1080 YUYV bit-exact with NV12
+PASS 1920x1080 UYVY bit-exact with NV12
+PASS 1920x1080 BX24 BT.601 psnr_y 40.958217
+PASS 1920x1080 XR24 BT.601 bit-exact with BX24
+PASS 1920x1080 XB24 BT.601 bit-exact with BX24
+PASS 1920x1080 RX24 BT.601 bit-exact with BX24
+PASS 1920x1080 BX24 BT.709 psnr_y 40.854476
+PASS 1920x1080 XR24 BT.709 bit-exact with BX24
+PASS 1920x1080 XB24 BT.709 bit-exact with BX24
+PASS 1920x1080 RX24 BT.709 bit-exact with BX24
+PASS RGB24 wider than 1376 is adjusted
+PASS 16x64 decodes 16x64 psnr_y 41.112570
+PASS 16x64 content psnr_y 41.112570
+PASS 32x64 decodes 32x64 psnr_y 41.082339
+PASS 32x64 content psnr_y 41.082339
+PASS 48x64 decodes 48x64 psnr_y 41.050240
+PASS 48x64 content psnr_y 41.050240
+PASS 854x480 decodes 854x480 psnr_y 40.894861
+PASS 854x480 content psnr_y 40.894861
+PASS 1040x240 decodes 1040x240 psnr_y 40.903887
+PASS 1040x240 content psnr_y 40.903887
+PASS 1918x1080 decodes 1918x1080 psnr_y 40.857081
+PASS 1918x1080 content psnr_y 40.857081
+PASS BGR24 is not offered
+PASS JPEG takes no RGB input
+PASS JPEG from YUYV bit-exact with NV12
+PASS JPEG from UYVY bit-exact with NV12
+PASS JPEG from YM24 bit-exact with NV12
+PASS ffmpeg rgb24 psnr_y 44.035482
+PASS ffmpeg 0rgb psnr_y 44.525938
+PASS ffmpeg bgr0 psnr_y 44.525938
+PASS ffmpeg yuyv422 psnr_y 45.893180
+PASS ffmpeg uyvy422 psnr_y 45.893180
+DONE
+encoder /dev/video1 from 77af6e8aed81525f
+dmesg warnings 0
+FAILS=0

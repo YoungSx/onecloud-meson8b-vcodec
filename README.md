@@ -18,7 +18,7 @@ kernel, device tree and production FFmpeg were preserved.
 | Path | Supported and tested scope |
 | --- | --- |
 | Decode | H.264, HEVC Main 8-bit, MPEG-1/2, MPEG-4 Part 2, VC-1 advanced, MJPEG |
-| H.264 encode | NV12/NV21/YUV420 input; fixed QP or software CBR; no B-frame encoding |
+| H.264 encode | 4:2:0, 4:2:2, 4:4:4 and RGB input; fixed I/P QP or rate control; multi-slice; DMA-BUF input; no B-frame encoding |
 | JPEG encode | Quality 1–100; full-range YCbCr input; standard V4L2 client |
 | Concurrent transcode | One decoder plus one encoder; 1080p H.264 B-frame input within the existing 64 MiB CMA budget |
 
@@ -27,6 +27,8 @@ VC-1 and MJPEG have documented drain/chroma limits. Output still uses CPU
 byte-order conversion and copies. Autoload start/stop was tested without
 rebooting; there is no current-mainline port or published linux-media RFC.
 See [capabilities and limits](docs/validation.md).
+The encoder extensions above were validated on 2026-11-15 by swapping in
+candidate modules; the installed `bd1cb79` package predates them.
 S805's documented encoder formats are H.264 and JPEG; HEVC is decode-only.
 [Encoding feasibility](docs/encoding-feasibility.md) records the hardware
 evidence and further H.264/JPEG development paths.

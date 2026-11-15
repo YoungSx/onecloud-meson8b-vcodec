@@ -14,6 +14,11 @@
 | unload busy | 退出所有持有设备的客户端，再停止 unit；不强制 rmmod |
 | 回滚拒绝固件变化 | state 记录后存在其他更新；保留备份并比较哈希，不能盲目覆盖 |
 | `/tmp` 空间不足 | raw 1080p 图像很大，长测试参考使用 `/dev/null`；只清理自己产生的测试文件 |
+| `picture at QP N exceeds the 1024 KiB bitstream buffer` | 单帧超过码流缓冲，该帧返回错误、下一帧为 IDR；提高 QP 或启用码率控制，避免在 1080p 使用很低的固定 QP |
+| 码率高于目标且 QP 停在 32 | 目标低于该内容在 QP 32 的码率；此微码在 QP 32 以上码率不再下降，应降低分辨率或帧率 |
+| 设置 MIN/MAX_QP 后客户端卡在 D 状态 | 仅 `bd1cb79`/v0.1.0 模块有此死锁；升级后修复。旧模块上不要修改这两个控件 |
+| RGB24 宽度被改小 | RGB24 最宽 1376；更宽时改用 XRGB32/XBGR32 等 32 位格式 |
+| DMA-BUF 输入未走直接路径 | 只有 NV12M/NV21M、每个平面一段连续地址、8 字节对齐且行宽等于 bytesperline 时直接读取；`/sys/kernel/debug/meson-venc/` 计数可确认 |
 
 目标原 FFmpeg 缺少 `hevc_v4l2m2m`，用包内独立工具。[使用指南](usage.md)
 区分生产编码工具和独立解码工具。JPEG 输入须全量程 YCbCr。

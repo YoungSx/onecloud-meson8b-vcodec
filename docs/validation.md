@@ -10,6 +10,8 @@
 | H.264 解码 | 1080p 300 帧逐帧一致；后续独立回归 60/60 一致 | [Decode](../evidence/ACCEPTANCE-2026-11-13.md) |
 | HEVC Main 8-bit | 320×240 10/10、1080p B 帧 30/30、854×480 crop 10/10 哈希一致；重复会话和恢复 | [HEVC](../evidence/HEVC-ACCEPTANCE-2026-11-14.md) |
 | H.264 编码 | 三种原始格式、多尺寸、CBR、强制关键帧；1080p30 编码 CPU 对比软编降低约 75% | [Encode](../evidence/ENCODE-ACCEPTANCE-2026-11-13.md) |
+| 编码控件与码率控制（候选模块） | QPPICTURE 修复后变 QP 码流可解码；I/P QP、QP 范围、GOP 0、码率目标误差 motion/scene ±1.8% 内 | [Controls](../evidence/ENCODER-CONTROLS-2026-11-15.md) |
+| 编码输入、DMA-BUF、分片（候选模块） | 9 种新增输入格式逐字节/PSNR 检查；非整宏块宽度原尺寸解码；连续 DMA-BUF 直读；整行多分片 | [Input](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md) |
 | JPEG 编码 | 八组输入矩阵；3×300 张 1080p 图像软解；质量、时间戳、互斥及 EOS | [JPEG](../evidence/P6-JPEG-ENCODE-ACCEPTANCE-2026-11-14.md) / [Long run](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | H.264 并发转码 | 1080p B 帧输入十轮 60 帧完整；PSNR 最低 45.03 dB、平均 45.82 dB | [Concurrent B frames](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
@@ -20,6 +22,11 @@
 
 - HEVC Main10、tiles、长期参考帧未支持或广告；当前 8-bit 线性路径。
 - H.264 encoder 无 B 帧；一个 encoder open，共享 HCODEC 的 JPEG/AVC 互斥。
+  `bd1cb79` 的 CBR 码流解码错误、设置 MIN/MAX_QP 会死锁，候选模块已修复。
+- 编码码流为 Baseline、无 VUI；码率控制的 P 帧 QP 不超过 32，低于该码率的
+  目标不可达。分片随整帧交付，没有逐片低延迟。单帧码流上限 1 MiB。
+- RGB24 最宽 1376，三字节 BGR 不支持；运动搜索随 DRAM 时序变化，有运动的
+  码流在多次运行间不逐字节一致。
 - VC-1 advanced 的唯一图像匹配软解，但有历史末两帧 drain/RPS 重复显示边界。
   MPEG-4/MPEG-2 的旧验收亦有对应帧尾边界，不能声称任意流逐帧完整。
 - MJPEG 带厂商全量程色度增益，不能声称与软解 bit-exact。

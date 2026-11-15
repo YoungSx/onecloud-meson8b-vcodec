@@ -1,0 +1,23 @@
+encoder /dev/video1 from fa17e35d50f986d2
+PASS 1080p 17 rows per slice: 0,2040,4080,6120x24
+PASS 1080p sliced decodes psnr_y 39.107459
+PASS MAX_MB rounds down to whole rows: 0,2040,4080,6120x4
+PASS one row per slice at 640x360: 0,40,80,120,160,200,240,280,320,360,400,...
+PASS row slices decode psnr_y 40.340848
+PASS IDR and P pictures sliced alike: 0,200,400,600,800x30
+PASS sliced rate control decodes psnr_y 38.107970
+PASS MAX_MB beyond the picture is one slice: 0x4
+PASS SINGLE ignores MAX_MB: 0x4
+PASS MAX_BYTES is not offered
+slice-mode=0 latency_us median 20809 bytes 3662716
+slice-mode=1 latency_us median 22170 bytes 3657053
+encoder /dev/video1 from 5be5b6d0e19a6d5d
+[153992.661773] meson-venc d0050000.video-encoder: probe irq: status 8 total 22 wr 0x18
+[153992.696437] meson-venc d0050000.video-encoder: probe irq: status 9 total 97797 wr 0x17e08
+[153992.740305] meson-venc d0050000.video-encoder: probe irq: status 9 total 48183 wr 0xbc38
+[153992.785688] meson-venc d0050000.video-encoder: probe irq: status 9 total 61089 wr 0xeea8
+PASS one mailbox IRQ per command (5 for SEQUENCE, PICTURE, 3 pictures): 5
+DONE
+encoder /dev/video1 from 77af6e8aed81525f
+dmesg warnings 0
+FAILS=0

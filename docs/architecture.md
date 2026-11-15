@@ -22,9 +22,19 @@ Meson8b canvas 没有 GX 字节序转换控制。解码参考帧保持硬件布�
 独立 DMA shadow；CPU 通过缓存别名和同步操作转换字节序，输出 NV12M。
 不能在硬件仍作运动补偿参考的缓冲上直接更改布局。
 
-编码输入经过 staging/copy 送入 MFDIN，原始帧 DMA 按 negotiated stride
-和 16 行对齐高度分配。1080p 比厂商私有 DCT 区节约约 3.8 MiB CMA，允许
-已验证参考帧配置的 H.264 并发转码。端到端零拷贝尚未实现。
+编码输入由格式表描述：每种格式对应 MFDIN 输入模式、平面布局、字节序
+（`REG9_ENDN` 置换每个 64 位字的字节）以及 RGB 转换矩阵。帧按厂商 LOCAL_BUFF
+布局拷入 staging，每个平面按 canvas 宽度和 16 行对齐高度排列，可见区域以外
+保持为零。staging 只按当前格式的实际布局分配，1080p NV12 比厂商私有 DCT
+区节约约 3.8 MiB CMA，使已验证参考帧配置的 H.264 并发转码可行。
+MMAP 缓冲仍为 vmalloc，排队帧不占 CMA；连续的 DMA-BUF NV12/NV21 帧直接作为
+canvas 交给 MFDIN，其他 DMA-BUF 经 CPU 映射拷入 staging。
+
+微码只按主机给出的 QP 量化。驱动在每帧开始前于控件锁内选择帧类型、QP 和
+分片，编码完成后用实际输出字节更新码率控制；QPPICTURE（PPS 的 pic_init_qp）
+固定为 26。微码只在 SPS 中写底部裁剪，驱动按需在会话开始时重写一次 SPS，
+补入右侧裁剪；会话内 SPS/PPS 拼在每个 IDR 之前。码流缓冲为 1 MiB，写满时
+VLC 停在末尾不越界，驱动约 150 ms 内报错。端到端零拷贝尚未实现。
 
 ## 状态与帧尾
 

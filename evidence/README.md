@@ -15,6 +15,8 @@
 | Baseline 并发转码 | [Concurrent](P6-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | B 帧并发及 900 JPEG | [B frames](BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | HEVC Main 8-bit | [HEVC](HEVC-ACCEPTANCE-2026-11-14.md) |
+| 编码基线、控件与码率控制（P0/P1） | [Encoder controls](ENCODER-CONTROLS-2026-11-15.md) |
+| 编码输入格式、DMA-BUF、多分片（P2–P4） | [Encoder input](ENCODER-INPUT-SLICES-2026-11-15.md) |
 | 最终包校验/服务 | [Final state](hevc-2026-11-14/verified-live-state.log) |
 | HEVC 完整帧哈希 | [Content check](hevc-2026-11-14/verified-content-check.log) |
 | 构建和源码复现 | [Clean kernel build](hevc-2026-11-14/reproduced-kernel-build.log) |
@@ -24,6 +26,9 @@
 `b8263f6` 包。`hevc-recovery-interim-failure.log` 保留失败，中间 crop/debug
 输出不算最终验收。`reviewed-validation.log`/`reviewed-results.json` 为独立
 FFmpeg 的九轮正常流和错误恢复检查。
+
+`encoder-2026-11-15/` 的结果来自替换编码模块的候选版本，测试后已恢复安装的
+`bd1cb79`，不代表新的安装包已部署。
 
 主机 CI 日志属于构建回归，不能冒充新的 S805 硬件验收。历史阶段中的
 “未实现”、两模块、服务基线等描述只适用于记录当时。

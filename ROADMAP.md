@@ -4,7 +4,8 @@
 配置下的 1080p 并发转码及可回滚自动加载已完成。实机验收和功能边界见
 [验证指南](docs/validation.md)，开发过程见[历史日志](docs/history/development-log.md)。
 
-下一阶段按[开发计划](docs/development-plan.md)推进：
+下一阶段按[开发计划](docs/development-plan.md)推进。2026-11-15 已在候选模块
+上完成 P0–P4（多分片不含逐片低延迟），P5、P6 进行中：
 
 1. P0：性能、码流质量、延迟与资源基线。
 2. P1：H.264 控件、头部行为、I/P QP 与码率控制。
