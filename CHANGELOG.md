@@ -5,6 +5,15 @@ pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
 
 ## Unreleased
 
+No changes yet.
+
+## v0.2.0 — 2026-11-15 (pre-release)
+
+Encoder controls, input formats, DMA-BUF input, multi-slice, the NEON output
+conversion and the MPEG/VC-1 drain fix. Hardware coverage per item is in
+[validation](docs/validation.md); the 2-hour and overnight soaks are still
+outstanding and this draft makes no indefinite-soak claim.
+
 - Fix the MPEG-1/2, MPEG-4 and VC-1 drain writing no end code at all: the
   EOS buffer was allocated for `len + 512` while the padding helper fills
   `max(len, 4096) + 512`, so every sequence end was rejected and the final
