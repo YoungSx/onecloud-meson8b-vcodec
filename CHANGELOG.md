@@ -5,7 +5,12 @@ pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
 
 ## Unreleased
 
-No changes yet.
+Tooling only; the installed payload is unchanged from v0.2.0.
+
+- Add `scripts/soak.sh`, the bounded decode/encode soak used for the sustained
+  load runs, and document it in the validation guide.
+- Authenticate the pinned vendor source fetch with `GITHUB_TOKEN` and back off
+  across the 429s shared CI runners get, instead of failing the host job.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 
