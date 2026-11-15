@@ -38,9 +38,13 @@ def _words(text, expected_words, array, sentinel=True):
     return struct.pack("<" + "I" * expected_words, *(int(t, 16) for t in tokens))
 
 
-def _fetch(url, attempts=5):
+def _fetch(url, attempts=7):
     """Download a pinned file, retrying the transient failures GitHub returns
-    for unauthenticated raw fetches (429 rate limiting, 5xx)."""
+    for unauthenticated raw fetches (429 rate limiting, 5xx).
+
+    CI runners share GitHub's egress and routinely hit 429 while fetching the
+    vendor sources, so the backoff has to outlast a rate-limit window rather
+    than a hiccup: 1+2+4+8+16+32 s between seven attempts."""
     for attempt in range(attempts):
         try:
             with urllib.request.urlopen(url, timeout=60) as response:
