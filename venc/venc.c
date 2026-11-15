@@ -9,6 +9,7 @@
  * (mix_dump_mc_dblk) on the block's ARM core.
  */
 #include <linux/delay.h>
+#include <linux/gcd.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/math64.h>
@@ -26,9 +27,6 @@
 #define ENC_QUANT_DEFAULT	26
 #define ENC_GOP_DEFAULT		12
 #define ENC_TIMEOUT_MS		5000
-#define ENC_RC_MIN_QP		10
-#define ENC_RC_MAX_QP		48
-#define ENC_RC_MAX_STEP		4
 
 /*
  * QPPICTURE seeds the PPS pic_init_qp when the SEQUENCE/PICTURE commands
@@ -339,37 +337,6 @@ static void venc_init_assit_buffer(struct venc_ctx *ctx)
 {
 	/* MEM_OFFSET_REG */
 	venc_write(ctx->core, HENC_SCRATCH_1, ctx->mem.assit);
-}
-
-/*
- * Optional CBR controller. The vendor driver applies whatever per-frame
- * quant userspace supplies; the hardware has no built-in rate control.
- * When userspace sets V4L2_CID_MPEG_VIDEO_BITRATE we walk the QP around
- * the target instead: after each picture, compare accumulated bits with
- * the budget and step QP (bounded) toward convergence. Deliberately
- * conservative and single-loop — no lookahead, no per-MB adaptation.
- * ponytail: additive controller; replace with a PID if drift matters.
- */
-static void venc_rc_picture_done(struct venc_ctx *ctx, u32 es_bytes, u32 fps)
-{
-	u64 per_frame, budget;
-
-	if (!ctx->bitrate || !fps)
-		return;
-
-	ctx->rc_bits += (u64)es_bytes * 8;
-	ctx->rc_frames++;
-
-	per_frame = div64_u64(ctx->bitrate, fps);
-	budget = per_frame * ctx->rc_frames;
-
-	if (ctx->rc_bits > budget)
-		ctx->rc_qp += ENC_RC_MAX_STEP;		/* over budget: coarser */
-	else if (budget - ctx->rc_bits > per_frame)
-		ctx->rc_qp -= 1;			/* under budget: finer */
-
-	ctx->rc_qp = clamp(ctx->rc_qp, ENC_RC_MIN_QP, ENC_RC_MAX_QP);
-	ctx->quant = ctx->rc_qp;
 }
 
 /*
@@ -885,7 +852,6 @@ static int venc_hw_start(struct venc_ctx *ctx)
 	ctx->idr_pic_id = 0;
 	ctx->frame_number = 0;
 	ctx->poc_lsb = 0;
-	ctx->gop_idx = 0;
 
 	ret = venc_hw_init(ctx);
 	if (ret)
@@ -987,7 +953,6 @@ static void venc_light_reset(struct venc_ctx *ctx)
 	venc_amrisc_stop(core);
 	venc_poweroff(core);
 	mdelay(30);
-	ctx->gop_idx = 0;	/* next frame must be an IDR */
 	ret = venc_hw_init(ctx);
 	if (ret) {
 		dev_err(core->dev, "hardware re-init failed (%d)\n", ret);
@@ -1075,17 +1040,14 @@ static void venc_frame_done(struct venc_ctx *ctx, bool idr)
 	ctx->ref_canvas = tmp;
 }
 
+/* Encode one picture of the type and ctx->quant the work picked. */
 static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
-			     struct vb2_buffer *dst)
+			     struct vb2_buffer *dst, bool idr)
 {
 	struct venc_core *core = ctx->core;
+	u32 done_code = idr ? ENCODER_IDR_DONE : ENCODER_NON_IDR_DONE;
 	u32 es_size;
-	u32 done_code;
-	bool idr;
 	int ret;
-
-	idr = ctx->gop_idx == 0;
-	done_code = idr ? ENCODER_IDR_DONE : ENCODER_NON_IDR_DONE;
 
 	venc_stage_input(ctx, src);
 
@@ -1128,14 +1090,6 @@ static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
 	}
 
 	venc_frame_done(ctx, idr);
-	/* timeperframe is N/M seconds per frame, so fps = M/N */
-	venc_rc_picture_done(ctx, es_size,
-			     ctx->timeperframe.denominator /
-			     max(ctx->timeperframe.numerator, 1u));
-
-	if (++ctx->gop_idx >= ctx->gop_size)
-		ctx->gop_idx = 0;
-
 	return 0;
 }
 
@@ -1361,6 +1315,56 @@ static const struct v4l2_m2m_ops venc_m2m_ops = {
 	.job_abort = venc_job_abort,
 };
 
+/*
+ * Pick the next picture's type and QP from the control state. A new
+ * session restarts the GOP.
+ */
+static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
+{
+	bool idr;
+
+	mutex_lock(ctx->ctrl_handler.lock);
+	if (new_session)
+		ctx->gop_idx = 0;
+	idr = ctx->force_key || !ctx->gop_idx ||
+	      (ctx->gop_size && ctx->gop_idx >= ctx->gop_size);
+	if (ctx->rc_enable && ctx->rc.bitrate) {
+		if (ctx->rc_restart) {
+			venc_rc_reset(&ctx->rc, ctx->p_qp);
+			ctx->rc_restart = false;
+		}
+		ctx->rc.i_offset = ctx->i_qp - ctx->p_qp;
+		ctx->quant = venc_rc_picture_qp(&ctx->rc, idr);
+	} else {
+		ctx->quant = venc_rc_clamp(&ctx->rc, idr ? ctx->i_qp : ctx->p_qp);
+	}
+	mutex_unlock(ctx->ctrl_handler.lock);
+	return idr;
+}
+
+/* Account a finished picture; after a failure the next one is an IDR. */
+static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
+				 int result)
+{
+	bool rc;
+
+	mutex_lock(ctx->ctrl_handler.lock);
+	rc = ctx->rc_enable && ctx->rc.bitrate && !ctx->rc_restart;
+	if (result) {
+		ctx->gop_idx = 0;
+	} else {
+		if (idr) {
+			ctx->force_key = false;
+			ctx->gop_idx = 0;
+		}
+		if (ctx->gop_idx < U32_MAX)
+			ctx->gop_idx++;
+		if (rc)
+			venc_rc_update(&ctx->rc, bytes, ctx->quant, idr);
+	}
+	mutex_unlock(ctx->ctrl_handler.lock);
+}
+
 static void venc_work(struct work_struct *work)
 {
 	struct venc_ctx *ctx =
@@ -1369,7 +1373,7 @@ static void venc_work(struct work_struct *work)
 	struct v4l2_m2m_ctx *m2m_ctx = ctx->m2m_ctx;
 	struct vb2_v4l2_buffer *src, *dst;
 	enum vb2_buffer_state state = VB2_BUF_STATE_DONE;
-	bool keyframe;
+	bool new_session = false, idr = true;
 	int ret;
 
 	src = v4l2_m2m_next_src_buf(m2m_ctx);
@@ -1378,8 +1382,6 @@ static void venc_work(struct work_struct *work)
 		v4l2_m2m_job_finish(core->m2m_dev, m2m_ctx);
 		return;
 	}
-
-	keyframe = ctx->dst_fmt == V4L2_PIX_FMT_JPEG || ctx->gop_idx == 0;
 
 	if (!core->running) {
 		ret = venc_hw_start(ctx);
@@ -1391,17 +1393,23 @@ static void venc_work(struct work_struct *work)
 			state = VB2_BUF_STATE_ERROR;
 			goto out;
 		}
+		new_session = true;
 	}
 
-	ret = ctx->dst_fmt == V4L2_PIX_FMT_JPEG ?
-		venc_encode_jpeg(ctx, &src->vb2_buf, &dst->vb2_buf) :
-		venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf);
+	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG) {
+		ret = venc_encode_jpeg(ctx, &src->vb2_buf, &dst->vb2_buf);
+	} else {
+		idr = venc_pick_picture(ctx, new_session);
+		ret = venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf, idr);
+		venc_account_picture(ctx, idr,
+				     vb2_get_plane_payload(&dst->vb2_buf, 0), ret);
+	}
 	if (ret)
 		state = VB2_BUF_STATE_ERROR;
 
 out:
 	v4l2_m2m_buf_copy_metadata(src, dst, false);
-	if (state == VB2_BUF_STATE_DONE && keyframe)
+	if (state == VB2_BUF_STATE_DONE && idr)
 		dst->flags |= V4L2_BUF_FLAG_KEYFRAME;
 	if (v4l2_m2m_is_last_draining_src_buf(m2m_ctx, src))
 		venc_signal_eos(ctx, dst);
@@ -1530,18 +1538,24 @@ static int venc_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 static int venc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
 	struct venc_ctx *ctx = venc_fh_to_ctx(file);
-	u32 num, den;
+	struct v4l2_fract *t = &a->parm.output.timeperframe;
+	u32 divisor;
 
 	if (a->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
-	num = a->parm.output.timeperframe.numerator;
-	den = a->parm.output.timeperframe.denominator;
-	if (num && den) {
-		ctx->timeperframe.numerator = num;
-		ctx->timeperframe.denominator = den;
-		/* frame rate only feeds the CBR budget, not the hardware */
+	if (t->numerator && t->denominator) {
+		/* bounds keep the rate-control arithmetic in 64 bits */
+		divisor = gcd(t->numerator, t->denominator);
+		t->numerator = clamp(t->numerator / divisor, 1u, 65535u);
+		t->denominator = clamp(t->denominator / divisor, 1u, 65535u);
+		/* frame rate only feeds the rate control, not the hardware */
+		mutex_lock(ctx->ctrl_handler.lock);
+		ctx->timeperframe = *t;
+		ctx->rc.numerator = t->numerator;
+		ctx->rc.denominator = t->denominator;
+		mutex_unlock(ctx->ctrl_handler.lock);
 	}
-	return 0;
+	return venc_g_parm(file, fh, a);
 }
 
 static int venc_subscribe_event(struct v4l2_fh *fh,
@@ -1599,15 +1613,29 @@ static const struct v4l2_ioctl_ops venc_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
+/* Runs with the control handler lock held, like venc_s_ctrl(). */
+static int venc_try_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct venc_ctx *ctx =
+		container_of(ctrl->handler, struct venc_ctx, ctrl_handler);
+
+	/* MIN_QP masters the QP range cluster; both values are the new ones. */
+	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_MIN_QP &&
+	    ctx->qp_range[0]->val > ctx->qp_range[1]->val)
+		return -ERANGE;
+	return 0;
+}
+
+/*
+ * Control values become driver state under the handler lock; the encode
+ * work reads them under the same lock between pictures. Never look up
+ * controls here: v4l2_ctrl_find() takes the lock this callback holds.
+ */
 static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct venc_ctx *ctx =
 		container_of(ctrl->handler, struct venc_ctx, ctrl_handler);
 
-	/*
-	 * Never look up controls here: v4l2_ctrl_find() takes the handler
-	 * lock this callback runs under.
-	 */
 	switch (ctrl->id) {
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		ctx->jpeg_quality = ctrl->val;
@@ -1616,35 +1644,39 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		ctx->gop_size = ctrl->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
-		ctx->bitrate = ctrl->val;
-		if (ctx->bitrate) {
-			/* reset the controller and resume walking from QP 26 */
-			ctx->rc_bits = 0;
-			ctx->rc_frames = 0;
-			ctx->rc_qp = ENC_QUANT_DEFAULT;
-			ctx->quant = ctx->rc_qp;
-		} else {
-			/* CBR off: back to the fixed quant the QP range asks for */
-			ctx->quant = ENC_QUANT_DEFAULT;
-		}
+		/* a new target keeps the QP and estimates, the bucket restarts */
+		if (!ctx->rc.bitrate)
+			ctx->rc_restart = true;
+		ctx->rc.bitrate = ctrl->val;
+		ctx->rc.fullness = 0;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
+		ctx->rc_enable = ctrl->val;
+		ctx->rc_restart = true;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
-	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
-		/* clamp the fixed quant into the requested QP range */
-		ctx->quant = clamp(ENC_QUANT_DEFAULT, ctx->qp_range[0]->val,
-				   ctx->qp_range[1]->val);
+		ctx->rc.qp_min = ctx->qp_range[0]->val;
+		ctx->rc.qp_max = ctx->qp_range[1]->val;
+		ctx->rc.qp = venc_rc_clamp_p(&ctx->rc, ctx->rc.qp);
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
+		ctx->i_qp = ctrl->val;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP:
+		ctx->p_qp = ctrl->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
-		ctx->gop_idx = 0;	/* next frame must be an IDR */
+		ctx->force_key = true;
 		break;
 	default:
-		/* B_FRAMES/HEADER_MODE/PROFILE: stored, no-op */
+		/* B_FRAMES and HEADER_MODE accept their single supported value. */
 		break;
 	}
 	return 0;
 }
 
 static const struct v4l2_ctrl_ops venc_ctrl_ops = {
+	.try_ctrl = venc_try_ctrl,
 	.s_ctrl = venc_s_ctrl,
 };
 
@@ -1673,14 +1705,14 @@ static int venc_open(struct file *file)
 	ctx->height = 1088;
 	ctx->src_fmt = V4L2_PIX_FMT_NV12M;
 	ctx->dst_fmt = V4L2_PIX_FMT_H264;
-	ctx->jpeg_quality = 90;
 	ctx->quant = ENC_QUANT_DEFAULT;
-	ctx->gop_size = ENC_GOP_DEFAULT;
 	ctx->timeperframe.numerator = 1;
 	ctx->timeperframe.denominator = 30;
+	ctx->rc.numerator = 1;
+	ctx->rc.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(hdl, 8);
+	ret = v4l2_ctrl_handler_init(hdl, 12);
 	if (ret)
 		goto err_free;
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_JPEG_COMPRESSION_QUALITY,
@@ -1688,8 +1720,12 @@ static int venc_open(struct file *file)
 
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_B_FRAMES,
 			  0, 0, 1, 0);
+	/* 0 keeps fixed QPs, as FFmpeg's -b:v 0 expects */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
 			  0, 100000000, 1, 0);
+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE,
+			  0, 1, 1, 1);
+	/* 0: only the first picture and forced key frames are IDR */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_GOP_SIZE,
 			  0, 65535, 1, ENC_GOP_DEFAULT);
 	ctx->qp_range[0] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
@@ -1698,17 +1734,28 @@ static int venc_open(struct file *file)
 	ctx->qp_range[1] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
 					     V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
 					     0, 51, 1, 51);
+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP,
+			  0, 51, 1, ENC_QUANT_DEFAULT);
+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP,
+			  0, 51, 1, ENC_QUANT_DEFAULT);
 	/* button control: the next queued frame becomes an IDR */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 			  0, 0, 0, 0);
+	/* SPS/PPS lead every IDR; a separate header buffer is not produced */
 	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
 			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
-			       0, V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE);
+			       BIT(V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE),
+			       V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME);
 	if (hdl->error) {
 		ret = hdl->error;
 		goto err_ctrl;
 	}
+	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->qp_range), ctx->qp_range);
+	/* state starts from the control defaults */
+	ret = v4l2_ctrl_handler_setup(hdl);
+	if (ret)
+		goto err_ctrl;
 
 	ctx->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev, ctx, &venc_queue_init);
 	if (IS_ERR(ctx->m2m_ctx)) {

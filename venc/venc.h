@@ -20,6 +20,7 @@
 #include <linux/soc/amlogic/meson-canvas.h>
 
 #include "hcodec_regs.h"
+#include "rate-control.h"
 
 #define VENC_BITSTREAM_SIZE	0x100000
 #define VENC_MC_SIZE		(4096 * 4)
@@ -57,16 +58,22 @@ struct venc_ctx {
 	struct work_struct work;
 
 	u32 width, height;
-	u32 quant;
-	u32 gop_size, gop_idx;
+	u32 quant;			/* QP of the picture being encoded */
 
-	/* optional CBR (V4L2_CID_MPEG_VIDEO_BITRATE); 0 = fixed QP */
-	u32 bitrate;
-	u64 rc_bits;			/* bits encoded since rate-control start */
-	u32 rc_frames;			/* frames since rate-control start */
-	s32 rc_qp;			/* QP the controller walks */
-	struct v4l2_fract timeperframe;	/* feeds the CBR budget only */
-	struct v4l2_ctrl *qp_range[2];	/* MIN_QP, MAX_QP */
+	/*
+	 * Control state, guarded by the control handler lock. The encode work
+	 * takes the same lock to pick each picture's type and QP and to
+	 * account it, so updates apply on picture boundaries.
+	 */
+	u32 gop_size;			/* 0: only the first and forced pictures are IDR */
+	u32 gop_idx;			/* pictures since the last IDR */
+	bool force_key;
+	s32 i_qp, p_qp;			/* fixed QPs; the P QP also seeds rate control */
+	bool rc_enable;			/* V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE */
+	bool rc_restart;		/* reset the rate control before the next picture */
+	struct venc_rc rc;		/* bitrate, frame rate, QP range and RC state */
+	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */
+	struct v4l2_fract timeperframe;	/* feeds the rate control only */
 	u32 src_fmt;			/* V4L2_PIX_FMT_*, M-variant */
 	u32 dst_fmt;
 	u32 jpeg_quality;
