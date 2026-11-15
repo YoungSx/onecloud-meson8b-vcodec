@@ -20,6 +20,7 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 | VC-1 drain 复验 | 两个 FATE 样片唯一图 6/7、14/15，硬解图像与软解逐字节相同，比旧模块多恢复末一幅 | [VC-1 drain](../evidence/p6-2026-11-15/vc1-drain.md) |
 | v0.2.0 运行包部署 | 包校验 52 文件通过，安装后服务 active；MPEG-2 90 帧复验、H.264/HEVC 解码、H.264/JPEG 编码回归通过 | [v0.2.0 deploy](../evidence/p6-2026-11-15/v020-deploy.md) |
 | 30 分钟持续负载 | 545 轮 0 失败；HEVC 30/30 与 H.264 300/300 逐帧哈希全部匹配；CMA 与可用内存无单调下降，dmesg 无警告 | [Soak v0.2.0](../evidence/p6-2026-11-15/soak-30min-v020.md) |
+| 2 小时持续负载 | 2205 轮 0 失败；66150 帧 HEVC 与 132300 帧 H.264 逐帧哈希全部匹配；CMA 与可用内存无下降趋势，dmesg 无警告 | [Soak 2h](../evidence/p6-2026-11-15/soak-2h-v020.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
 | 设备枚举 | v4l2-ctl 枚举两个设备、格式和控件 | [Enumeration](../evidence/hevc-2026-11-14/v4l2-enumeration.log) |
 | 干净源码构建 | 原配置完整构建、三个外部模块哈希一致、additive 补丁/Kbuild | [Build](../evidence/hevc-2026-11-14/reproduced-codec-build.log) / [Hashes](../evidence/hevc-2026-11-14/reproduced-module-hashes.txt) |
@@ -41,8 +42,8 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 - MJPEG 带厂商全量程色度增益，不能声称与软解 bit-exact。
 - 分辨率切换由标准 V4L2 客户端验证 350 帧；FFmpeg 7.0.2 reinit 仍可能
   等待持有的 buffer ref。独立 drain 补丁不宣称修复所有 reinit 行为。
-- 900 张 JPEG、十轮并发与 30 分钟持续负载都是有界回归，非无限期生产
-  soak；2 小时与过夜验证未做。
+- 900 张 JPEG、十轮并发、30 分钟与 2 小时持续负载都是有界回归，非无限期
+  生产 soak；过夜验证未做。
 - 未替换启动内核、未重启验收自动加载；当前主线端口和公开 RFC 未完成。
 - CPU 输出字节序转换与编码输入拷贝存在，非端到端零拷贝；NEON 转换
   自 `cd4e6b5` 起包含在安装包中，当前在役机的 `c20a473` 包同样包含。

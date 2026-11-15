@@ -57,8 +57,14 @@ The 30-minute soak was then completed on the v0.2.0 package on 2026-11-16:
 matching the software reference, no CMA or memory trend, no kernel warnings.
 The five business services were inactive throughout because of the disk, so
 that run says nothing about their coexistence. See
-evidence/p6-2026-11-15/soak-30min-v020.md. The 2-hour and overnight soaks
-remain outstanding.
+evidence/p6-2026-11-15/soak-30min-v020.md.
+
+A 2-hour soak on the same package then ran 2205 iterations with 0 failures:
+66150 HEVC and 132300 H.264 frames matched the software reference, no CMA or
+memory trend, no kernel warnings. See evidence/p6-2026-11-15/soak-2h-v020.md.
+The five services were still inactive for the same disk reason, so the
+service-coexistence question is untouched. The overnight soak remains
+outstanding.
 
 Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
 After ending codec clients, roll back using:

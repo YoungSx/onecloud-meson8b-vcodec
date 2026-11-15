@@ -17,10 +17,11 @@ Tooling only; the installed payload is unchanged from v0.2.0.
 Encoder controls, input formats, DMA-BUF input, multi-slice, the NEON output
 conversion and the MPEG/VC-1 drain fix. Deployed to the production OneCloud
 on 2026-11-15: MPEG-2 and VC-1 tail rechecks, H.264/HEVC decode and
-H.264/JPEG encode all passed, and a 30-minute soak ran 545 iterations with
-no failures and no frame-hash mismatch. Hardware coverage per item is in
-[validation](docs/validation.md); the 2-hour and overnight soaks are still
-outstanding and this draft makes no indefinite-soak claim.
+H.264/JPEG encode all passed, and soaks of 30 minutes (545 iterations) and
+2 hours (2205 iterations) ran with no failures and no frame-hash mismatch.
+Hardware coverage per item is in [validation](docs/validation.md); the
+overnight soak is still outstanding and this draft makes no indefinite-soak
+claim.
 
 - Fix the MPEG-1/2, MPEG-4 and VC-1 drain writing no end code at all: the
   EOS buffer was allocated for `len + 512` while the padding helper fills
