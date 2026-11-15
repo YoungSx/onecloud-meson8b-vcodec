@@ -47,7 +47,16 @@ struct codec_mpeg12 {
 	bool draining;
 };
 
-static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB7 };
+/* Sequence end, then one picture start. The m8 firmware completes a
+ * picture only when the next one starts, so the sequence end alone leaves
+ * the final picture pending; the extra start code releases it. A second
+ * start code would release the empty picture the first one began, which
+ * reaches userspace as a stale canvas, so exactly one is sent.
+ */
+static const u8 eos_sequence[SZ_1K] = {
+	0x00, 0x00, 0x01, 0xB7,
+	0x00, 0x00, 0x01, 0x00, 0x00, 0x08, 0x00, 0x00,
+};
 
 static int codec_mpeg12_can_recycle(struct amvdec_core *core)
 {
@@ -198,10 +207,7 @@ static void codec_mpeg12_drain(struct amvdec_session *sess)
 	if (mpeg12->draining)
 		return;
 
-	/* Sequence end: prompts the firmware to emit the last decoded
-	 * picture (it only completes one when the next picture starts).
-	 */
-	esparser_queue_eos(sess->core, eos_sequence, 4);
+	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
 
 	mpeg12->draining = true;
 	schedule_delayed_work(&mpeg12->drain_work, 0);

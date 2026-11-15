@@ -247,6 +247,7 @@ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 	u32 span = ESPARSER_PAD_SPAN(len);
 	void *eos_vaddr;
 	dma_addr_t eos_paddr;
+	int pad_size;
 	int ret;
 
 	eos_vaddr = dma_alloc_coherent(dev, span, &eos_paddr, GFP_KERNEL);
@@ -254,12 +255,17 @@ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 		return -ENOMEM;
 
 	memcpy(eos_vaddr, data, len);
-	if (esparser_pad_buffer(eos_vaddr, len, span) < 0) {
+	pad_size = esparser_pad_buffer(eos_vaddr, len, span);
+	if (pad_size < 0) {
 		dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 		return -EINVAL;
 	}
 	dma_wmb();
-	ret = esparser_write_data(core, eos_paddr, len);
+	/* Write the padding too: the 000001ff terminator has to reach the
+	 * ESPARSER or it never raises the search interrupt, and the firmware
+	 * never sees the sequence end.
+	 */
+	ret = esparser_write_data(core, eos_paddr, len + pad_size);
 	dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 
 	return ret;

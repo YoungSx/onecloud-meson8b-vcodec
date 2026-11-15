@@ -55,7 +55,15 @@ struct codec_vc1 {
 	bool draining;
 };
 
-static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0x0A };
+/* End of sequence, then one frame start. Same firmware rule as MPEG1/2:
+ * a picture completes only when the next one starts, so the end code alone
+ * leaves the last picture pending. Exactly one start is sent; a second
+ * would release the empty picture the first began.
+ */
+static const u8 eos_sequence[SZ_1K] = {
+	0x00, 0x00, 0x01, 0x0A,
+	0x00, 0x00, 0x01, 0x0D,
+};
 
 static int codec_vc1_can_recycle(struct amvdec_core *core)
 {
@@ -194,7 +202,7 @@ static void codec_vc1_drain(struct amvdec_session *sess)
 		return;
 
 	/* VC1 end-of-sequence */
-	esparser_queue_eos(sess->core, eos_sequence, 4);
+	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
 
 	vc1->draining = true;
 	schedule_delayed_work(&vc1->drain_work, 0);
