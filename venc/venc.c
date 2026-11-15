@@ -23,6 +23,7 @@
 #include "hcodec_regs.h"
 #include "venc.h"
 #include "jpeg-header.h"
+#include "h264-sps.h"
 
 #define ENC_QUANT_DEFAULT	26
 #define ENC_GOP_DEFAULT		12
@@ -862,6 +863,55 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 	return 0;
 }
 
+/*
+ * Coded width in whole macroblocks. On the target the AVC microcode times
+ * out on pictures 1 or 65 macroblocks wide and garbles 2-wide ones (widths
+ * 1..120 scanned), so those get padding macroblocks that the SPS crops.
+ */
+static u32 venc_coded_width(struct venc_ctx *ctx)
+{
+	u32 mbs = DIV_ROUND_UP(ctx->width, 16);
+
+	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG) {
+		if (mbs < 3)
+			mbs = 3;
+		else if (mbs == 65)
+			mbs = 66;
+	}
+	return mbs * 16;
+}
+
+/*
+ * The SEQUENCE command leaves "00 00 00 01 SPS 00 00 00 01 PPS". Crop the
+ * padding columns when the coded width differs from the visible one.
+ */
+static int venc_crop_sps(struct venc_ctx *ctx)
+{
+	u8 sps[2 * VENC_SPS_MAX], *headers = ctx->sps_pps, *merged;
+	u32 size = ctx->sps_pps_size, end, len;
+
+	if (ctx->coded_width == ctx->width)
+		return 0;
+	for (end = 4; end + 4 <= size && memcmp(headers + end, "\0\0\0\1", 4); end++)
+		;
+	if (size < 4 || memcmp(headers, "\0\0\0\1", 4) || end + 4 > size)
+		return -EINVAL;
+	len = venc_sps_crop_right(headers + 4, end - 4,
+				  (ctx->coded_width - ctx->width) / 2, sps);
+	if (!len)
+		return -EINVAL;
+	merged = kmalloc(4 + len + size - end, GFP_KERNEL);
+	if (!merged)
+		return -ENOMEM;
+	memcpy(merged, headers, 4);
+	memcpy(merged + 4, sps, len);
+	memcpy(merged + 4 + len, headers + end, size - end);
+	kfree(ctx->sps_pps);
+	ctx->sps_pps = merged;
+	ctx->sps_pps_size = 4 + len + size - end;
+	return 0;
+}
+
 static int venc_hw_start(struct venc_ctx *ctx)
 {
 	struct venc_core *core = ctx->core;
@@ -869,7 +919,7 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		VENC_JPEG_FW_NAME : VENC_FW_NAME;
 	int ret, i;
 
-	ctx->coded_width = ALIGN(ctx->width, 16);
+	ctx->coded_width = venc_coded_width(ctx);
 	ret = venc_alloc_buffers(ctx);
 	if (ret)
 		return ret;
@@ -927,6 +977,7 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		       ctx->sps_pps_size + pps);
 		ctx->sps_pps_size += pps;
 		ctx->sps_pps_valid = true;
+		ret = venc_crop_sps(ctx);
 	}
 	if (ret) {
 		dev_err(core->dev, "SPS/PPS generation failed (%d), hw_status %u\n",
