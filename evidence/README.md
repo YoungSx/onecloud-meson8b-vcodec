@@ -18,6 +18,9 @@
 | 编码基线、控件与码率控制（P0/P1） | [Encoder controls](ENCODER-CONTROLS-2026-11-15.md) |
 | 编码输入格式、DMA-BUF、多分片（P2–P4） | [Encoder input](ENCODER-INPUT-SLICES-2026-11-15.md) |
 | 解码输出转换、canvas 尺寸与 GE2D 门槛（P5） | [Decoder convert](P5-DECODER-CONVERT-2026-11-15.md) |
+| 运行包升级、回滚与旧编码兼容（P6） | [P6 deploy](p6-2026-11-15/deploy.log)、[compat](p6-2026-11-15/compat.log) |
+| 30 分钟持续负载（中断于 191 轮） | [Soak](p6-2026-11-15/soak-30min.md) |
+| 两次硬复位与 USB 存储失效 | [Outage](p6-2026-11-15/outage-2026-11-15.md) |
 | 最终包校验/服务 | [Final state](hevc-2026-11-14/verified-live-state.log) |
 | HEVC 完整帧哈希 | [Content check](hevc-2026-11-14/verified-content-check.log) |
 | 构建和源码复现 | [Clean kernel build](hevc-2026-11-14/reproduced-kernel-build.log) |

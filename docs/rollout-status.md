@@ -1,4 +1,4 @@
-# Deployment and acceptance status, 2026-11-14
+# Deployment and acceptance status, 2026-11-15
 
 Final driver is runtime-only on original 5.15.79-meson, with no reboot or
 /boot writes. JPEG/HEVC and concurrent B-frame input are validated on
@@ -34,6 +34,22 @@ Independent tools and all scripts are covered by the manifest.
 
 Installed at /opt/meson8b-vcodec/current. The enabled and active
 meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
+
+Current installation: package source commit cd4e6b5, kernel release
+5.15.79-meson, state /root/venc-deploy/p6/codec-state-r5. Module hashes
+meson-vdec b8009e10c4373aaf, meson-venc fa17e35d50f986d2,
+meson8b-runtime 70f9025465f8bf4c; all nine firmware files identical to the
+previous install. The bd1cb79 installation was removed first and the new one
+installed with a fresh state directory; see evidence/p6-2026-11-15/deploy.log
+for upgrade, rollback rehearsal and restart results.
+
+The 30-minute soak was cut short at 191 iterations (0 failures) by two hard
+resets. After them the USB disk behind /mnt/sda2 stopped enumerating, so
+Docker, SublinkPro and VoCat are unavailable until it is serviced; the codec
+stack itself recovered automatically and passed decode and encode retests.
+See evidence/p6-2026-11-15/outage-2026-11-15.md. A full 30-minute, 2-hour
+and overnight soak is still outstanding.
+
 Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
 After ending codec clients, roll back using:
 
