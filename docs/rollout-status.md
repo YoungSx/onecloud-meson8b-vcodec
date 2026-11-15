@@ -44,14 +44,21 @@ directory; see evidence/p6-2026-11-15/v020-deploy.md for the transfer,
 verification and regression results, and deploy.log for the earlier
 cd4e6b5 upgrade and rollback rehearsal.
 
-The 30-minute soak stopped after 191 iterations (0 failures), short of its
-window, and the box reset afterwards. The USB disk behind /mnt/sda2 then
+The first 30-minute soak stopped after 191 iterations (0 failures), short of
+its window, and the box reset afterwards. The USB disk behind /mnt/sda2 then
 stopped enumerating, so Docker, SublinkPro and VoCat are unavailable until it
 is serviced; the codec stack itself recovered automatically and passed decode
 and encode retests. Log timestamps on this box are unreliable (no RTC, clock
 restored at boot), so the evidence records order and counts rather than a
-timeline. See evidence/p6-2026-11-15/outage-2026-11-15.md. A full 30-minute,
-2-hour and overnight soak is still outstanding.
+timeline. See evidence/p6-2026-11-15/outage-2026-11-15.md.
+
+The 30-minute soak was then completed on the v0.2.0 package on 2026-11-16:
+545 iterations, 0 failures, every HEVC 30/30 and H.264 300/300 frame hash
+matching the software reference, no CMA or memory trend, no kernel warnings.
+The five business services were inactive throughout because of the disk, so
+that run says nothing about their coexistence. See
+evidence/p6-2026-11-15/soak-30min-v020.md. The 2-hour and overnight soaks
+remain outstanding.
 
 Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
 After ending codec clients, roll back using:

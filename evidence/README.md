@@ -22,7 +22,8 @@
 | MPEG/VC-1 drain 根因与帧尾修复 | [drain EOS](p6-2026-11-15/drain-eos.md) |
 | VC-1 drain 改动实机复验 | [VC-1 drain](p6-2026-11-15/vc1-drain.md) |
 | v0.2.0 运行包部署与 MPEG-2 帧尾复验 | [v0.2.0 deploy](p6-2026-11-15/v020-deploy.md) |
-| 30 分钟持续负载（中断于 191 轮） | [Soak](p6-2026-11-15/soak-30min.md) |
+| 30 分钟持续负载（v0.2.0，545 轮 0 失败） | [Soak v0.2.0](p6-2026-11-15/soak-30min-v020.md) |
+| 30 分钟持续负载（中断于 191 轮，历史） | [Soak](p6-2026-11-15/soak-30min.md) |
 | 两次硬复位与 USB 存储失效 | [Outage](p6-2026-11-15/outage-2026-11-15.md) |
 | 最终包校验/服务 | [Final state](hevc-2026-11-14/verified-live-state.log) |
 | HEVC 完整帧哈希 | [Content check](hevc-2026-11-14/verified-content-check.log) |
