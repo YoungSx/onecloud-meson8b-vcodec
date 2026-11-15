@@ -2,6 +2,11 @@
 #ifndef MESON_ESPARSER_PADDING_H
 #define MESON_ESPARSER_PADDING_H
 
+/* Bytes a payload occupies once padded: at least one parser packet, plus
+ * the search window the ESPARSER scans for the 000001ff start code. */
+#define ESPARSER_PAD_SPAN(payload) \
+	((payload) < 4096 ? 4096 : (payload)) + 512
+
 /* Validate the full write span before padding any user-queued buffer. */
 static inline int esparser_pad_buffer(u8 *data, u32 payload,
 				     unsigned long capacity)

@@ -244,24 +244,23 @@ static u32 esparser_vififo_get_free_space(struct amvdec_session *sess)
 int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 {
 	struct device *dev = core->dev;
+	u32 span = ESPARSER_PAD_SPAN(len);
 	void *eos_vaddr;
 	dma_addr_t eos_paddr;
 	int ret;
 
-	eos_vaddr = dma_alloc_coherent(dev, len + SEARCH_PATTERN_LEN,
-				       &eos_paddr, GFP_KERNEL);
+	eos_vaddr = dma_alloc_coherent(dev, span, &eos_paddr, GFP_KERNEL);
 	if (!eos_vaddr)
 		return -ENOMEM;
 
 	memcpy(eos_vaddr, data, len);
-	if (esparser_pad_buffer(eos_vaddr, len, len + SEARCH_PATTERN_LEN) < 0) {
-		dma_free_coherent(dev, len + SEARCH_PATTERN_LEN, eos_vaddr, eos_paddr);
+	if (esparser_pad_buffer(eos_vaddr, len, span) < 0) {
+		dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 		return -EINVAL;
 	}
 	dma_wmb();
 	ret = esparser_write_data(core, eos_paddr, len);
-	dma_free_coherent(dev, len + SEARCH_PATTERN_LEN,
-			  eos_vaddr, eos_paddr);
+	dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 
 	return ret;
 }

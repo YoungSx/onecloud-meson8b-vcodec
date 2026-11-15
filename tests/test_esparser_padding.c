@@ -28,5 +28,35 @@ int main(void)
 	memset(buffer, 0xa5, sizeof(buffer));
 	assert(esparser_pad_buffer(buffer, 7680, 8192) == 0);
 	assert(buffer[7679] == 0xa5 && buffer[7682] == 1 && buffer[8191] == 0);
+
+	/* The EOS buffer must be allocated with ESPARSER_PAD_SPAN, not
+	 * len + 512: a 4-byte sequence-end code is padded up to a 4096-byte
+	 * parser packet first, so len + 512 is always too small and the
+	 * drain code silently never reached the firmware.
+	 */
+	assert(ESPARSER_PAD_SPAN(4) == 4608);
+	assert(ESPARSER_PAD_SPAN(4096) == 4608);
+	assert(ESPARSER_PAD_SPAN(4097) == 4609);
+	/* The old len + SEARCH_PATTERN_LEN allocation is too small for every
+	 * payload below the 4 KiB parser packet: that is the bug this guards.
+	 */
+	assert(esparser_pad_buffer(buffer, 4, 4 + 512) == -ENOSPC);
+	assert(esparser_pad_buffer(buffer, 44, 44 + 512) == -ENOSPC);
+	for (u32 len = 1; len <= 8192; len++) {
+		unsigned long span = ESPARSER_PAD_SPAN(len);
+
+		memset(buffer, 0xa5, sizeof(buffer));
+		if (span > sizeof(buffer))
+			continue;
+		assert(esparser_pad_buffer(buffer, len, span) >= 0);
+		/* Start code lands after the payload, or after the 4 KiB
+		 * minimum packet when the payload is shorter. */
+		{
+			u32 at = len < 4096 ? 4096 : len;
+
+			assert(buffer[at + 2] == 1 && buffer[at + 3] == 0xff);
+		}
+		assert(esparser_pad_buffer(buffer, len, span - 1) == -ENOSPC);
+	}
 	return 0;
 }
