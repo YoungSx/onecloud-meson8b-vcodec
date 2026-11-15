@@ -465,7 +465,7 @@ static void venc_init_ie_me_parameter(struct venc_ctx *ctx)
 		   (0x40 << 24) | (0x30 << 16) | (0x20 << 8) | 0x30);
 	venc_write(core, ME_MV_WEIGHT_23, (0x40 << 8) | 0x30);
 	venc_write(core, ME_SAD_RANGE_INC, 0x03030303);
-	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
+	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 
 	venc_write(core, HENC_SCRATCH_G, (30 << 16) | 0xffff); /* P_INTRA_CONFIG */
 	venc_write(core, HENC_SCRATCH_I,		/* P_MB_QUANT_CONFIG */
@@ -689,7 +689,7 @@ static int venc_start_cmd(struct venc_ctx *ctx, u32 cmd)
 	reinit_completion(&core->done);
 	core->done_pending = true;
 	venc_write(core, HENC_SCRATCH_0, cmd);	/* ENCODER_STATUS */
-	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
+	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 
 	return 0;
 }
@@ -816,7 +816,7 @@ static int venc_hw_init(struct venc_ctx *ctx)
 	venc_write(core, HENC_SCRATCH_D, 0);	/* IE_ME_MB_TYPE */
 	venc_init_ie_me_parameter(ctx);
 	venc_write(core, HENC_SCRATCH_0, ENCODER_IDLE);
-	venc_write(core, HENC_SCRATCH_L, 0);	/* FIXED_SLICE_CFG */
+	venc_write(core, HENC_SCRATCH_L, ctx->slice_cfg);	/* FIXED_SLICE_CFG */
 	venc_amrisc_start(core);
 
 	return 0;
@@ -860,6 +860,22 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 
 	memset(ctx->buffers[VENC_INPUT].vaddr, 0, ctx->buffers[VENC_INPUT].size);
 	return 0;
+}
+
+/*
+ * FIXED_SLICE_CFG for the vendor MULTI_SLICE_MC microcode: whole macroblock
+ * rows per slice in both halves, 0 for one slice. MAX_MB is rounded down
+ * to whole rows and to at least one.
+ */
+static u32 venc_slice_cfg(struct venc_ctx *ctx)
+{
+	u32 width_mbs = ctx->coded_width / 16;
+	u32 rows = ctx->slice_max_mb / width_mbs;
+
+	if (!ctx->multi_slice)
+		return 0;
+	rows = clamp(rows, 1u, DIV_ROUND_UP(ctx->height, 16));
+	return rows == DIV_ROUND_UP(ctx->height, 16) ? 0 : rows << 16 | rows;
 }
 
 /*
@@ -921,6 +937,9 @@ static int venc_hw_start(struct venc_ctx *ctx)
 	int ret, i;
 
 	ctx->coded_width = venc_coded_width(ctx);
+	mutex_lock(ctx->ctrl_handler.lock);
+	ctx->slice_cfg = venc_slice_cfg(ctx);
+	mutex_unlock(ctx->ctrl_handler.lock);
 	ret = venc_alloc_buffers(ctx);
 	if (ret)
 		return ret;
@@ -1432,14 +1451,15 @@ static const struct v4l2_m2m_ops venc_m2m_ops = {
 };
 
 /*
- * Pick the next picture's type and QP from the control state. A new
- * session restarts the GOP.
+ * Pick the next picture's type, QP and slicing from the control state.
+ * A new session restarts the GOP.
  */
 static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 {
 	bool idr;
 
 	mutex_lock(ctx->ctrl_handler.lock);
+	ctx->slice_cfg = venc_slice_cfg(ctx);
 	if (new_session)
 		ctx->gop_idx = 0;
 	idr = ctx->force_key || !ctx->gop_idx ||
@@ -1822,6 +1842,12 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
 		ctx->force_key = true;
 		break;
+	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE:
+		ctx->multi_slice = ctrl->val == V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB;
+		break;
+	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB:
+		ctx->slice_max_mb = ctrl->val;
+		break;
 	default:
 		/* B_FRAMES and HEADER_MODE accept their single supported value. */
 		break;
@@ -1867,7 +1893,7 @@ static int venc_open(struct file *file)
 	ctx->rc.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(hdl, 12);
+	ret = v4l2_ctrl_handler_init(hdl, 14);
 	if (ret)
 		goto err_free;
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_JPEG_COMPRESSION_QUALITY,
@@ -1896,6 +1922,12 @@ static int venc_open(struct file *file)
 	/* button control: the next queued frame becomes an IDR */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 			  0, 0, 0, 0);
+	/* whole macroblock rows per slice; every slice ends with its picture */
+	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE,
+			       V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_MAX_MB, 0,
+			       V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE);
+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
+			  1, 120 * 68, 1, 120 * 68);
 	/* SPS/PPS lead every IDR; a separate header buffer is not produced */
 	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,

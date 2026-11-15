@@ -91,6 +91,9 @@ struct venc_ctx {
 	bool rc_restart;		/* reset the rate control before the next picture */
 	struct venc_rc rc;		/* bitrate, frame rate, QP range and RC state */
 	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */
+	bool multi_slice;		/* MULTI_SLICE_MODE is MAX_MB */
+	u32 slice_max_mb;
+	u32 slice_cfg;			/* FIXED_SLICE_CFG of this picture */
 	struct v4l2_fract timeperframe;	/* feeds the rate control only */
 	const struct venc_format *src;	/* negotiated raw input */
 	u32 src_fourcc;			/* its spelling as negotiated */

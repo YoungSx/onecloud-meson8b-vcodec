@@ -52,6 +52,8 @@ static const struct { const char *name; unsigned int id; } names[] = {
 	{ "header-mode", V4L2_CID_MPEG_VIDEO_HEADER_MODE },
 	{ "force-key", V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME },
 	{ "b-frames", V4L2_CID_MPEG_VIDEO_B_FRAMES },
+	{ "slice-mode", V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE },
+	{ "slice-mb", V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB },
 	{ "quality", V4L2_CID_JPEG_COMPRESSION_QUALITY },
 };
 /* palette: 16 fixed RGB bars for probing RGB inputs (static texture otherwise) */
