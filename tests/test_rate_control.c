@@ -51,10 +51,10 @@ static struct run simulate(struct venc_rc *rc, unsigned int frames, unsigned int
 	return run;
 }
 
-static double steady(unsigned int frame) { (void)frame; return 120000; }
-static double cut(unsigned int frame) { return frame < 150 ? 60000 : 240000; }
-static double easy_then_hard(unsigned int frame) { return frame < 315 ? 5000 : 200000; }
-static double cut_on_idr(unsigned int frame) { return frame < 300 ? 5000 : 200000; }
+static double steady(unsigned int frame) { (void)frame; return 60000; }
+static double cut(unsigned int frame) { return frame < 150 ? 20000 : 80000; }
+static double easy_then_hard(unsigned int frame) { return frame < 315 ? 2000 : 70000; }
+static double cut_on_idr(unsigned int frame) { return frame < 300 ? 2000 : 70000; }
 
 static void configure(struct venc_rc *rc, u64 bitrate)
 {
@@ -107,9 +107,9 @@ int main(void)
 	run = simulate(&rc, 120, 12, steady, 0);
 	assert(rc.qp == VENC_RC_QP_CEILING);
 	configure(&rc, 20000);
-	rc.qp_max = 34;
+	rc.qp_max = 30;
 	run = simulate(&rc, 120, 12, steady, 0);
-	assert(run.max_qp == 34 && rc.qp == 34);
+	assert(run.max_qp == 30 && rc.qp == 30);
 	/* a minimum above the ceiling wins */
 	configure(&rc, 20000);
 	rc.qp_min = 45;

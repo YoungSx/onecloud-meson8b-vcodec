@@ -23,12 +23,13 @@
 #define VENC_RC_MAX_DOWN	2	/* QP steps per picture toward finer */
 #define VENC_RC_MAX_UP		6	/* QP steps per picture toward coarser */
 /*
- * Above about QP 40 this microcode stops skipping static macroblocks (its
- * forced-skip SAD thresholds do not scale with QP), so P pictures no longer
- * shrink and often grow. Rate control never raises the P QP past here; fixed
- * QPs may still use the whole range.
+ * Past QP 32 this microcode skips fewer macroblocks (its forced-skip SAD
+ * thresholds do not scale with QP), so P pictures stop shrinking: at 720p
+ * QP 32/36/40, static content takes 766/1063/1738 kbit/s and scene content
+ * 7478/8001/7587, while PSNR falls 6 dB. Rate control never raises the P QP
+ * past this; fixed QPs may still use the whole range.
  */
-#define VENC_RC_QP_CEILING	40
+#define VENC_RC_QP_CEILING	32
 
 struct venc_rc {
 	u64 bitrate;			/* bits per second, > 0 */
