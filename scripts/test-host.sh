@@ -15,4 +15,7 @@ for test in copy jpeg esparser_padding hevc_sps; do
         "build/host-tests/$test"
     fi
 done
+cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined tests/encode-test.c \
+  -o build/host-tests/encode-test
+build/host-tests/encode-test -g -p scene - - - 96 64 70 NV12 90 H264 > /dev/null
 python3 scripts/check-docs.py
