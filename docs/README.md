@@ -20,7 +20,7 @@
 | 下一阶段顺序、验收门槛与范围 | [Development plan](development-plan.md) |
 | 发布历史 | [Changelog](../CHANGELOG.md) |
 
-[部署快照](rollout-status.md)记录在役机当前安装的 `cd4e6b5` 包及
+[部署快照](rollout-status.md)记录在役机当前安装的 `c20a473` 包及
 2026-11-14 `bd1cb79` 验收版本，并非新版本的安装指令。[验收索引](../evidence/README.md)指向原始证据。
 [历史索引](history/README.md)保留研究阻断、开发日志和 HEVC 来源核查；
 [linux-media RFC 草稿](linux-media-rfc.md)尚未提交。

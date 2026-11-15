@@ -35,13 +35,14 @@ Independent tools and all scripts are covered by the manifest.
 Installed at /opt/meson8b-vcodec/current. The enabled and active
 meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
 
-Current installation: package source commit cd4e6b5, kernel release
-5.15.79-meson, state /root/venc-deploy/p6/codec-state-r5. Module hashes
-meson-vdec b8009e10c4373aaf, meson-venc fa17e35d50f986d2,
-meson8b-runtime 70f9025465f8bf4c; all nine firmware files identical to the
-previous install. The bd1cb79 installation was removed first and the new one
-installed with a fresh state directory; see evidence/p6-2026-11-15/deploy.log
-for upgrade, rollback rehearsal and restart results.
+Current installation: package source commit c20a473 (v0.2.0), kernel release
+5.15.79-meson, state /root/venc-deploy/p6/codec-state-v020-install. Module
+hashes meson-vdec ba46b218110109ab, meson-venc 2507c7cc69fb1b00,
+meson8b-runtime 75c8e3c2baf7290c; firmware files unchanged. The cd4e6b5
+installation was removed first and the new one installed with a fresh state
+directory; see evidence/p6-2026-11-15/v020-deploy.md for the transfer,
+verification and regression results, and deploy.log for the earlier
+cd4e6b5 upgrade and rollback rehearsal.
 
 The 30-minute soak stopped after 191 iterations (0 failures), short of its
 window, and the box reset afterwards. The USB disk behind /mnt/sda2 then

@@ -2,9 +2,9 @@
 
 下列结果来自 **2026-11-15 及之前的 OneCloud 实机记录**，原内核
 `5.15.79-meson`，64 MiB CMA。2026-11-14 完整验收对应 `bd1cb79`；
-在役机现装 `cd4e6b5`（含 P1–P5 编码扩展与 NEON），MPEG/VC-1 drain 修复
-尚未部署。后续文档、打包和 CI 变更不自动继承新二进制的硬件验收。
-[部署快照](rollout-status.md)包含包哈希和服务状态。
+在役机 2026-11-15 起安装 `c20a473`（v0.2.0 包，含 P1–P5 编码扩展、
+NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动继承
+新二进制的硬件验收。[部署快照](rollout-status.md)包含包哈希和服务状态。
 
 | 项目 | 已验证结果 | 证据 |
 | --- | --- | --- |
@@ -16,7 +16,8 @@
 | JPEG 编码 | 八组输入矩阵；3×300 张 1080p 图像软解；质量、时间戳、互斥及 EOS | [JPEG](../evidence/P6-JPEG-ENCODE-ACCEPTANCE-2026-11-14.md) / [Long run](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | H.264 并发转码 | 1080p B 帧输入十轮 60 帧完整；PSNR 最低 45.03 dB、平均 45.82 dB | [Concurrent B frames](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | 解码输出转换（候选模块） | NEON 后 1080p 每帧 6.8–8.3 ms（标量 15.2–16.1 ms）；左偏移窗口 7.3–8.5 ms；1360x768/1600x900 canvas 修复后哈希一致 | [Decoder convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
-| MPEG-1/2 drain 帧尾（候选模块） | 90 帧参考流由 88 恢复为 90，逐字节等于软件参考；150 帧 B 帧流返回全部 150 帧 | [Drain EOS](../evidence/p6-2026-11-15/drain-eos.md) |
+| MPEG-1/2 drain 帧尾 | 90 帧参考流由 88 恢复为 90（99% 像素与软件参考相同，差异为舍入）；150 帧 B 帧流返回全部 150 帧 | [Drain EOS](../evidence/p6-2026-11-15/drain-eos.md) |
+| v0.2.0 运行包部署 | 包校验 52 文件通过，安装后服务 active；MPEG-2 90 帧复验、H.264/HEVC 解码、H.264/JPEG 编码回归通过 | [v0.2.0 deploy](../evidence/p6-2026-11-15/v020-deploy.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
 | 设备枚举 | v4l2-ctl 枚举两个设备、格式和控件 | [Enumeration](../evidence/hevc-2026-11-14/v4l2-enumeration.log) |
 | 干净源码构建 | 原配置完整构建、三个外部模块哈希一致、additive 补丁/Kbuild | [Build](../evidence/hevc-2026-11-14/reproduced-codec-build.log) / [Hashes](../evidence/hevc-2026-11-14/reproduced-module-hashes.txt) |

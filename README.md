@@ -27,9 +27,8 @@ VC-1 and MJPEG have documented drain/chroma limits. Output still uses CPU
 byte-order conversion and copies. Autoload start/stop was tested without
 rebooting; there is no current-mainline port or published linux-media RFC.
 See [capabilities and limits](docs/validation.md).
-The encoder extensions above were validated on 2026-11-15 with candidate
-modules and are included in the `cd4e6b5` package now installed; the MPEG/VC-1
-drain fix is newer still and is not deployed.
+The encoder extensions and the MPEG/VC-1 drain fix were validated on
+2026-11-15 and are included in the `c20a473` package now installed.
 S805's documented encoder formats are H.264 and JPEG; HEVC is decode-only.
 [Encoding feasibility](docs/encoding-feasibility.md) records the hardware
 evidence and further H.264/JPEG development paths.
