@@ -50,6 +50,20 @@ struct venc_core {
 	struct mutex lock;
 };
 
+/* Raw input format; see venc_formats[] */
+struct venc_format {
+	u32 fourcc;
+	u32 alias;		/* single-planar spelling accepted for it, or 0 */
+	u8 planes;		/* memory planes */
+	u8 halves[3];		/* plane bytes per pixel, in halves */
+	u8 vsub[3];		/* plane rows per picture row divisor */
+	u8 iformat;		/* MFDIN input format; >= 8 reads linear memory */
+	u8 r2y;			/* MFDIN converts RGB to YUV */
+	u8 align;		/* staging canvas width alignment, bytes */
+	u32 endn;		/* MFDIN byte order, 0 for the default */
+	u32 max_width;		/* 0 for the encoder's 1920 */
+};
+
 struct venc_ctx {
 	struct v4l2_fh fh;
 	struct venc_core *core;
@@ -58,6 +72,7 @@ struct venc_ctx {
 	struct work_struct work;
 
 	u32 width, height;
+	u32 coded_width;		/* macroblock-aligned width of the session */
 	u32 quant;			/* QP of the picture being encoded */
 
 	/*
@@ -74,9 +89,12 @@ struct venc_ctx {
 	struct venc_rc rc;		/* bitrate, frame rate, QP range and RC state */
 	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */
 	struct v4l2_fract timeperframe;	/* feeds the rate control only */
-	u32 src_fmt;			/* V4L2_PIX_FMT_*, M-variant */
+	const struct venc_format *src;	/* negotiated raw input */
+	u32 src_fourcc;			/* its spelling as negotiated */
 	u32 dst_fmt;
 	u32 jpeg_quality;
+	/* OUTPUT colorimetry, propagated to CAPTURE */
+	u32 colorspace, xfer_func, ycbcr_enc, quantization;
 
 	/* Preserve vendor region sizes without one 17 MiB CMA allocation. */
 	struct {

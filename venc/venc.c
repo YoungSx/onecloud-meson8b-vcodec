@@ -58,84 +58,115 @@ static const u8 venc_chroma_qp[52] = {
 	39, 39, 39, 39,
 };
 
-static u32 venc_plane_count(u32 fourcc)
+/*
+ * Raw input formats and their MFDIN modes (vendor set_input_format,
+ * LOCAL_BUFF path). Each frame is copied into the staging buffer, plane
+ * after plane, at the canvas width with 16-aligned rows. Plane widths are
+ * in half bytes per pixel so 4:2:0 planar chroma fits.
+ *
+ * Byte orders were probed on the target: iformat 0 reads Y0 U Y1 V,
+ * iformat 1 R G B, linear iformat 12 X R G B. REG9_ENDN permutes the bytes
+ * of each 64-bit word on the way in (output byte i takes input byte field
+ * i; the default reverses the word), which reaches UYVY and the other
+ * 32-bit orders. Three-byte BGR cannot be reached that way.
+ */
+#define ENDN(b0, b1, b2, b3, b4, b5, b6, b7) \
+	((b0) | (b1) << 3 | (b2) << 6 | (b3) << 9 | (b4) << 12 | (b5) << 15 | \
+	 (b6) << 18 | (b7) << 21)
+#define ENDN_DEFAULT	ENDN(7, 6, 5, 4, 3, 2, 1, 0)
+
+static const struct venc_format venc_formats[] = {
+	/* FFmpeg sends single-planar fourccs on MPLANE queues: accept them. */
+	{ V4L2_PIX_FMT_NV12M, V4L2_PIX_FMT_NV12, 2, { 2, 2 }, { 1, 2 }, 3, 0, 32 },
+	{ V4L2_PIX_FMT_NV21M, V4L2_PIX_FMT_NV21, 2, { 2, 2 }, { 1, 2 }, 2, 0, 32 },
+	{ V4L2_PIX_FMT_YUV420M, V4L2_PIX_FMT_YUV420, 3, { 2, 1, 1 }, { 1, 2, 2 }, 4, 0, 64 },
+	{ V4L2_PIX_FMT_YUV444M, 0, 3, { 2, 2, 2 }, { 1, 1, 1 }, 5, 0, 32 },
+	{ V4L2_PIX_FMT_YUYV, 0, 1, { 4 }, { 1 }, 0, 0, 32 },
+	{ V4L2_PIX_FMT_UYVY, 0, 1, { 4 }, { 1 }, 0, 0, 32, ENDN(6, 7, 4, 5, 2, 3, 0, 1) },
+	/* iformat 1 garbles lines over 1376 pixels (4128 bytes) */
+	{ V4L2_PIX_FMT_RGB24, 0, 1, { 6 }, { 1 }, 1, 1, 32, 0, 1376 },
+	/* FFmpeg spells 0rgb and bgr0 with the deprecated RGB32/BGR32 */
+	{ V4L2_PIX_FMT_XRGB32, V4L2_PIX_FMT_RGB32, 1, { 8 }, { 1 }, 12, 1, 128,
+	  ENDN(3, 2, 1, 0, 7, 6, 5, 4) },
+	{ V4L2_PIX_FMT_XBGR32, V4L2_PIX_FMT_BGR32, 1, { 8 }, { 1 }, 12, 1, 128,
+	  ENDN(0, 1, 2, 3, 4, 5, 6, 7) },
+	{ V4L2_PIX_FMT_RGBX32, 0, 1, { 8 }, { 1 }, 12, 1, 128, ENDN(2, 1, 0, 3, 6, 5, 4, 7) },
+	{ V4L2_PIX_FMT_BGRX32, 0, 1, { 8 }, { 1 }, 12, 1, 128, ENDN(1, 2, 3, 0, 5, 6, 7, 4) },
+};
+
+static const struct venc_format *venc_find_format(u32 fourcc)
 {
-	switch (fourcc) {
-	case V4L2_PIX_FMT_NV12M:
-	case V4L2_PIX_FMT_NV21M:
-		return 2;
-	case V4L2_PIX_FMT_YUV420M:
-		return 3;
-	default:
-		return 0;
-	}
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(venc_formats); i++)
+		if (fourcc == venc_formats[i].fourcc || fourcc == venc_formats[i].alias)
+			return &venc_formats[i];
+	return NULL;
+}
+
+/* Staging canvas width in bytes of plane @i, from the vendor alignments */
+static u32 venc_canvas_bytes(const struct venc_format *fmt, u32 width, unsigned int i)
+{
+	u32 luma = ALIGN(ALIGN(width, 16) * fmt->halves[0] / 2, fmt->align);
+
+	return luma * fmt->halves[i] / fmt->halves[0];
+}
+
+/* Bytes the staging buffer needs for one frame */
+static u32 venc_staging_bytes(const struct venc_format *fmt, u32 width, u32 height)
+{
+	u32 rows = ALIGN(height, 16), bytes = 0;
+	unsigned int i;
+
+	for (i = 0; i < fmt->planes; i++)
+		bytes += venc_canvas_bytes(fmt, width, i) * rows / fmt->vsub[i];
+	return bytes;
 }
 
 /*
- * Map an OUTPUT fourcc to the supported multi-planar format, 0 if unsupported.
- * ffmpeg 4.2 sends splane fourccs on MPLANE queues; accept them as aliases.
+ * Plane geometry as reported to userspace. FFmpeg's frame pool gives
+ * multi-planar frames a linesize of FFALIGN(width, 32) (chroma /2 for
+ * YUV420) and FFALIGN(height, 32) rows and copies whole plane buffers into
+ * the queued V4L2 buffers, so the 4:2:0 planes keep exactly that geometry.
+ * Other formats use the same 32-byte line alignment.
  */
-static u32 venc_normalize_out(u32 fourcc)
-{
-	switch (fourcc) {
-	case V4L2_PIX_FMT_NV12:
-	case V4L2_PIX_FMT_NV12M:
-		return V4L2_PIX_FMT_NV12M;
-	case V4L2_PIX_FMT_NV21:
-	case V4L2_PIX_FMT_NV21M:
-		return V4L2_PIX_FMT_NV21M;
-	case V4L2_PIX_FMT_YUV420:
-	case V4L2_PIX_FMT_YUV420M:
-		return V4L2_PIX_FMT_YUV420M;
-	default:
-		return 0;
-	}
-}
-
-/* Alignments used by the vendor mfdin input path (canvas stride) */
-static u32 venc_in_canvas_w(u32 fourcc, u32 width)
-{
-	/* YUV420 uses a 64-byte aligned stride, NV12 32-byte */
-	return fourcc == V4L2_PIX_FMT_YUV420M ?
-		ALIGN(width, 64) : ALIGN(width, 32);
-}
-
-/*
- * Plane geometry as reported to userspace.  ffmpeg's frame pool gives
- * incoming frames a linesize of FFALIGN(width, 32) (chroma /2 for
- * YUV420) and FFALIGN(height, 32) rows, and copies whole plane
- * buffers into the queued V4L2 buffers, so these values must match
- * exactly.  Widths not a multiple of 32 are not supported.
- */
-static void venc_fill_out_fmt(struct v4l2_pix_format_mplane *pix, u32 fourcc)
+static void venc_fill_out_fmt(struct v4l2_pix_format_mplane *pix,
+			      const struct venc_format *fmt)
 {
 	u32 rows = ALIGN(pix->height, 32);
-	u32 bpl = ALIGN(pix->width, 32);
-	u32 crows = rows / 2;
-	u32 i;
+	u32 bpl = ALIGN(pix->width * fmt->halves[0] / 2, 32);
+	unsigned int i;
 
-	pix->pixelformat = fourcc;
+	pix->pixelformat = fmt->fourcc;
 	pix->field = V4L2_FIELD_NONE;
-	pix->num_planes = venc_plane_count(fourcc);
-
-	pix->plane_fmt[0].bytesperline = bpl;
-	pix->plane_fmt[0].sizeimage = bpl * rows + 64;
-
-	if (fourcc == V4L2_PIX_FMT_YUV420M) {
-		pix->plane_fmt[1].bytesperline = bpl / 2;
-		pix->plane_fmt[1].sizeimage = bpl / 2 * crows + 64;
-		pix->plane_fmt[2].bytesperline = bpl / 2;
-		pix->plane_fmt[2].sizeimage = bpl / 2 * crows + 64;
-	} else {
-		pix->plane_fmt[1].bytesperline = bpl;
-		pix->plane_fmt[1].sizeimage = bpl * crows + 64;
-	}
-	for (i = 0; i < pix->num_planes; i++)
+	pix->num_planes = fmt->planes;
+	for (i = 0; i < fmt->planes; i++) {
+		pix->plane_fmt[i].bytesperline = bpl * fmt->halves[i] / fmt->halves[0];
 		pix->plane_fmt[i].sizeimage =
-			ALIGN(pix->plane_fmt[i].sizeimage, 8);
+			ALIGN(pix->plane_fmt[i].bytesperline * rows / fmt->vsub[i] + 64, 8);
+	}
 }
 
-static void venc_fill_cap_fmt(struct v4l2_pix_format_mplane *pix, u32 fourcc)
+/*
+ * OUTPUT colorimetry is kept as the client sets it. RGB is taken as full
+ * range and converted to limited-range BT.709 when ycbcr_enc asks for it
+ * (or defaults to it from the colorspace), otherwise BT.601.
+ */
+static void venc_try_colorimetry(struct v4l2_pix_format_mplane *pix,
+				 const struct venc_format *fmt)
+{
+	if (!fmt->r2y)
+		return;
+	if (pix->ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT)
+		pix->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(pix->colorspace);
+	if (pix->ycbcr_enc != V4L2_YCBCR_ENC_709)
+		pix->ycbcr_enc = V4L2_YCBCR_ENC_601;
+	pix->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+}
+
+/* The coded stream carries the input's colorimetry, after any conversion. */
+static void venc_fill_cap_fmt(struct venc_ctx *ctx, struct v4l2_pix_format_mplane *pix,
+			      u32 fourcc)
 {
 	pix->pixelformat = fourcc;
 	pix->field = V4L2_FIELD_NONE;
@@ -146,7 +177,13 @@ static void venc_fill_cap_fmt(struct v4l2_pix_format_mplane *pix, u32 fourcc)
 		pix->colorspace = V4L2_COLORSPACE_JPEG;
 		pix->ycbcr_enc = V4L2_YCBCR_ENC_601;
 		pix->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+		return;
 	}
+	pix->colorspace = ctx->colorspace;
+	pix->xfer_func = ctx->xfer_func;
+	pix->ycbcr_enc = ctx->ycbcr_enc;
+	pix->quantization = ctx->src->r2y ? V4L2_QUANTIZATION_LIM_RANGE :
+			    ctx->quantization;
 }
 
 /* ---------------------------------------------------------------------
@@ -240,7 +277,7 @@ static int venc_loadmc(struct venc_ctx *ctx)
 static void venc_canvas_init(struct venc_ctx *ctx)
 {
 	struct venc_core *core = ctx->core;
-	u32 cw = venc_in_canvas_w(V4L2_PIX_FMT_NV12M, ctx->width);
+	u32 cw = ALIGN(ctx->coded_width, 32);	/* references are always NV12 */
 	u32 ch = ALIGN(ctx->height, 16);
 	int endian = 0; /* no byte swap */
 
@@ -351,7 +388,7 @@ static void venc_prot_init(struct venc_ctx *ctx, bool idr)
 	u32 qp = ctx->quant;
 	u32 qp_c = venc_chroma_qp[min(qp, (u32)51)];
 
-	venc_write(core, VLC_PIC_SIZE, ctx->width | (ctx->height << 16));
+	venc_write(core, VLC_PIC_SIZE, ctx->coded_width | (ctx->height << 16));
 	venc_write(core, VLC_PIC_POSITION, 0);
 
 	venc_write(core, QDCT_Q_QUANT_I,
@@ -438,79 +475,74 @@ static void venc_init_ie_me_parameter(struct venc_ctx *ctx)
 }
 
 /*
- * Vendor mfdin_basic, restricted to the LOCAL_BUFF planar input path
- * (oformat 0, r2y_en 0, iformat < 8).
+ * RGB2YUV modes fitted on the target from an RGB palette: 1 is BT.601 and
+ * 3 is BT.709, both limited range (error under 0.6 levels). Modes 0 and 2
+ * give full-range luma with unusable chroma and are not used.
  */
-static void venc_mfdin_basic(struct venc_core *core, u32 input, u32 iformat,
-			     u32 picsize_x, u32 picsize_y)
-{
-	u32 canv_idx1_bppx = (iformat == 4) ? 0 : 1;
+#define MFDIN_R2Y_BT601		1
+#define MFDIN_R2Y_BT709		3
 
-	venc_write(core, HCODEC_MFDIN_REG1_CTRL, iformat);
+/*
+ * Vendor mfdin_basic with 4:2:0 output: 4:2:2 and 4:4:4 inputs are
+ * downsampled and RGB is converted. H.264 sets the RGB2YUV mode only with
+ * conversion on (vendor encoder.c); JPEG always sets mode 1 and picks the
+ * 8x8 block order (vendor jpegenc.c). Linear inputs (iformat >= 8) take
+ * the staging address directly; 3 in LNR0 selects 4 bytes per pixel.
+ */
+static void venc_mfdin_basic(struct venc_ctx *ctx, u32 input)
+{
+	struct venc_core *core = ctx->core;
+	const struct venc_format *fmt = ctx->src;
+	u32 iformat = fmt->iformat;
+	bool linear = iformat >= 8;
+	bool ifmt444 = iformat == 1 || iformat == 5 || iformat == 12;
+	bool ifmt422 = iformat == 0;
+	bool jpeg = ctx->dst_fmt == V4L2_PIX_FMT_JPEG;
+	u32 idx0_bppx = iformat == 1 ? 3 : iformat == 0 ? 2 : 1;
+	u32 idx1_bppx = iformat == 4 ? 0 : 1;
+	u32 idx1_bppy = iformat == 5 ? 1 : 0;
+	u32 r2y_mode = 0;
+
+	if (fmt->r2y)
+		r2y_mode = ctx->ycbcr_enc == V4L2_YCBCR_ENC_709 ?
+			   MFDIN_R2Y_BT709 : MFDIN_R2Y_BT601;
+	else if (jpeg)
+		r2y_mode = MFDIN_R2Y_BT601;
+	venc_write(core, HCODEC_MFDIN_REG1_CTRL,
+		   iformat | ((ifmt444 || ifmt422) << 6) | (fmt->r2y << 12) |
+		   (r2y_mode << 13) | (jpeg ? 2u << 29 : 0));
 	venc_write(core, HCODEC_MFDIN_REG3_CANV,
-		   (input & 0xffffff) | (1u << 28) | (canv_idx1_bppx << 26) |
-		   (1u << 24));
-	venc_write(core, HCODEC_MFDIN_REG4_LNR0, 0);
-	venc_write(core, HCODEC_MFDIN_REG5_LNR1, 0);
+		   (linear ? 0 : input & 0xffffff) | (idx1_bppy << 30) | (1u << 28) |
+		   (idx1_bppx << 26) | (idx0_bppx << 24));
+	venc_write(core, HCODEC_MFDIN_REG4_LNR0, linear ?
+		   (3 << 16) | venc_canvas_bytes(fmt, ctx->coded_width, 0) : 0);
+	venc_write(core, HCODEC_MFDIN_REG5_LNR1, linear ? ctx->mem.dct_start : 0);
 	venc_write(core, HCODEC_MFDIN_REG8_DMBL,
-		   (picsize_x << 12) | picsize_y);
-	venc_write(core, HCODEC_MFDIN_REG9_ENDN,
-		   (7 << 0) | (6 << 3) | (5 << 6) | (4 << 9) | (3 << 12) |
-		   (2 << 15) | (1 << 18));
+		   (ctx->coded_width << 12) | ALIGN(ctx->height, 16));
+	venc_write(core, HCODEC_MFDIN_REG9_ENDN, fmt->endn ?: ENDN_DEFAULT);
 }
 
 /*
- * Vendor set_input_format, LOCAL_BUFF path only: the frame has been
- * staged into the dct buffer, point the mfdin input canvases at it.
+ * Vendor set_input_format, LOCAL_BUFF path: the frame has been staged
+ * into the input buffer; point one MFDIN canvas at each staged plane.
  */
 static void venc_set_input_format(struct venc_ctx *ctx)
 {
 	struct venc_core *core = ctx->core;
-	u32 input = ctx->mem.dct_start;
-	u32 picsize_x = ALIGN(ctx->width, 16);
-	u32 picsize_y = ALIGN(ctx->height, 16);
-	u32 cw = venc_in_canvas_w(ctx->src_fmt, ctx->width);
-	u32 iformat;
-	int endian = 0;
+	const struct venc_format *fmt = ctx->src;
+	u32 address = ctx->mem.dct_start, rows = ALIGN(ctx->height, 16);
+	u32 input = 0, width;
+	unsigned int i;
 
-	switch (ctx->src_fmt) {
-	case V4L2_PIX_FMT_NV21M:
-		iformat = 2;
-		break;
-	case V4L2_PIX_FMT_NV12M:
-		iformat = 3;
-		break;
-	default:
-		iformat = 4;	/* YUV420M */
-		break;
+	for (i = 0; i < fmt->planes; i++) {
+		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
+		meson_canvas_config(core->canvas, ctx->canvas[6 + i], address, width,
+				    rows / fmt->vsub[i], MESON_CANVAS_WRAP_NONE,
+				    MESON_CANVAS_BLKMODE_LINEAR, 0);
+		input |= ctx->canvas[6 + i] << (8 * i);
+		address += width * rows / fmt->vsub[i];
 	}
-
-	meson_canvas_config(core->canvas, ctx->canvas[6], input, cw, picsize_y,
-			    MESON_CANVAS_WRAP_NONE,
-			    MESON_CANVAS_BLKMODE_LINEAR, endian);
-	if (iformat == 4) {
-		meson_canvas_config(core->canvas, ctx->canvas[7],
-				    input + cw * picsize_y, cw / 2, picsize_y / 2,
-				    MESON_CANVAS_WRAP_NONE,
-				    MESON_CANVAS_BLKMODE_LINEAR, endian);
-		meson_canvas_config(core->canvas, ctx->canvas[8],
-				    input + cw * picsize_y * 5 / 4, cw / 2,
-				    picsize_y / 2, MESON_CANVAS_WRAP_NONE,
-				    MESON_CANVAS_BLKMODE_LINEAR, endian);
-		input = (ctx->canvas[8] << 16) | (ctx->canvas[7] << 8) |
-			ctx->canvas[6];
-	} else {
-		meson_canvas_config(core->canvas, ctx->canvas[7],
-				    input + cw * picsize_y, cw, picsize_y / 2,
-				    MESON_CANVAS_WRAP_NONE,
-				    MESON_CANVAS_BLKMODE_LINEAR, endian);
-		input = (ctx->canvas[7] << 8) | ctx->canvas[6];
-	}
-
-	venc_mfdin_basic(core, input, iformat, picsize_x, picsize_y);
-	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG)
-		venc_write(core, HCODEC_MFDIN_REG1_CTRL,
-			   iformat | BIT(13) | (2 << 29));
+	venc_mfdin_basic(ctx, input);
 }
 
 /*
@@ -724,7 +756,7 @@ static irqreturn_t venc_isr(int irq, void *data)
 static void venc_buffspec_init(struct venc_ctx *ctx)
 {
 	dma_addr_t base = ctx->buffers[VENC_WORKSPACE].paddr;
-	u32 cw = venc_in_canvas_w(V4L2_PIX_FMT_NV12M, ctx->width);
+	u32 cw = ALIGN(ctx->coded_width, 32);	/* references are always NV12 */
 	u32 ch = ALIGN(ctx->height, 16);
 
 	ctx->mem.dct_start = ctx->buffers[VENC_INPUT].paddr;
@@ -812,13 +844,10 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 
 	for (i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
 		ctx->buffers[i].size = sizes[i];
-		if (i == VENC_INPUT) {
-			u32 stride = venc_in_canvas_w(ctx->src_fmt, ctx->width);
-			u32 rows = ALIGN(ctx->height, 16);
-
-			/* MFDIN reads raw planes, not the vendor private MB input ABI. */
-			ctx->buffers[i].size = PAGE_ALIGN(stride * rows * 3 / 2);
-		}
+		/* MFDIN reads raw planes, not the vendor private MB input ABI. */
+		if (i == VENC_INPUT)
+			ctx->buffers[i].size = PAGE_ALIGN(venc_staging_bytes(ctx->src,
+					ctx->coded_width, ctx->height));
 		ctx->buffers[i].vaddr = dma_alloc_coherent(ctx->core->dev,
 			ctx->buffers[i].size, &ctx->buffers[i].paddr, GFP_KERNEL);
 		if (!ctx->buffers[i].vaddr) {
@@ -840,6 +869,7 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		VENC_JPEG_FW_NAME : VENC_FW_NAME;
 	int ret, i;
 
+	ctx->coded_width = ALIGN(ctx->width, 16);
 	ret = venc_alloc_buffers(ctx);
 	if (ret)
 		return ret;
@@ -991,45 +1021,29 @@ static void venc_copy_rows(u8 *dst, u32 dst_stride, u8 *src, u32 src_stride,
 }
 
 /*
- * Copy the queued source frame into the dct staging area at the
- * vendor LOCAL_BUFF layout.  Rows outside the visible size come from
- * the zeroed staging buffer, so edge macroblocks encode deterministic
- * data.  Strides are taken from the negotiated format (ffmpeg
- * allocates exactly what G_FMT reported).
+ * Copy the queued source frame into the staging buffer as the canvases
+ * of venc_set_input_format() expect it. Rows and columns outside the
+ * visible size stay as zeroed at allocation, so edge macroblocks encode
+ * deterministic data. Source strides are the negotiated ones.
  */
 static void venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 {
-	u32 ps_y = ALIGN(ctx->height, 16);
-	u32 cw = venc_in_canvas_w(ctx->src_fmt, ctx->width);
-	u32 bpl = ALIGN(ctx->width, 32);
+	const struct venc_format *fmt = ctx->src;
+	struct v4l2_pix_format_mplane pix = {
+		.width = ctx->width, .height = ctx->height,
+	};
 	u8 *dst = ctx->buffers[VENC_INPUT].vaddr;
-	unsigned long plane_sz;
-	u8 *src;
-	u32 i;
+	u32 rows = ALIGN(ctx->height, 16), width;
+	unsigned int i;
 
-	plane_sz = vb2_plane_size(b, 0);
-	src = vb2_plane_vaddr(b, 0);
-	venc_copy_rows(dst, cw, src, bpl, ctx->width, ctx->height, plane_sz);
-
-	if (ctx->src_fmt == V4L2_PIX_FMT_YUV420M) {
-		/* U at cw*ps_y, V at cw*ps_y*5/4, stride cw/2 */
-		dst = ctx->buffers[VENC_INPUT].vaddr + cw * ps_y;
-		for (i = 1; i <= 2; i++, dst += cw * ps_y / 4) {
-			plane_sz = vb2_plane_size(b, i);
-			src = vb2_plane_vaddr(b, i);
-			venc_copy_rows(dst, cw / 2, src, bpl / 2,
-				       ctx->width / 2, ctx->height / 2, plane_sz);
-		}
-	} else {
-		/*
-		 * NV12/NV21 interleaved chroma at cw*ps_y:
-		 * w/2 U + w/2 V samples = width bytes per row.
-		 */
-		dst = ctx->buffers[VENC_INPUT].vaddr + cw * ps_y;
-		plane_sz = vb2_plane_size(b, 1);
-		src = vb2_plane_vaddr(b, 1);
-		venc_copy_rows(dst, cw, src, bpl, ctx->width, ctx->height / 2,
-			       plane_sz);
+	venc_fill_out_fmt(&pix, fmt);
+	for (i = 0; i < fmt->planes; i++) {
+		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
+		venc_copy_rows(dst, width, vb2_plane_vaddr(b, i),
+			       pix.plane_fmt[i].bytesperline,
+			       ctx->width * fmt->halves[i] / 2,
+			       ctx->height / fmt->vsub[i], vb2_plane_size(b, i));
+		dst += width * rows / fmt->vsub[i];
 	}
 }
 
@@ -1175,9 +1189,9 @@ static int venc_queue_setup(struct vb2_queue *vq, unsigned int *nbuffers,
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		pix.width = ctx->width;
 		pix.height = ctx->height;
-		venc_fill_out_fmt(&pix, ctx->src_fmt);
+		venc_fill_out_fmt(&pix, ctx->src);
 	} else {
-		venc_fill_cap_fmt(&pix, ctx->dst_fmt);
+		venc_fill_cap_fmt(ctx, &pix, ctx->dst_fmt);
 	}
 	if (*nplanes) {
 		if (*nplanes != pix.num_planes)
@@ -1203,9 +1217,9 @@ static int venc_buf_prepare(struct vb2_buffer *vb)
 	unsigned int i;
 
 	if (V4L2_TYPE_IS_OUTPUT(vb->type))
-		venc_fill_out_fmt(&pix, ctx->src_fmt);
+		venc_fill_out_fmt(&pix, ctx->src);
 	else
-		venc_fill_cap_fmt(&pix, ctx->dst_fmt);
+		venc_fill_cap_fmt(ctx, &pix, ctx->dst_fmt);
 	for (i = 0; i < pix.num_planes; i++) {
 		if (vb2_plane_size(vb, i) < pix.plane_fmt[i].sizeimage)
 			return -EINVAL;
@@ -1213,7 +1227,7 @@ static int venc_buf_prepare(struct vb2_buffer *vb)
 			/* Visible rows are copied; macroblock padding stays zero. */
 			if (vb->planes[i].data_offset ||
 			    vb2_get_plane_payload(vb, i) <
-			    pix.plane_fmt[i].bytesperline * ctx->height / (i ? 2 : 1))
+			    pix.plane_fmt[i].bytesperline * ctx->height / ctx->src->vsub[i])
 				return -EINVAL;
 		} else {
 			vb2_set_plane_payload(vb, i, 0);
@@ -1460,18 +1474,36 @@ static int venc_querycap(struct file *file, void *fh,
 	return 0;
 }
 
+static struct venc_ctx *venc_fh_to_ctx(struct file *file)
+{
+	return container_of(file->private_data, struct venc_ctx, fh);
+}
+
+/*
+ * JPEG keeps its full-range input contract, so RGB inputs, which MFDIN
+ * converts to limited range, are offered for H.264 only.
+ */
+static bool venc_format_allowed(struct venc_ctx *ctx, const struct venc_format *fmt)
+{
+	return !fmt->r2y || ctx->dst_fmt != V4L2_PIX_FMT_JPEG;
+}
+
 static int venc_enum_fmt(struct file *file, void *fh,
 			 struct v4l2_fmtdesc *f)
 {
-	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
-		static const u32 out_fmts[] = {
-			V4L2_PIX_FMT_NV12M, V4L2_PIX_FMT_NV21M,
-			V4L2_PIX_FMT_YUV420M,
-		};
+	struct venc_ctx *ctx = venc_fh_to_ctx(file);
+	unsigned int i, index = 0;
 
-		if (f->index >= ARRAY_SIZE(out_fmts))
-			return -EINVAL;
-		f->pixelformat = out_fmts[f->index];
+	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
+		for (i = 0; i < ARRAY_SIZE(venc_formats); i++) {
+			if (!venc_format_allowed(ctx, &venc_formats[i]))
+				continue;
+			if (index++ == f->index) {
+				f->pixelformat = venc_formats[i].fourcc;
+				return 0;
+			}
+		}
+		return -EINVAL;
 	} else {
 		if (f->index > 1)
 			return -EINVAL;
@@ -1480,48 +1512,53 @@ static int venc_enum_fmt(struct file *file, void *fh,
 	return 0;
 }
 
-static struct venc_ctx *venc_fh_to_ctx(struct file *file)
-{
-	return container_of(file->private_data, struct venc_ctx, fh);
-}
-
 static int venc_g_fmt(struct file *file, void *fh,
 		      struct v4l2_format *f)
 {
 	struct venc_ctx *ctx = venc_fh_to_ctx(file);
 
+	f->fmt.pix_mp.width = ctx->width;
+	f->fmt.pix_mp.height = ctx->height;
 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
-		f->fmt.pix_mp.pixelformat = ctx->src_fmt;
-		f->fmt.pix_mp.width = ctx->width;
-		f->fmt.pix_mp.height = ctx->height;
-		venc_fill_out_fmt(&f->fmt.pix_mp, ctx->src_fmt);
+		venc_fill_out_fmt(&f->fmt.pix_mp, ctx->src);
+		f->fmt.pix_mp.pixelformat = ctx->src_fourcc;
+		f->fmt.pix_mp.colorspace = ctx->colorspace;
+		f->fmt.pix_mp.xfer_func = ctx->xfer_func;
+		f->fmt.pix_mp.ycbcr_enc = ctx->ycbcr_enc;
+		f->fmt.pix_mp.quantization = ctx->quantization;
 	} else {
-		f->fmt.pix_mp.width = ctx->width;
-		f->fmt.pix_mp.height = ctx->height;
-		venc_fill_cap_fmt(&f->fmt.pix_mp, ctx->dst_fmt);
+		venc_fill_cap_fmt(ctx, &f->fmt.pix_mp, ctx->dst_fmt);
 	}
 	return 0;
 }
 
 static int venc_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
+	struct venc_ctx *ctx = venc_fh_to_ctx(file);
+	const struct venc_format *fmt;
 	u32 fourcc;
 
 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
-		fourcc = venc_normalize_out(f->fmt.pix_mp.pixelformat);
-		if (!fourcc)
-			fourcc = V4L2_PIX_FMT_NV12M;
-		f->fmt.pix_mp.width = clamp(f->fmt.pix_mp.width, 16u, 1920u);
+		fmt = venc_find_format(f->fmt.pix_mp.pixelformat);
+		if (!fmt || !venc_format_allowed(ctx, fmt))
+			fmt = &venc_formats[0];
+		f->fmt.pix_mp.width = clamp(f->fmt.pix_mp.width, 16u,
+					    fmt->max_width ?: 1920u);
 		f->fmt.pix_mp.height = clamp(f->fmt.pix_mp.height, 16u, 1088u);
 		f->fmt.pix_mp.width = ALIGN(f->fmt.pix_mp.width, 2);
 		f->fmt.pix_mp.height = ALIGN(f->fmt.pix_mp.height, 2);
-		venc_fill_out_fmt(&f->fmt.pix_mp, fourcc);
+		/* FFmpeg only knows packed RGB32/BGR32 by their old names */
+		fourcc = fmt->planes == 1 && f->fmt.pix_mp.pixelformat == fmt->alias ?
+			 fmt->alias : fmt->fourcc;
+		venc_fill_out_fmt(&f->fmt.pix_mp, fmt);
+		f->fmt.pix_mp.pixelformat = fourcc;
+		venc_try_colorimetry(&f->fmt.pix_mp, fmt);
 	} else {
 		f->fmt.pix_mp.width = clamp(f->fmt.pix_mp.width, 16u, 1920u);
 		f->fmt.pix_mp.height = clamp(f->fmt.pix_mp.height, 16u, 1088u);
 		fourcc = f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_JPEG ?
 			V4L2_PIX_FMT_JPEG : V4L2_PIX_FMT_H264;
-		venc_fill_cap_fmt(&f->fmt.pix_mp, fourcc);
+		venc_fill_cap_fmt(ctx, &f->fmt.pix_mp, fourcc);
 	}
 	return 0;
 }
@@ -1529,7 +1566,6 @@ static int venc_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 static int venc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct venc_ctx *ctx = venc_fh_to_ctx(file);
-	u32 fourcc;
 	int ret;
 
 	/* Geometry and codec determine both queues and the live firmware. */
@@ -1541,13 +1577,21 @@ static int venc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		return ret;
 
 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
-		fourcc = venc_normalize_out(f->fmt.pix_mp.pixelformat) ?:
-			 V4L2_PIX_FMT_NV12M;
-		ctx->src_fmt = fourcc;
+		ctx->src = venc_find_format(f->fmt.pix_mp.pixelformat);
+		ctx->src_fourcc = f->fmt.pix_mp.pixelformat;
 		ctx->width = f->fmt.pix_mp.width;
 		ctx->height = f->fmt.pix_mp.height;
+		ctx->colorspace = f->fmt.pix_mp.colorspace;
+		ctx->xfer_func = f->fmt.pix_mp.xfer_func;
+		ctx->ycbcr_enc = f->fmt.pix_mp.ycbcr_enc;
+		ctx->quantization = f->fmt.pix_mp.quantization;
 	} else {
 		ctx->dst_fmt = f->fmt.pix_mp.pixelformat;
+		/* a JPEG session cannot keep an RGB input */
+		if (!venc_format_allowed(ctx, ctx->src)) {
+			ctx->src = &venc_formats[0];
+			ctx->src_fourcc = ctx->src->fourcc;
+		}
 	}
 	return 0;
 }
@@ -1733,7 +1777,8 @@ static int venc_open(struct file *file)
 	ctx->core = core;
 	ctx->width = 1920;
 	ctx->height = 1088;
-	ctx->src_fmt = V4L2_PIX_FMT_NV12M;
+	ctx->src = &venc_formats[0];
+	ctx->src_fourcc = ctx->src->fourcc;
 	ctx->dst_fmt = V4L2_PIX_FMT_H264;
 	ctx->quant = ENC_QUANT_DEFAULT;
 	ctx->timeperframe.numerator = 1;

@@ -47,13 +47,40 @@ static const struct { const char *name; unsigned int id; } names[] = {
 	{ "b-frames", V4L2_CID_MPEG_VIDEO_B_FRAMES },
 	{ "quality", V4L2_CID_JPEG_COMPRESSION_QUALITY },
 };
-enum { GRADIENT, STATIC, MOTION, NOISE, SCENE };
-static const char *const patterns[] = { "gradient", "static", "motion", "noise", "scene" };
+/* palette: 16 fixed RGB bars for probing RGB inputs (static texture otherwise) */
+enum { GRADIENT, STATIC, MOTION, NOISE, SCENE, PALETTE, PATTERNS };
+static const char *const patterns[] = { "gradient", "static", "motion", "noise", "scene", "palette" };
+static const unsigned char palette[16][3] = {
+	{ 0, 0, 0 }, { 255, 255, 255 }, { 255, 0, 0 }, { 0, 255, 0 },
+	{ 0, 0, 255 }, { 255, 255, 0 }, { 0, 255, 255 }, { 255, 0, 255 },
+	{ 128, 128, 128 }, { 64, 64, 64 }, { 192, 192, 192 }, { 200, 100, 50 },
+	{ 50, 100, 200 }, { 100, 200, 50 }, { 30, 60, 90 }, { 240, 180, 120 },
+};
+enum { SEMI_UV, SEMI_VU, PLANAR_420, PACKED_YUYV, PACKED_UYVY, PLANAR_444, PACKED_RGB };
+static const struct format {
+	const char *name;
+	unsigned int fourcc, planes, layout;
+	const char *order;		/* PACKED_RGB bytes in memory */
+} formats[] = {
+	{ "NV12", V4L2_PIX_FMT_NV12M, 2, SEMI_UV, NULL },
+	{ "NV21", V4L2_PIX_FMT_NV21M, 2, SEMI_VU, NULL },
+	{ "YU12", V4L2_PIX_FMT_YUV420M, 3, PLANAR_420, NULL },
+	{ "YUYV", V4L2_PIX_FMT_YUYV, 1, PACKED_YUYV, NULL },
+	{ "UYVY", V4L2_PIX_FMT_UYVY, 1, PACKED_UYVY, NULL },
+	{ "YM24", V4L2_PIX_FMT_YUV444M, 3, PLANAR_444, NULL },
+	{ "RGB3", V4L2_PIX_FMT_RGB24, 1, PACKED_RGB, "RGB" },
+	{ "BGR3", V4L2_PIX_FMT_BGR24, 1, PACKED_RGB, "BGR" },
+	{ "XR24", V4L2_PIX_FMT_XBGR32, 1, PACKED_RGB, "BGRX" },
+	{ "XB24", V4L2_PIX_FMT_RGBX32, 1, PACKED_RGB, "RGBX" },
+	{ "BX24", V4L2_PIX_FMT_XRGB32, 1, PACKED_RGB, "XRGB" },
+	{ "RX24", V4L2_PIX_FMT_BGRX32, 1, PACKED_RGB, "XBGR" },
+};
+static const struct format *format = &formats[0];
 
 static int fd = -1;
 static struct mapped in[VIDEO_MAX_PLANES], out;
 static struct v4l2_pix_format_mplane pix;
-static unsigned int w, h, planar, vu, pattern, ncontrols;
+static unsigned int w, h, pattern, ncontrols;
 static struct control controls[64];
 static struct texture tex[3];
 
@@ -116,13 +143,22 @@ static void make_texture(struct texture *t, unsigned int kind, unsigned int seed
 			}
 		}
 }
-static void put_frame(unsigned int frame, unsigned char *const plane[3],
-		      const unsigned int stride[3])
+/* Visible 4:2:0 window of a frame: rows into a texture or the gradient scratch. */
+struct source { const unsigned char *y, *u, *v; unsigned int ystride, cstride; };
+static unsigned char *gradient[3];
+
+static struct source source(unsigned int frame)
 {
 	const struct texture *t = &tex[pattern == NOISE ? frame % 3 :
 				      pattern == SCENE ? frame / SCENE_FRAMES % 3 : 0];
 	unsigned int ox = MARGIN, oy = MARGIN, local = frame;
 
+	if (pattern == GRADIENT) {
+		for (unsigned int y = 0; y < h; y++)
+			for (unsigned int x = 0; x < w; x++)
+				gradient[0][y * w + x] = (x * 173 / w + y * 47 / h + frame * 11) % 224 + 16;
+		return (struct source){ gradient[0], gradient[1], gradient[2], w, w / 2 };
+	}
 	if (pattern == SCENE)
 		local = frame % SCENE_FRAMES;
 	if (pattern == MOTION || pattern == SCENE) {
@@ -130,43 +166,160 @@ static void put_frame(unsigned int frame, unsigned char *const plane[3],
 		ox = triangle(local * 4, 2 * MARGIN);
 		oy = triangle(local * 2, 2 * MARGIN);
 	}
-	for (unsigned int y = 0; y < h; y++) {
-		unsigned char *row = plane[0] + y * stride[0];
+	return (struct source){ t->y + oy * t->stride + ox,
+		t->u + oy / 2 * (t->stride / 2) + ox / 2,
+		t->v + oy / 2 * (t->stride / 2) + ox / 2, t->stride, t->stride / 2 };
+}
 
-		if (pattern != GRADIENT) {
-			memcpy(row, t->y + (oy + y) * t->stride + ox, w);
-			continue;
-		}
-		for (unsigned int x = 0; x < w; x++)
-			row[x] = (x * 173 / w + y * 47 / h + frame * 11) % 224 + 16;
+/*
+ * RGB inputs: the limited-range source becomes full-range RGB with the
+ * inverse of the matrix the encoder applies (Q10), clipped to 0..255;
+ * the reference converts that RGB back, as the encoder does.
+ */
+static const struct matrix {
+	const char *name;
+	unsigned int ycbcr_enc;
+	int cr, gu, gv, cb;		/* R = Y + cr V, G = Y - gu U - gv V, B = Y + cb U */
+	int forward[3][3];		/* RGB to Y, Cb, Cr */
+} matrices[] = {
+	{ "601", V4L2_YCBCR_ENC_601, 1634, 401, 832, 2066,
+	  { { 263, 516, 100 }, { -152, -298, 450 }, { 450, -377, -73 } } },
+	{ "709", V4L2_YCBCR_ENC_709, 1836, 218, 546, 2163,
+	  { { 187, 629, 63 }, { -103, -347, 450 }, { 450, -409, -41 } } },
+};
+static const struct matrix *matrix = &matrices[0];
+
+static unsigned char clip(int value)
+{
+	value = (value + 512) >> 10;
+	return value < 0 ? 0 : value > 255 ? 255 : value;
+}
+
+static void pixel_rgb(const struct source *s, unsigned int x, unsigned int y,
+		      unsigned char rgb[3])
+{
+	int luma = (s->y[y * s->ystride + x] - 16) * 1192;
+	int u = s->u[y / 2 * s->cstride + x / 2] - 128;
+	int v = s->v[y / 2 * s->cstride + x / 2] - 128;
+
+	if (pattern == PALETTE) {
+		memcpy(rgb, palette[x * 16 / w], 3);
+		return;
 	}
-	for (unsigned int y = 0; y < h / 2; y++) {
-		unsigned char *row = plane[1] + y * stride[1];
-		unsigned char *vrow = planar ? plane[2] + y * stride[2] : NULL;
-		unsigned int c = (oy / 2 + y) * (t->stride / 2) + ox / 2;
+	rgb[0] = clip(luma + matrix->cr * v);
+	rgb[1] = clip(luma - matrix->gu * u - matrix->gv * v);
+	rgb[2] = clip(luma + matrix->cb * u);
+}
 
-		for (unsigned int x = 0; x < w / 2; x++) {
-			unsigned char u = pattern == GRADIENT ? 68 + x * 120 / (w / 2) : t->u[c + x];
-			unsigned char v = pattern == GRADIENT ? 68 + y * 120 / (h / 2) : t->v[c + x];
+/* Y, Cb or Cr (@c) of an RGB pixel, limited range, Q10 like the encoder */
+static int rgb_component(const unsigned char rgb[3], unsigned int c)
+{
+	const int *k = matrix->forward[c];
 
-			if (planar) { row[x] = u; vrow[x] = v; }
-			else { row[2 * x + vu] = u; row[2 * x + !vu] = v; }
+	return ((k[0] * rgb[0] + k[1] * rgb[1] + k[2] * rgb[2] + 512) >> 10) + (c ? 128 : 16);
+}
+
+/* Packed RGB in @order (R, G, B, X bytes) */
+static void put_rgb(const struct source *s, unsigned char *dst, unsigned int stride,
+		    const char *order)
+{
+	unsigned int bytes = strlen(order);
+
+	for (unsigned int y = 0; y < h; y++) {
+		unsigned char *row = dst + y * stride;
+
+		for (unsigned int x = 0; x < w; x++, row += bytes) {
+			unsigned char rgb[3];
+
+			pixel_rgb(s, x, y, rgb);
+			for (unsigned int i = 0; i < bytes; i++)
+				row[i] = order[i] == 'X' ? 0xff : rgb[order[i] == 'G' ? 1 : order[i] == 'B' ? 2 : 0];
 		}
 	}
 }
 
-/* Reference is always NV12, independent of the negotiated source. */
-static void write_reference(FILE *ref, unsigned char *const plane[3],
-			    const unsigned int stride[3], unsigned char *uv)
+static void put_frame(unsigned int frame, unsigned char *const plane[3],
+		      const unsigned int stride[3])
 {
-	for (unsigned int y = 0; y < h; y++)
-		if (fwrite(plane[0] + y * stride[0], 1, w, ref) != w) die("reference Y");
-	for (unsigned int y = 0; y < h / 2; y++) {
-		const unsigned char *row = plane[1] + y * stride[1];
+	struct source s = source(frame);
+	unsigned int layout = format->layout;
 
+	if (layout == PACKED_RGB) {
+		put_rgb(&s, plane[0], stride[0], format->order);
+		return;
+	}
+	for (unsigned int y = 0; y < h; y++) {
+		const unsigned char *luma = s.y + y * s.ystride;
+		const unsigned char *u = s.u + y / 2 * s.cstride, *v = s.v + y / 2 * s.cstride;
+		unsigned char *row = plane[0] + y * stride[0];
+		unsigned int yo = layout == PACKED_UYVY;
+
+		switch (layout) {
+		case PACKED_YUYV:
+		case PACKED_UYVY:
+			/* 4:2:2 with each chroma row used twice */
+			for (unsigned int x = 0; x < w; x += 2, row += 4) {
+				row[yo] = luma[x]; row[yo + 2] = luma[x + 1];
+				row[!yo] = u[x / 2]; row[!yo + 2] = v[x / 2];
+			}
+			break;
+		case PLANAR_444:
+			memcpy(row, luma, w);
+			for (unsigned int x = 0; x < w; x++) {
+				plane[1][y * stride[1] + x] = u[x / 2];
+				plane[2][y * stride[2] + x] = v[x / 2];
+			}
+			break;
+		default:
+			memcpy(row, luma, w);
+			if (y & 1)
+				break;
+			row = plane[1] + y / 2 * stride[1];
+			if (layout == PLANAR_420) {
+				memcpy(row, u, w / 2);
+				memcpy(plane[2] + y / 2 * stride[2], v, w / 2);
+				break;
+			}
+			for (unsigned int x = 0, vu = layout == SEMI_VU; x < w / 2; x++) {
+				row[2 * x + vu] = u[x];
+				row[2 * x + !vu] = v[x];
+			}
+		}
+	}
+}
+
+/*
+ * The reference is the NV12 source; for RGB inputs it is the RGB the
+ * encoder receives converted back, with each 2x2 chroma block averaged.
+ */
+static void write_reference(FILE *ref, unsigned int frame, unsigned char *uv)
+{
+	struct source s = source(frame);
+	unsigned char rgb[4][3];
+
+	for (unsigned int y = 0; y < h; y++) {
+		if (format->layout != PACKED_RGB) {
+			if (fwrite(s.y + y * s.ystride, 1, w, ref) != w) die("reference Y");
+			continue;
+		}
+		for (unsigned int x = 0; x < w; x++) {
+			pixel_rgb(&s, x, y, rgb[0]);
+			uv[x] = rgb_component(rgb[0], 0);
+		}
+		if (fwrite(uv, 1, w, ref) != w) die("reference Y");
+	}
+	for (unsigned int y = 0; y < h / 2; y++) {
 		for (unsigned int x = 0; x < w / 2; x++) {
-			uv[2 * x] = planar ? row[x] : row[2 * x + vu];
-			uv[2 * x + 1] = planar ? plane[2][y * stride[2] + x] : row[2 * x + !vu];
+			if (format->layout != PACKED_RGB) {
+				uv[2 * x] = s.u[y * s.cstride + x];
+				uv[2 * x + 1] = s.v[y * s.cstride + x];
+				continue;
+			}
+			for (unsigned int i = 0; i < 4; i++)
+				pixel_rgb(&s, 2 * x + (i & 1), 2 * y + i / 2, rgb[i]);
+			for (unsigned int c = 1; c < 3; c++)
+				uv[2 * x + c - 1] = (rgb_component(rgb[0], c) + rgb_component(rgb[1], c) +
+						     rgb_component(rgb[2], c) + rgb_component(rgb[3], c) + 2) / 4;
 		}
 		if (fwrite(uv, 1, w, ref) != w) die("reference UV");
 	}
@@ -284,46 +437,49 @@ static struct v4l2_buffer dequeue(unsigned int type, unsigned int n, struct v4l2
 
 static void usage(const char *name)
 {
-	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene] [-r FPS[/DIVISOR]]\n"
-		"  [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]... [-x ...]... [-g] [-e]\n"
-		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES NV12|NV21|YU12 QUALITY JPEG|H264\n", name);
+	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene|palette] [-r FPS[/DIVISOR]]\n"
+		"  [-m 601|709] [-a FORMAT] [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]...\n"
+		"  [-x ...]... [-g] [-e] DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
+		"FORMAT: NV12 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
 	exit(2);
 }
 
 /* -g: write the reference only; DEVICE and STREAM are ignored, REF may be "-" */
 static int generate(FILE *ref, unsigned int frames)
 {
-	unsigned char *plane[3] = { malloc(w * h), malloc(w * h / 2), NULL }, *uv = malloc(w);
-	unsigned int stride[3] = { w, w, 0 };
+	unsigned char *uv = malloc(w);
 
-	if (!plane[0] || !plane[1] || !uv) die("frame");
-	planar = vu = 0;
-	for (unsigned int frame = 0; frame < frames; frame++) {
-		put_frame(frame, plane, stride);
-		write_reference(ref, plane, stride, uv);
-	}
-	free(plane[0]); free(plane[1]); free(uv);
+	if (!uv) die("frame");
+	for (unsigned int frame = 0; frame < frames; frame++)
+		write_reference(ref, frame, uv);
+	free(uv);
 	return fclose(ref) ? 1 : 0;
 }
 int main(int argc, char **argv)
 {
 	unsigned int fps = 0, divisor = 1, generate_only = 0, tolerate_errors = 0, frames, quality;
-	const char *program = argv[0];
+	const char *program = argv[0], *negotiate = NULL;
+	const struct format *as;
 	char *end;
 	int option, jpeg;
 
-	while ((option = getopt(argc, argv, "p:r:c:x:ge")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:m:a:c:x:ge")) != -1) {
 		switch (option) {
 		case 'p':
-			for (pattern = 0; pattern < 5 && strcmp(optarg, patterns[pattern]); pattern++)
+			for (pattern = 0; pattern < PATTERNS && strcmp(optarg, patterns[pattern]); pattern++)
 				;
-			if (pattern == 5) usage(program);
+			if (pattern == PATTERNS) usage(program);
 			break;
 		case 'r':
 			fps = strtoul(optarg, &end, 10);
 			if (*end == '/') divisor = strtoul(end + 1, &end, 10);
 			if (*end || !fps || !divisor) usage(program);
 			break;
+		case 'm':
+			for (matrix = matrices; strcmp(optarg, matrix->name); matrix++)
+				if (matrix == &matrices[1]) usage(program);
+			break;
+		case 'a': negotiate = optarg; break;
 		case 'c': case 'x': add_control(optarg, option == 'x'); break;
 		case 'g': generate_only = 1; break;
 		case 'e': tolerate_errors = 1; break;
@@ -337,8 +493,21 @@ int main(int argc, char **argv)
 	/* argv[9] is JPEG or H264, for regression with this same client. */
 	jpeg = !strcmp(argv[9], "JPEG");
 	if (!w || !h || (w & 1) || (h & 1) || !frames || quality < 1 || quality > 100) return 2;
-	if (strcmp(argv[7], "NV12") && strcmp(argv[7], "NV21") && strcmp(argv[7], "YU12")) usage(program);
-	planar = !strcmp(argv[7], "YU12"); vu = !strcmp(argv[7], "NV21");
+	for (format = formats; strcmp(argv[7], format->name); format++)
+		if (format == &formats[sizeof(formats) / sizeof(formats[0]) - 1]) usage(program);
+	/* -a: send FORMAT's bytes under another fourcc, to probe byte orders */
+	as = format;
+	if (negotiate)
+		for (as = formats; strcmp(negotiate, as->name); as++)
+			if (as == &formats[sizeof(formats) / sizeof(formats[0]) - 1]) usage(program);
+	if (as->planes != format->planes) usage(program);
+	for (unsigned int i = 0; i < 3; i++)
+		if (!(gradient[i] = malloc(i ? w * h / 4 : w * h))) die("gradient");
+	for (unsigned int y = 0; y < h / 2; y++)
+		for (unsigned int x = 0; x < w / 2; x++) {
+			gradient[1][y * (w / 2) + x] = 68 + x * 120 / (w / 2);
+			gradient[2][y * (w / 2) + x] = 68 + y * 120 / (h / 2);
+		}
 	if (pattern == NOISE)
 		for (unsigned int i = 0; i < 3; i++) make_texture(&tex[i], 2, i);
 	else if (pattern == SCENE)
@@ -357,12 +526,37 @@ int main(int argc, char **argv)
 	if (other >= 0 || errno != EBUSY) { fprintf(stderr, "HCODEC ownership failed\n"); return 1; }
 	struct v4l2_format f = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
 	f.fmt.pix_mp.width = w; f.fmt.pix_mp.height = h;
-	f.fmt.pix_mp.pixelformat = planar ? V4L2_PIX_FMT_YUV420M : vu ? V4L2_PIX_FMT_NV21M : V4L2_PIX_FMT_NV12M;
+	f.fmt.pix_mp.pixelformat = as->fourcc;
+	/* -m picks the RGB conversion; it is meaningless for YUV inputs */
+	if (format->layout == PACKED_RGB) f.fmt.pix_mp.ycbcr_enc = matrix->ycbcr_enc;
 	ctl(VIDIOC_S_FMT, &f); pix = f.fmt.pix_mp;
+	if (pix.pixelformat != as->fourcc || pix.num_planes != format->planes) {
+		fprintf(stderr, "driver does not take %s\n", format->name);
+		return 3;
+	}
+	if (pix.width != w || pix.height != h) {
+		fprintf(stderr, "driver adjusted %ux%u to %ux%u for %s\n", w, h, pix.width,
+			pix.height, format->name);
+		return 3;
+	}
 	f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	f.fmt.pix_mp.pixelformat = jpeg ? V4L2_PIX_FMT_JPEG : V4L2_PIX_FMT_H264;
 	ctl(VIDIOC_S_FMT, &f);
 	if (f.fmt.pix_mp.pixelformat != (jpeg ? V4L2_PIX_FMT_JPEG : V4L2_PIX_FMT_H264)) return 1;
+	/* the coded format may veto the raw one (JPEG takes no RGB) */
+	struct v4l2_format o = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
+	ctl(VIDIOC_G_FMT, &o);
+	if (o.fmt.pix_mp.pixelformat != as->fourcc) {
+		fprintf(stderr, "driver does not take %s with %s\n", format->name, argv[9]);
+		return 3;
+	}
+	if (format->layout == PACKED_RGB && !jpeg &&
+	    (f.fmt.pix_mp.ycbcr_enc != matrix->ycbcr_enc ||
+	     f.fmt.pix_mp.quantization != V4L2_QUANTIZATION_LIM_RANGE)) {
+		fprintf(stderr, "coded colorimetry %u/%u, expected %u limited\n",
+			f.fmt.pix_mp.ycbcr_enc, f.fmt.pix_mp.quantization, matrix->ycbcr_enc);
+		return 1;
+	}
 	if (fps) {
 		struct v4l2_streamparm parm = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
 
@@ -389,7 +583,7 @@ int main(int argc, char **argv)
 
 		apply_controls(frame);
 		put_frame(frame, plane, stride);
-		if (ref) write_reference(ref, plane, stride, uv);
+		if (ref) write_reference(ref, frame, uv);
 		queue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, frame);
 		uint64_t queued = now_us();
 		queue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, pix.num_planes, frame);
