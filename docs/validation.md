@@ -65,6 +65,10 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 python3 scripts/verify-hashes.py software.md5 hardware.md5
 ```
 
+持续负载用 `bash scripts/soak.sh <分钟>`：每轮 HEVC 1080p 解码比对软件
+参考、每五轮 H.264 1080p 解码，每轮 H.264 与 JPEG 编码，记录温度、内存、
+CMA 与设备状态，首次失败即停止。它只覆盖编解码栈，不替代服务共存检查。
+
 缺失/损坏固件应有界失败，恢复后新会话应正常。损坏流可能输出部分帧且
 FFmpeg 返回 0；验收必须检查内容。完整测试后核查服务、内存回收、dmesg
 增量和卸载回滚。原始失败日志保留，最终记录及历史区别见
