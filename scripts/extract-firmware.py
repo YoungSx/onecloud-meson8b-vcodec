@@ -6,6 +6,8 @@ import json
 import pathlib
 import re
 import struct
+import time
+import urllib.error
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -36,14 +38,31 @@ def _words(text, expected_words, array, sentinel=True):
     return struct.pack("<" + "I" * expected_words, *(int(t, 16) for t in tokens))
 
 
+def _fetch(url, attempts=5):
+    """Download a pinned file, retrying the transient failures GitHub returns
+    for unauthenticated raw fetches (429 rate limiting, 5xx)."""
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code != 429 and error.code < 500:
+                raise
+            if attempt == attempts - 1:
+                raise
+        except urllib.error.URLError:
+            if attempt == attempts - 1:
+                raise
+        time.sleep(2 ** attempt)
+
+
 def _load_vendor(entry, commit):
     """Fetch (or use the cached copy of) a pinned vendor source file."""
     path = ROOT / "sources/vendor" / entry["path"]
     if not path.exists() and ARGS.fetch:
         path.parent.mkdir(parents=True, exist_ok=True)
         url = f"https://raw.githubusercontent.com/hardkernel/linux/{commit}/{entry['path']}"
-        with urllib.request.urlopen(url, timeout=60) as response:
-            data = response.read()
+        data = _fetch(url)
         if hashlib.sha256(data).hexdigest() != entry["sha256"]:
             raise ValueError(f"Source checksum mismatch: {path}")
         path.write_bytes(data)
