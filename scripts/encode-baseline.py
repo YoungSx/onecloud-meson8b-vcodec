@@ -20,6 +20,7 @@ from pathlib import Path
 import platform
 import re
 import resource
+import shlex
 import statistics
 import subprocess
 import tempfile
@@ -228,7 +229,7 @@ def client_case(args, width, height, pattern, pixel_format, label, controls, fix
         case.update(runs=[{"error": str(error)}], summary={}, **{"pass": False})
         return case
     case["controls"] = controls
-    command = [args.client, "-p", pattern, "-r", str(args.fps)]
+    command = [args.client, "-p", pattern, "-r", str(args.fps)] + shlex.split(args.client_args)
     for control in controls:
         command += ["-c", control]
     for index in range(args.runs):
@@ -339,6 +340,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--client", required=True)
+    parser.add_argument("--client-args", default="",
+                        help='extra encode-test options, e.g. "-d dumb" for DMA-BUF input')
     parser.add_argument("--device", default="/dev/video1")
     parser.add_argument("--ffmpeg", default="/usr/local/bin/ffmpeg")
     parser.add_argument("--output", type=Path, required=True)
@@ -365,7 +368,7 @@ def main():
     args.work.mkdir(parents=True, exist_ok=True)
     report = {"parameters": {"frames": args.frames, "fps": args.fps, "runs": args.runs,
                              "idle_seconds": args.idle_seconds, "device": args.device,
-                             "modes": dict(modes)},
+                             "client_args": args.client_args, "modes": dict(modes)},
               "environment": environment(args), "started": time.strftime("%FT%T%z"),
               "cases": []}
     for width, height in args.sizes:

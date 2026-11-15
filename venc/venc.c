@@ -8,6 +8,7 @@
  * author Simon Zheng), running the vendor FULL-mode microcode
  * (mix_dump_mc_dblk) on the block's ARM core.
  */
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/gcd.h>
 #include <linux/interrupt.h>
@@ -517,31 +518,29 @@ static void venc_mfdin_basic(struct venc_ctx *ctx, u32 input)
 		   (idx1_bppx << 26) | (idx0_bppx << 24));
 	venc_write(core, HCODEC_MFDIN_REG4_LNR0, linear ?
 		   (3 << 16) | venc_canvas_bytes(fmt, ctx->coded_width, 0) : 0);
-	venc_write(core, HCODEC_MFDIN_REG5_LNR1, linear ? ctx->mem.dct_start : 0);
+	venc_write(core, HCODEC_MFDIN_REG5_LNR1, linear ? ctx->input[0] : 0);
 	venc_write(core, HCODEC_MFDIN_REG8_DMBL,
 		   (ctx->coded_width << 12) | ALIGN(ctx->height, 16));
 	venc_write(core, HCODEC_MFDIN_REG9_ENDN, fmt->endn ?: ENDN_DEFAULT);
 }
 
 /*
- * Vendor set_input_format, LOCAL_BUFF path: the frame has been staged
- * into the input buffer; point one MFDIN canvas at each staged plane.
+ * Vendor set_input_format, LOCAL_BUFF path: point one MFDIN canvas at each
+ * plane venc_stage_input() chose, staged or in place.
  */
 static void venc_set_input_format(struct venc_ctx *ctx)
 {
 	struct venc_core *core = ctx->core;
 	const struct venc_format *fmt = ctx->src;
-	u32 address = ctx->mem.dct_start, rows = ALIGN(ctx->height, 16);
-	u32 input = 0, width;
+	u32 rows = ALIGN(ctx->height, 16), input = 0;
 	unsigned int i;
 
 	for (i = 0; i < fmt->planes; i++) {
-		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
-		meson_canvas_config(core->canvas, ctx->canvas[6 + i], address, width,
+		meson_canvas_config(core->canvas, ctx->canvas[6 + i], ctx->input[i],
+				    venc_canvas_bytes(fmt, ctx->coded_width, i),
 				    rows / fmt->vsub[i], MESON_CANVAS_WRAP_NONE,
 				    MESON_CANVAS_BLKMODE_LINEAR, 0);
 		input |= ctx->canvas[6 + i] << (8 * i);
-		address += width * rows / fmt->vsub[i];
 	}
 	venc_mfdin_basic(ctx, input);
 }
@@ -1074,30 +1073,54 @@ static void venc_copy_rows(u8 *dst, u32 dst_stride, u8 *src, u32 src_stride,
 }
 
 /*
- * Copy the queued source frame into the staging buffer as the canvases
- * of venc_set_input_format() expect it. Rows and columns outside the
- * visible size stay as zeroed at allocation, so edge macroblocks encode
+ * Point ctx->input at this frame's planes. A DMA-BUF NV12/NV21 frame whose
+ * planes each map to one contiguous range with the canvas line width feeds
+ * MFDIN in place. Anything else is copied into the staging buffer as the
+ * canvases of venc_set_input_format() expect it; rows and columns outside
+ * the visible size stay as zeroed at allocation, so edge macroblocks encode
  * deterministic data. Source strides are the negotiated ones.
  */
-static void venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
+static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 {
 	const struct venc_format *fmt = ctx->src;
 	struct v4l2_pix_format_mplane pix = {
 		.width = ctx->width, .height = ctx->height,
 	};
-	u8 *dst = ctx->buffers[VENC_INPUT].vaddr;
+	dma_addr_t staging = ctx->buffers[VENC_INPUT].paddr;
+	u8 *dst = ctx->buffers[VENC_INPUT].vaddr, *src;
 	u32 rows = ALIGN(ctx->height, 16), width;
+	bool direct = fmt->planes == 2;
 	unsigned int i;
+	ktime_t start;
 
 	venc_fill_out_fmt(&pix, fmt);
 	for (i = 0; i < fmt->planes; i++) {
+		ctx->input[i] = venc_input_dma(b, i);
+		direct &= ctx->input[i] && !(ctx->input[i] & 7) &&
+			  pix.plane_fmt[i].bytesperline ==
+			  venc_canvas_bytes(fmt, ctx->coded_width, i);
+	}
+	if (direct) {
+		ctx->core->direct_frames++;
+		return 0;
+	}
+	start = ktime_get();
+	for (i = 0; i < fmt->planes; i++) {
 		width = venc_canvas_bytes(fmt, ctx->coded_width, i);
-		venc_copy_rows(dst, width, vb2_plane_vaddr(b, i),
-			       pix.plane_fmt[i].bytesperline,
+		src = venc_input_begin_cpu(b, i);
+		if (!src)
+			return -EFAULT;
+		venc_copy_rows(dst, width, src, pix.plane_fmt[i].bytesperline,
 			       ctx->width * fmt->halves[i] / 2,
 			       ctx->height / fmt->vsub[i], vb2_plane_size(b, i));
+		venc_input_end_cpu(b, i);
+		ctx->input[i] = staging;
+		staging += width * rows / fmt->vsub[i];
 		dst += width * rows / fmt->vsub[i];
 	}
+	ctx->core->copied_frames++;
+	ctx->core->copy_ns += ktime_to_ns(ktime_sub(ktime_get(), start));
+	return 0;
 }
 
 static void venc_frame_done(struct venc_ctx *ctx, bool idr)
@@ -1127,8 +1150,9 @@ static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
 	u32 es_size;
 	int ret;
 
-	venc_stage_input(ctx, src);
-
+	ret = venc_stage_input(ctx, src);
+	if (ret)
+		return ret;
 	ret = venc_start_cmd(ctx, idr ? ENCODER_IDR : ENCODER_NON_IDR);
 	if (ret)
 		return ret;
@@ -1185,7 +1209,9 @@ static int venc_encode_jpeg(struct venc_ctx *ctx, struct vb2_buffer *src,
 	u32 size, ptr;
 	int ret;
 
-	venc_stage_input(ctx, src);
+	ret = venc_stage_input(ctx, src);
+	if (ret)
+		return ret;
 	venc_amrisc_stop(core);
 	venc_set_input_format(ctx);
 	venc_jpeg_init(ctx);
@@ -1364,7 +1390,8 @@ static int venc_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->drv_priv = ctx;
 	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
 	src_vq->ops = &venc_vb2_ops;
-	src_vq->mem_ops = &vb2_vmalloc_memops;
+	src_vq->mem_ops = &venc_input_memops;
+	src_vq->dev = ctx->core->dev;	/* DMA-BUF imports attach to the encoder */
 	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	src_vq->lock = &ctx->core->lock;
 	ret = vb2_queue_init(src_vq);
@@ -2052,6 +2079,10 @@ static int venc_probe(struct platform_device *pdev)
 		goto err_m2m;
 	}
 
+	core->debugfs = debugfs_create_dir("meson-venc", NULL);
+	debugfs_create_u64("direct_frames", 0444, core->debugfs, &core->direct_frames);
+	debugfs_create_u64("copied_frames", 0444, core->debugfs, &core->copied_frames);
+	debugfs_create_u64("copy_ns", 0444, core->debugfs, &core->copy_ns);
 	dev_info(dev, "registered %s as /dev/video%d\n",
 		 vdev->name, vdev->num);
 	return 0;
@@ -2069,6 +2100,7 @@ static int venc_remove(struct platform_device *pdev)
 {
 	struct venc_core *core = platform_get_drvdata(pdev);
 
+	debugfs_remove_recursive(core->debugfs);
 	video_unregister_device(core->vdev_ptr);
 	v4l2_m2m_release(core->m2m_dev);
 	v4l2_device_unregister(&core->v4l2_dev);

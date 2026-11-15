@@ -5,14 +5,21 @@
  * deterministic NV12 references. Content is integer-only, so -g writes the
  * same reference without a device, e.g. into an ffmpeg PSNR pipe.
  *
- * usage: encode-test [-p PATTERN] [-r FPS[/DIVISOR]] [-c CONTROLS]... [-x CONTROLS]...
- *        [-g] [-e] DEVICE STREAM REF WIDTH HEIGHT FRAMES NV12|NV21|YU12 QUALITY JPEG|H264
+ * usage: encode-test [-p PATTERN] [-r FPS[/DIVISOR]] [-m 601|709] [-a FORMAT]
+ *        [-c CONTROLS]... [-x CONTROLS]... [-d dumb|lima] [-g] [-e]
+ *        DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264
  * CONTROLS is NAME=VALUE[,NAME=VALUE...][@FRAME], set in one VIDIOC_S_EXT_CTRLS
  * before streaming or before queueing FRAME; -x requires the driver to
  * reject the transaction; -e reports ERROR buffers as "frame N error" and
- * continues. Each frame prints
- * "frame N bytes B flags F latency_us L" (OUTPUT QBUF to CAPTURE DQBUF).
+ * continues. -m picks the RGB conversion for RGB formats, -a sends FORMAT's
+ * bytes under another fourcc and -d queues OUTPUT planes as DMA-BUFs from
+ * meson-drm dumb buffers (contiguous) or lima GEM objects (scattered).
+ * Each frame prints "frame N bytes B flags F latency_us L" (OUTPUT QBUF to
+ * CAPTURE DQBUF).
  */
+#include <drm/drm.h>
+#include <drm/drm_mode.h>
+#include <drm/lima_drm.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -30,7 +37,7 @@
 #define MARGIN		64	/* texture border the moving windows pan over */
 #define SCENE_FRAMES	30
 
-struct mapped { unsigned char *data; unsigned int size; };
+struct mapped { unsigned char *data; unsigned int size; int fd; };
 struct texture { unsigned char *y, *u, *v; unsigned int stride; };
 struct control { unsigned int id, frame, group; int value, reject; };
 
@@ -395,37 +402,114 @@ static void ready(void)
 
 	if (poll(&p, 1, 10000) <= 0) die("poll timeout");
 }
+/* -d: OUTPUT planes are DMA-BUFs from meson-drm dumb buffers or lima GEM */
+static const char *dmabuf;
+static unsigned int memory(unsigned int type)
+{
+	return dmabuf && type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+}
+
+static int drm_open(const char *driver)
+{
+	for (int i = 0; i < 4; i++) {
+		char path[32], name[16] = "";
+		struct drm_version v = { .name = name, .name_len = sizeof(name) - 1 };
+		int drm;
+
+		snprintf(path, sizeof(path), "/dev/dri/card%d", i);
+		drm = open(path, O_RDWR | O_CLOEXEC);
+		if (drm < 0)
+			continue;
+		if (!ioctl(drm, DRM_IOCTL_VERSION, &v) && !strcmp(name, driver))
+			return drm;
+		close(drm);
+	}
+	fprintf(stderr, "no %s DRM device\n", driver);
+	exit(1);
+}
+
+/*
+ * A CPU-mapped DMA-BUF of at least @size bytes: a meson-drm dumb buffer is
+ * one contiguous CMA range, a lima GEM object is scattered shmem pages.
+ */
+static void drm_buffer(int drm, struct mapped *plane, unsigned int size)
+{
+	struct drm_prime_handle prime = { .flags = DRM_CLOEXEC | DRM_RDWR };
+	uint64_t offset;
+
+	if (!strcmp(dmabuf, "lima")) {
+		struct drm_lima_gem_create create = { .size = size };
+		struct drm_lima_gem_info info = { 0 };
+
+		if (ioctl(drm, DRM_IOCTL_LIMA_GEM_CREATE, &create)) die("lima create");
+		info.handle = create.handle;
+		if (ioctl(drm, DRM_IOCTL_LIMA_GEM_INFO, &info)) die("lima info");
+		prime.handle = create.handle;
+		offset = info.offset;
+		plane->size = (size + 4095) & ~4095u;
+	} else {
+		struct drm_mode_create_dumb create = { .width = 4096, .height = (size + 4095) / 4096, .bpp = 8 };
+		struct drm_mode_map_dumb map = { 0 };
+
+		if (ioctl(drm, DRM_IOCTL_MODE_CREATE_DUMB, &create)) die("dumb create");
+		map.handle = create.handle;
+		if (ioctl(drm, DRM_IOCTL_MODE_MAP_DUMB, &map)) die("dumb map");
+		prime.handle = create.handle;
+		offset = map.offset;
+		plane->size = create.size;
+	}
+	if (ioctl(drm, DRM_IOCTL_PRIME_HANDLE_TO_FD, &prime)) die("prime export");
+	plane->fd = prime.fd;
+	plane->data = mmap(NULL, plane->size, PROT_READ | PROT_WRITE, MAP_SHARED, drm, offset);
+	if (plane->data == MAP_FAILED) die("drm mmap");
+}
+
+/*
+ * Buffers start zeroed like the driver's staging buffer: an in-place
+ * DMA-BUF exposes its padding rows to the encoder, and only matching
+ * padding keeps its stream bit-exact with the copied MMAP path.
+ */
 static void setup(unsigned int type, struct mapped *planes, unsigned int n)
 {
-	struct v4l2_requestbuffers r = { .count = 1, .type = type, .memory = V4L2_MEMORY_MMAP };
+	struct v4l2_requestbuffers r = { .count = 1, .type = type, .memory = memory(type) };
 	struct v4l2_plane p[VIDEO_MAX_PLANES] = {0};
-	struct v4l2_buffer b = { .type = type, .memory = V4L2_MEMORY_MMAP, .length = n, .m.planes = p };
+	struct v4l2_buffer b = { .type = type, .memory = memory(type), .length = n, .m.planes = p };
 
 	ctl(VIDIOC_REQBUFS, &r);
+	if (memory(type) == V4L2_MEMORY_DMABUF) {
+		int drm = drm_open(strcmp(dmabuf, "lima") ? "meson" : "lima");
+
+		for (unsigned int i = 0; i < n; i++) {
+			drm_buffer(drm, &planes[i], pix.plane_fmt[i].sizeimage);
+			memset(planes[i].data, 0, planes[i].size);
+		}
+		return;
+	}
 	ctl(VIDIOC_QUERYBUF, &b);
 	for (unsigned int i = 0; i < n; i++) {
 		planes[i].size = p[i].length;
 		planes[i].data = mmap(NULL, p[i].length, PROT_READ | PROT_WRITE, MAP_SHARED,
 				      fd, p[i].m.mem_offset);
 		if (planes[i].data == MAP_FAILED) die("mmap");
-		memset(planes[i].data, 128, planes[i].size);
+		memset(planes[i].data, 0, planes[i].size);
 	}
 }
 static void queue(unsigned int type, unsigned int n, unsigned int frame)
 {
 	struct v4l2_plane p[VIDEO_MAX_PLANES] = {0};
-	struct v4l2_buffer b = { .type = type, .memory = V4L2_MEMORY_MMAP, .length = n, .m.planes = p,
+	struct v4l2_buffer b = { .type = type, .memory = memory(type), .length = n, .m.planes = p,
 		.timestamp = { .tv_sec = frame, .tv_usec = 1234 } };
 
 	for (unsigned int i = 0; i < n; i++) {
 		p[i].length = type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ? in[i].size : out.size;
-		if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) p[i].bytesused = p[i].length;
+		if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) p[i].bytesused = pix.plane_fmt[i].sizeimage;
+		if (memory(type) == V4L2_MEMORY_DMABUF) p[i].m.fd = in[i].fd;
 	}
 	ctl(VIDIOC_QBUF, &b);
 }
 static struct v4l2_buffer dequeue(unsigned int type, unsigned int n, struct v4l2_plane *p)
 {
-	struct v4l2_buffer b = { .type = type, .memory = V4L2_MEMORY_MMAP, .length = n, .m.planes = p };
+	struct v4l2_buffer b = { .type = type, .memory = memory(type), .length = n, .m.planes = p };
 
 	for (int tries = 0; tries < 100; tries++) {
 		if (!ioctl(fd, VIDIOC_DQBUF, &b)) return b;
@@ -439,7 +523,8 @@ static void usage(const char *name)
 {
 	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene|palette] [-r FPS[/DIVISOR]]\n"
 		"  [-m 601|709] [-a FORMAT] [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]...\n"
-		"  [-x ...]... [-g] [-e] DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
+		"  [-x ...]... [-d dumb|lima] [-g] [-e]\n"
+		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
 		"FORMAT: NV12 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
 	exit(2);
 }
@@ -463,7 +548,7 @@ int main(int argc, char **argv)
 	char *end;
 	int option, jpeg;
 
-	while ((option = getopt(argc, argv, "p:r:m:a:c:x:ge")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:ge")) != -1) {
 		switch (option) {
 		case 'p':
 			for (pattern = 0; pattern < PATTERNS && strcmp(optarg, patterns[pattern]); pattern++)
@@ -480,6 +565,10 @@ int main(int argc, char **argv)
 				if (matrix == &matrices[1]) usage(program);
 			break;
 		case 'a': negotiate = optarg; break;
+		case 'd':
+			if (strcmp(optarg, "dumb") && strcmp(optarg, "lima")) usage(program);
+			dmabuf = optarg;
+			break;
 		case 'c': case 'x': add_control(optarg, option == 'x'); break;
 		case 'g': generate_only = 1; break;
 		case 'e': tolerate_errors = 1; break;

@@ -41,6 +41,9 @@ struct venc_core {
 	struct clk *hcodec_clk;
 
 	struct venc_ctx *ctx;		/* single active instance */
+	struct dentry *debugfs;
+	/* frames read straight from a DMA-BUF / copied into staging, copy time */
+	u64 direct_frames, copied_frames, copy_ns;
 
 	u32 hw_status;
 	bool need_reset;
@@ -115,6 +118,7 @@ struct venc_ctx {
 	} mem;
 
 	u8 canvas[9];			/* 0-2 dec0, 3-5 dec1, 6-8 input */
+	dma_addr_t input[3];		/* this frame's planes for MFDIN */
 	u32 dblk_canvas, ref_canvas;
 	u32 idr_pic_id, frame_number, poc_lsb;
 
@@ -133,6 +137,11 @@ static inline void *venc_stream_vaddr(struct venc_ctx *ctx)
 }
 
 void venc_jpeg_init(struct venc_ctx *ctx);
+
+extern const struct vb2_mem_ops venc_input_memops;
+dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane);
+void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane);
+void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
 
 static inline u32 venc_read(struct venc_core *core, u32 reg)
 {
