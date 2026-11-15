@@ -57,6 +57,7 @@ bash scripts/package-release.sh v0.1.0 build/release-v0.1.0
 
 ## 已安装硬件验收版本
 
-2026-11-14 的 `bd1cb79` 运行包保持在役，后续 CI/Release 产物不自动部署。
-精确历史 SHA-256 见[部署快照](rollout-status.md)。新版本需要按安装指南
-明确升级，生产原内核和原 FFmpeg 保留。
+在役机当前安装 `cd4e6b5` 运行包（2026-11-15 由 `bd1cb79` 升级，升级与
+回滚演练见 [P6 记录](../evidence/p6-2026-11-15/deploy.log)）；`bd1cb79`
+是 2026-11-14 完整硬件验收对应的版本。后续 CI/Release 产物不自动部署，
+新版本需要按安装指南明确升级，生产原内核和原 FFmpeg 保留。
