@@ -1,0 +1,133 @@
+== compat-m4v.log
+== 2026-11-15T22:10:27+08:00 MPEG-4 tail-boundary repro
+sw bytes 10368000
+hw rc=0 EOS frames=92 resolutions=1 bytes=17301504
+ffmpeg hw frames 2
+== hw-m4v.log
+EOS frames=92 resolutions=1
+== hw-m4v2.log
+EOS frames=92 resolutions=1
+== hw-m2v-bf.log
+EOS frames=156 resolutions=1
+== hw-m4v2.md5
+#format: frame checksums
+#version: 2
+#hash: MD5
+#software: Lavf61.1.100
+#tb 0: 1/30
+#media_type 0: video
+#codec_id 0: rawvideo
+#dimensions 0: 320x240
+#sar 0: 1/1
+#stream#, dts,        pts, duration,     size, hash
+0,          0,          0,        1,   115200, 96be3e41c0d233a918ba072edc310930
+0,          1,          1,        1,   115200, df9ce1816b51c03b4ee74f40e615c3a9
+== hw-m4v3.md5
+#format: frame checksums
+#version: 2
+#hash: MD5
+#software: Lavf61.1.100
+#tb 0: 1/1200000
+#media_type 0: video
+#codec_id 0: rawvideo
+#dimensions 0: 320x240
+#sar 0: 1/1
+#stream#, dts,        pts, duration,     size, hash
+0,          0,          0,        0,   115200, 96be3e41c0d233a918ba072edc310930
+0,          1,          1,        0,   115200, df9ce1816b51c03b4ee74f40e615c3a9
+0,          2,          2,        0,   115200, 2c807a4963dd4d6454eb26f1737d366a
+0,          3,          3,        0,   115200, 360f5daed7e240e0d449af7966c7857f
+0,          4,          4,        0,   115200, 61109439b68a99138b9ffebbcfa90238
+0,          5,          5,        0,   115200, 320159119653708768ee93728a665f3f
+0,          6,          6,        0,   115200, 31b36fa064c833a59e526382e717279b
+0,          7,          7,        0,   115200, bbf7ccee356417c41a54d1b5c08f2d6c
+0,          8,          8,        0,   115200, f439d3a399634e5e51c890f9ca6f0413
+0,          9,          9,        0,   115200, 4ac7aa95a3278c72b883780498eddfb2
+0,         10,         10,        0,   115200, c5aa8e5dd389cc7f5f8ba758d7924ca4
+0,         11,         11,        0,   115200, 7b4eff9c7621b472ff23fce25b03bdd5
+0,         12,         12,        0,   115200, b5a526a7f3bdcba7ab34c9c9267a21b5
+0,         13,         13,        0,   115200, 6c8561870b2d3fcda717bfd6e5f7a9bd
+0,         14,         14,        0,   115200, 695d1334fba7611c61b80a7f4074a477
+0,         15,         15,        0,   115200, b2c6e6825b2bff5c7acbb237ee43510b
+0,         16,         16,        0,   115200, a2481432713e15d79d9c9018a6f557d2
+0,         17,         17,        0,   115200, 08f463e636b8cbae08d85674b0d52932
+0,         18,         18,        0,   115200, 6e5b3aaab6eef2ba4f54a3cffc283652
+0,         19,         19,        0,   115200, ff05e9cb4cb015f99a1e2e446864c3e3
+0,         20,         20,        0,   115200, 6dcf0697f230016ee182a80b030553d3
+0,         21,         21,        0,   115200, 09f1027ff6f41dd65b18a4549afda420
+0,         22,         22,        0,   115200, c26f66ff1ed8e514a00cf0097d0ccb6c
+0,         23,         23,        0,   115200, 0a65535ac02a03949cefd18bc2e995ab
+0,         24,         24,        0,   115200, 326a8401482f78d77c82d3017c6ce52a
+0,         25,         25,        0,   115200, 72ca7d7cca8d8aed031f1f85b26fbe29
+0,         26,         26,        0,   115200, 195b72241560976d1a808a5c9b0dcbf8
+0,         27,         27,        0,   115200, 4dadbd6272466e8dd2bbf27153630439
+0,         28,         28,        0,   115200, 0b4435221cb74d8f34a71a009ac0ded8
+0,         29,         29,        0,   115200, e300a2e742ad9df04a40000c692a0d68
+0,         30,         30,        0,   115200, 2095b4979a9abea05bca1cf89ff21ec8
+0,         31,         31,        0,   115200, 1cc13e8bf4720c9eec0ee18d3775ed36
+0,         32,         32,        0,   115200, ae3e7c9fa4b74044e9223c7d13b740eb
+0,         33,         33,        0,   115200, cfe1816ea011fbf1cfdca89199448614
+0,         34,         34,        0,   115200, 61998076fdf9bf284f47d6ee645597d2
+0,         35,         35,        0,   115200, fa181202dffa5475afa7b63736ad47fd
+0,         36,         36,        0,   115200, c75489cffda3ef55beff3785bce5a024
+0,         37,         37,        0,   115200, c9ac25e397673c2c5b919df56c0506ae
+0,         38,         38,        0,   115200, 326dac66f003848e8cab98c72b994e02
+0,         39,         39,        0,   115200, ec6e3435cc798175fc624cd6d2e6e21c
+0,         40,         40,        0,   115200, 9792ff43b7da2279094306e6b7e5a699
+0,         41,         41,        0,   115200, 8e2518bb8763f5ba72a9280cda3ef08e
+0,         42,         42,        0,   115200, e5472e78f6b80fcc21dd6fb0fa2e4df1
+0,         43,         43,        0,   115200, 7c8903dbf1d8a659c34fa11e5d1019a3
+0,         44,         44,        0,   115200, 01a6c5b2de9fa2f75ff1dfc954eedae3
+0,         45,         45,        0,   115200, c1db1d2b11d3eb6f70fce29aab94d420
+0,         46,         46,        0,   115200, 6b7537e4d441e56e10e9a614606aec69
+0,         47,         47,        0,   115200, 784f129f5037215ec86065583ff9f15b
+0,         48,         48,        0,   115200, c01502e3f3e4241d4ce4655977c49a2b
+0,         49,         49,        0,   115200, 2ff1d1c3576abb41eb961e6628588368
+0,         50,         50,        0,   115200, e520f664f53173c96bc0b4096a295027
+0,         51,         51,        0,   115200, 1febc56b51628d455821f1d23b83488d
+0,         52,         52,        0,   115200, 6cc1fda4b48da1d93385aab354c60ced
+0,         53,         53,        0,   115200, 91fa02b67b66c9218ff8362324f5cc68
+0,         54,         54,        0,   115200, 8f425f63790c20bbddcfdc98439e8a28
+0,         55,         55,        0,   115200, 9f6d3c093eef4087f2ecb0c8e2fc3f04
+0,         56,         56,        0,   115200, a0507a87f5f98705e12ee1ad26f0b2f8
+0,         57,         57,        0,   115200, 6de797b3ed63934b3b76310c7b58427e
+0,         58,         58,        0,   115200, 28d2589dd3f1247acac2ea3f27e3db34
+0,         59,         59,        0,   115200, 6f3f06d78b5de12470ac3aecfb04f292
+0,         60,         60,        0,   115200, 3158158e056d148319e363a417848a33
+0,         61,         61,        0,   115200, d5593c13a3b1a5b7d4168f4e8a256ea3
+0,         62,         62,        0,   115200, ec5423a68348d737d8ce17e234fa08dd
+0,         63,         63,        0,   115200, ffe1c6e62b6350b733fbc3d8afe92b79
+0,         64,         64,        0,   115200, 644e7ee0bf077759c50b101c7521e89d
+0,         65,         65,        0,   115200, 5b1177d8f81a50d12f725695b2807912
+0,         66,         66,        0,   115200, 8a009a1e4914cb3b708c59235c0d59dc
+0,         67,         67,        0,   115200, 5f91bf57a62b900ecddf72d6fefb56b9
+0,         68,         68,        0,   115200, a1eed964dec423ce207f3b62bb29d2ea
+0,         69,         69,        0,   115200, f967e57d84f36d5c3826cfd9c153a70f
+0,         70,         70,        0,   115200, 9d76ec23b9c4821f971694236c5d63a5
+0,         71,         71,        0,   115200, 5a424286d779a9ea71941f6be777ee07
+0,         72,         72,        0,   115200, 21601a3fd2697986c6ca530d9e96ee94
+0,         73,         73,        0,   115200, 31e21fcb61d6286f487f5a2b7052a590
+0,         74,         74,        0,   115200, 84f9346b5ce020c6a93ef7065e44f151
+0,         75,         75,        0,   115200, 4e94acb4482bbc9b39a43009da79d4ce
+0,         76,         76,        0,   115200, bbd2ce4b31ac2dfbcb4804acaa56f894
+0,         77,         77,        0,   115200, 702efcbad9ad7fb33f63b92f52f61e75
+0,         78,         78,        0,   115200, 695c6e656960a9427f7b08283e1fb3e2
+0,         79,         79,        0,   115200, 9424d0e31f724639ec1bd30e9ce26cc2
+0,         80,         80,        0,   115200, ccafbfbd29d61d954ea6afb030584fb0
+0,         81,         81,        0,   115200, 9884ab77c7b04300620e19dd5a0db18b
+0,         82,         82,        0,   115200, b440ea793d7af6e4f2d0468a5febc472
+0,         83,         83,        0,   115200, 8306cad23b5cf0b1baebf2ff4b280495
+0,         84,         84,        0,   115200, 36fce96d9f3597da3db3b5e19e95e61b
+0,         85,         85,        0,   115200, 975ef44291de248eb69968530a149411
+0,         86,         86,        0,   115200, 4366b77fd9d31c9d54ec83f387b16157
+0,         87,         87,        0,   115200, e10930eae8df6823888ce142b832a281
+== v-a.log
+EOS frames=97 resolutions=1
+== v-b.log
+EOS frames=98 resolutions=1
+== v-c.log
+EOS frames=98 resolutions=1
+== v-d.log
+EOS frames=100 resolutions=1
+== v-e.log
+EOS frames=100 resolutions=1
