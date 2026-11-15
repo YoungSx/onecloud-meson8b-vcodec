@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import struct
@@ -43,11 +44,16 @@ def _fetch(url, attempts=7):
     for unauthenticated raw fetches (429 rate limiting, 5xx).
 
     CI runners share GitHub's egress and routinely hit 429 while fetching the
-    vendor sources, so the backoff has to outlast a rate-limit window rather
-    than a hiccup: 1+2+4+8+16+32 s between seven attempts."""
+    vendor sources, so authenticate when a token is available and back off for
+    about a minute (1+2+4+8+16+32 s) before giving up."""
+    headers = {}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(url, timeout=60) as response:
+            request = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(request, timeout=60) as response:
                 return response.read()
         except urllib.error.HTTPError as error:
             if error.code != 429 and error.code < 500:

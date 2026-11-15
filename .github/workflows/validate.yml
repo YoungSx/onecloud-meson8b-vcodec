@@ -15,11 +15,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install host dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential shellcheck
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: sources/vendor
-          key: vendor-${{ hashFiles('firmware/sources.json') }}
       - name: Tests, sanitizers and documentation
+        env:
+          # Unauthenticated raw fetches from a shared runner IP hit HTTP 429.
+          GITHUB_TOKEN: ${{ github.token }}
         run: make test
       - name: Validate workflow syntax
         run: |
@@ -52,6 +51,8 @@ jobs:
             sources/vendor
           key: upstream-${{ runner.os }}-${{ hashFiles('firmware/sources.json', 'scripts/build-kernel.sh', 'scripts/build-ffmpeg-test.sh', 'scripts/build-v4l2-ctl.sh') }}
       - name: Cross-build and package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           mkdir -p build/logs
           set -o pipefail
