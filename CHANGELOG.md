@@ -11,8 +11,8 @@ No changes yet.
 
 Encoder controls, input formats, DMA-BUF input, multi-slice, the NEON output
 conversion and the MPEG/VC-1 drain fix. Deployed to the production OneCloud
-on 2026-11-15: MPEG-2 tail recheck, H.264/HEVC decode and H.264/JPEG encode
-all passed. Hardware coverage per item is in [validation](docs/validation.md);
+on 2026-11-15: MPEG-2 and VC-1 tail rechecks, H.264/HEVC decode and
+H.264/JPEG encode all passed. Hardware coverage per item is in [validation](docs/validation.md);
 the 2-hour and overnight soaks are still outstanding and this draft makes no
 indefinite-soak claim.
 
