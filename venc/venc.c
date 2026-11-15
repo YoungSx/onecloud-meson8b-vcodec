@@ -865,16 +865,18 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 
 /*
  * Coded width in whole macroblocks. On the target the AVC microcode times
- * out on pictures 1 or 65 macroblocks wide and garbles 2-wide ones (widths
- * 1..120 scanned), so those get padding macroblocks that the SPS crops.
+ * out on pictures 1 or 65 macroblocks wide (widths 1..120 scanned),
+ * garbles 2-wide ones and corrupts about one 3-wide session in ten in any
+ * input format; 4 and 5 passed 20 of 20. Those widths get padding
+ * macroblocks that the SPS crops.
  */
 static u32 venc_coded_width(struct venc_ctx *ctx)
 {
 	u32 mbs = DIV_ROUND_UP(ctx->width, 16);
 
 	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG) {
-		if (mbs < 3)
-			mbs = 3;
+		if (mbs < 4)
+			mbs = 4;
 		else if (mbs == 65)
 			mbs = 66;
 	}
