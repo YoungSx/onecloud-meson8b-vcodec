@@ -19,6 +19,7 @@
 | 编码输入格式、DMA-BUF、多分片（P2–P4） | [Encoder input](ENCODER-INPUT-SLICES-2026-11-15.md) |
 | 解码输出转换、canvas 尺寸与 GE2D 门槛（P5） | [Decoder convert](P5-DECODER-CONVERT-2026-11-15.md) |
 | 运行包升级、回滚与旧编码兼容（P6） | [P6 deploy](p6-2026-11-15/deploy.log)、[compat](p6-2026-11-15/compat.log) |
+| MPEG/VC-1 drain 根因与帧尾修复 | [drain EOS](p6-2026-11-15/drain-eos.md) |
 | 30 分钟持续负载（中断于 191 轮） | [Soak](p6-2026-11-15/soak-30min.md) |
 | 两次硬复位与 USB 存储失效 | [Outage](p6-2026-11-15/outage-2026-11-15.md) |
 | 最终包校验/服务 | [Final state](hevc-2026-11-14/verified-live-state.log) |

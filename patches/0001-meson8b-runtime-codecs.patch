@@ -3090,7 +3090,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg12.c
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,312 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3140,7 +3140,16 @@
 +	bool draining;
 +};
 +
-+static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB7 };
++/* Sequence end, then one picture start. The m8 firmware completes a
++ * picture only when the next one starts, so the sequence end alone leaves
++ * the final picture pending; the extra start code releases it. A second
++ * start code would release the empty picture the first one began, which
++ * reaches userspace as a stale canvas, so exactly one is sent.
++ */
++static const u8 eos_sequence[SZ_1K] = {
++	0x00, 0x00, 0x01, 0xB7,
++	0x00, 0x00, 0x01, 0x00, 0x00, 0x08, 0x00, 0x00,
++};
 +
 +static int codec_mpeg12_can_recycle(struct amvdec_core *core)
 +{
@@ -3291,10 +3300,7 @@
 +	if (mpeg12->draining)
 +		return;
 +
-+	/* Sequence end: prompts the firmware to emit the last decoded
-+	 * picture (it only completes one when the next picture starts).
-+	 */
-+	esparser_queue_eos(sess->core, eos_sequence, 4);
++	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
 +
 +	mpeg12->draining = true;
 +	schedule_delayed_work(&mpeg12->drain_work, 0);
@@ -3685,7 +3691,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,259 @@
+@@ -0,0 +1,267 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3743,7 +3749,15 @@
 +	bool draining;
 +};
 +
-+static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0x0A };
++/* End of sequence, then one frame start. Same firmware rule as MPEG1/2:
++ * a picture completes only when the next one starts, so the end code alone
++ * leaves the last picture pending. Exactly one start is sent; a second
++ * would release the empty picture the first began.
++ */
++static const u8 eos_sequence[SZ_1K] = {
++	0x00, 0x00, 0x01, 0x0A,
++	0x00, 0x00, 0x01, 0x0D,
++};
 +
 +static int codec_vc1_can_recycle(struct amvdec_core *core)
 +{
@@ -3882,7 +3896,7 @@
 +		return;
 +
 +	/* VC1 end-of-sequence */
-+	esparser_queue_eos(sess->core, eos_sequence, 4);
++	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
 +
 +	vc1->draining = true;
 +	schedule_delayed_work(&vc1->drain_work, 0);
@@ -6259,10 +6273,15 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/esparser-padding.h
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,23 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON_ESPARSER_PADDING_H
 +#define MESON_ESPARSER_PADDING_H
++
++/* Bytes a payload occupies once padded: at least one parser packet, plus
++ * the search window the ESPARSER scans for the 000001ff start code. */
++#define ESPARSER_PAD_SPAN(payload) \
++	((payload) < 4096 ? 4096 : (payload)) + 512
 +
 +/* Validate the full write span before padding any user-queued buffer. */
 +static inline int esparser_pad_buffer(u8 *data, u32 payload,
@@ -6280,7 +6299,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/esparser.c
-@@ -0,0 +1,479 @@
+@@ -0,0 +1,484 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -6527,24 +6546,29 @@
 +int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 +{
 +	struct device *dev = core->dev;
++	u32 span = ESPARSER_PAD_SPAN(len);
 +	void *eos_vaddr;
 +	dma_addr_t eos_paddr;
++	int pad_size;
 +	int ret;
 +
-+	eos_vaddr = dma_alloc_coherent(dev, len + SEARCH_PATTERN_LEN,
-+				       &eos_paddr, GFP_KERNEL);
++	eos_vaddr = dma_alloc_coherent(dev, span, &eos_paddr, GFP_KERNEL);
 +	if (!eos_vaddr)
 +		return -ENOMEM;
 +
 +	memcpy(eos_vaddr, data, len);
-+	if (esparser_pad_buffer(eos_vaddr, len, len + SEARCH_PATTERN_LEN) < 0) {
-+		dma_free_coherent(dev, len + SEARCH_PATTERN_LEN, eos_vaddr, eos_paddr);
++	pad_size = esparser_pad_buffer(eos_vaddr, len, span);
++	if (pad_size < 0) {
++		dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 +		return -EINVAL;
 +	}
 +	dma_wmb();
-+	ret = esparser_write_data(core, eos_paddr, len);
-+	dma_free_coherent(dev, len + SEARCH_PATTERN_LEN,
-+			  eos_vaddr, eos_paddr);
++	/* Write the padding too: the 000001ff terminator has to reach the
++	 * ESPARSER or it never raises the search interrupt, and the firmware
++	 * never sees the sequence end.
++	 */
++	ret = esparser_write_data(core, eos_paddr, len + pad_size);
++	dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 +
 +	return ret;
 +}
