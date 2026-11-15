@@ -66,6 +66,7 @@ struct venc_ctx {
 	u32 rc_frames;			/* frames since rate-control start */
 	s32 rc_qp;			/* QP the controller walks */
 	struct v4l2_fract timeperframe;	/* feeds the CBR budget only */
+	struct v4l2_ctrl *qp_range[2];	/* MIN_QP, MAX_QP */
 	u32 src_fmt;			/* V4L2_PIX_FMT_*, M-variant */
 	u32 dst_fmt;
 	u32 jpeg_quality;

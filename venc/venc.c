@@ -1603,8 +1603,11 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct venc_ctx *ctx =
 		container_of(ctrl->handler, struct venc_ctx, ctrl_handler);
-	struct v4l2_ctrl *min_qp, *max_qp;
 
+	/*
+	 * Never look up controls here: v4l2_ctrl_find() takes the handler
+	 * lock this callback runs under.
+	 */
 	switch (ctrl->id) {
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		ctx->jpeg_quality = ctrl->val;
@@ -1628,11 +1631,8 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
 		/* clamp the fixed quant into the requested QP range */
-		min_qp = v4l2_ctrl_find(ctrl->handler,
-					V4L2_CID_MPEG_VIDEO_H264_MIN_QP);
-		max_qp = v4l2_ctrl_find(ctrl->handler,
-					V4L2_CID_MPEG_VIDEO_H264_MAX_QP);
-		ctx->quant = clamp(ENC_QUANT_DEFAULT, min_qp->val, max_qp->val);
+		ctx->quant = clamp(ENC_QUANT_DEFAULT, ctx->qp_range[0]->val,
+				   ctx->qp_range[1]->val);
 		break;
 	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
 		ctx->gop_idx = 0;	/* next frame must be an IDR */
@@ -1692,10 +1692,12 @@ static int venc_open(struct file *file)
 			  0, 100000000, 1, 0);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_GOP_SIZE,
 			  0, 65535, 1, ENC_GOP_DEFAULT);
-	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
-			  0, 51, 1, 0);
-	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
-			  0, 51, 1, 51);
+	ctx->qp_range[0] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
+					     V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
+					     0, 51, 1, 0);
+	ctx->qp_range[1] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
+					     V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
+					     0, 51, 1, 51);
 	/* button control: the next queued frame becomes an IDR */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 			  0, 0, 0, 0);
