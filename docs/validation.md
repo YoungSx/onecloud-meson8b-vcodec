@@ -14,6 +14,7 @@
 | 编码输入、DMA-BUF、分片（候选模块） | 9 种新增输入格式逐字节/PSNR 检查；非整宏块宽度原尺寸解码；连续 DMA-BUF 直读；整行多分片 | [Input](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md) |
 | JPEG 编码 | 八组输入矩阵；3×300 张 1080p 图像软解；质量、时间戳、互斥及 EOS | [JPEG](../evidence/P6-JPEG-ENCODE-ACCEPTANCE-2026-11-14.md) / [Long run](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | H.264 并发转码 | 1080p B 帧输入十轮 60 帧完整；PSNR 最低 45.03 dB、平均 45.82 dB | [Concurrent B frames](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
+| 解码输出转换（候选模块） | NEON 后 1080p 每帧 6.8–8.3 ms（标量 15.2–16.1 ms）；左偏移窗口 7.3–8.5 ms；1360x768/1600x900 canvas 修复后哈希一致 | [Decoder convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
 | 设备枚举 | v4l2-ctl 枚举两个设备、格式和控件 | [Enumeration](../evidence/hevc-2026-11-14/v4l2-enumeration.log) |
 | 干净源码构建 | 原配置完整构建、三个外部模块哈希一致、additive 补丁/Kbuild | [Build](../evidence/hevc-2026-11-14/reproduced-codec-build.log) / [Hashes](../evidence/hevc-2026-11-14/reproduced-module-hashes.txt) |
@@ -34,7 +35,10 @@
   等待持有的 buffer ref。独立 drain 补丁不宣称修复所有 reinit 行为。
 - 900 张 JPEG 和十轮并发是有界回归，非无限期生产 soak。
 - 未替换启动内核、未重启验收自动加载；当前主线端口和公开 RFC 未完成。
-- CPU 输出字节序转换与编码输入拷贝存在，非端到端零拷贝。
+- CPU 输出字节序转换与编码输入拷贝存在，非端到端零拷贝；NEON 转换
+  在候选模块上测得，未包含在已安装的 `bd1cb79` 包中。
+- 解码输出按 canvas 对齐尺寸（32 字节行宽、32 行高）补零，`bytesused`
+  即该尺寸；左偏移不是 8 字节倍数的裁剪窗口走逐字节路径，约 21–23 ms/1080p。
 
 旧 codec 详细记录：[MPEG-4/CBR](../evidence/RC-MPEG4-ACCEPTANCE-2026-11-13.md)、
 [VC-1](../evidence/RC-VC1-ACCEPTANCE-2026-11-13.md)、

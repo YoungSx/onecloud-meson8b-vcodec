@@ -16,7 +16,7 @@
 | P2 | 完成：YUV444/YUYV/UYVY/RGB24/32 位 RGB、BT.601/709；非整宏块宽度裁剪 | [Input](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md) |
 | P3 | 完成：连续 DMA-BUF NV12/NV21 直读，其他导入拷贝 | 同上 |
 | P4 | 完成多分片；微码无 slice 中断，不提供逐片低延迟 | 同上 |
-| P5 | 进行中 | — |
+| P5 | 完成：NEON 转换（1080p 约 7–8 ms）、canvas 尺寸修复、有界窗口拷贝；GE2D 不接入 | [Convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
 | P6 | 未开始 | — |
 
 ## 目标与约束
@@ -139,6 +139,11 @@ GE2D 先独立证明 YUV 输入、输出布局、字节序处理、色彩与共�
 若不能处理 VDEC 字节序，GE2D 可限于已转换帧的缩放；不声称它消除了
 前序 CPU 转换。解码 DMA-BUF 输出也需解决 shadow reference 生命周期，
 独立于 P3 编码输入优化。验收包括原始帧哈希、裁剪、参考帧、EOS 与并发。
+
+2026-11-15 完成：NEON 字拷贝把 1080p 转换从约 15 ms 降到 7–8 ms，裁剪
+窗口按行有界拷贝；同时修正 canvas 尺寸与 HEVC 裁剪窗口复用。GE2D 在
+meson8b 无节点、无 VDEC 字节序路径，不接入，结论与限制见
+[P5 记录](../evidence/P5-DECODER-CONVERT-2026-11-15.md)。
 
 ## P6 — 兼容性、持续负载与发布
 

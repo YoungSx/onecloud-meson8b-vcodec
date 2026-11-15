@@ -1,0 +1,75 @@
+decoder from 7f7b966ce5863ffb
+old-hevc-crop: frames 10 cropped 0 convert_us/frame 2912
+PASS: 10/10 frame hashes match
+PASS old-hevc-crop hashes
+old-hevc-1080: frames 30 cropped 0 convert_us/frame 15236
+PASS: 30/30 frame hashes match
+PASS old-hevc-1080 hashes
+old-h264-1080: frames 300 cropped 0 convert_us/frame 16147
+PASS: 300/300 frame hashes match
+PASS old-h264-1080 hashes
+old-hevc-left64: frames 30 cropped 30 convert_us/frame 36225
+PASS: 30/30 frame hashes match
+PASS old-hevc-left64 hashes
+old-hevc-left6: frames 30 cropped 30 convert_us/frame 39307
+PASS: 30/30 frame hashes match
+PASS old-hevc-left6 hashes
+decoder from ca28367da71a5818
+final1-hevc-crop: frames 10 cropped 0 convert_us/frame 1419
+PASS: 10/10 frame hashes match
+PASS final1-hevc-crop hashes
+final1-hevc-1080: frames 30 cropped 0 convert_us/frame 8266
+PASS: 30/30 frame hashes match
+PASS final1-hevc-1080 hashes
+final1-h264-1080: frames 300 cropped 0 convert_us/frame 7980
+PASS: 300/300 frame hashes match
+PASS final1-h264-1080 hashes
+final1-hevc-left64: frames 30 cropped 30 convert_us/frame 7506
+PASS: 30/30 frame hashes match
+PASS final1-hevc-left64 hashes
+final1-hevc-left6: frames 30 cropped 30 convert_us/frame 23528
+PASS: 30/30 frame hashes match
+PASS final1-hevc-left6 hashes
+final1-hevc-left16: frames 30 cropped 30 convert_us/frame 8178
+PASS: 30/30 frame hashes match
+PASS final1-hevc-left16 hashes
+final1-hevc-left30: frames 30 cropped 30 convert_us/frame 22322
+PASS: 30/30 frame hashes match
+PASS final1-hevc-left30 hashes
+final1-h264-1360x768: frames 30 cropped 0 convert_us/frame 5713
+PASS: 30/30 frame hashes match
+PASS final1-h264-1360x768 hashes
+final1-h264-1600x900: frames 30 cropped 0 convert_us/frame 6587
+PASS: 30/30 frame hashes match
+PASS final1-h264-1600x900 hashes
+final2-hevc-crop: frames 10 cropped 0 convert_us/frame 1633
+PASS: 10/10 frame hashes match
+PASS final2-hevc-crop hashes
+final2-hevc-1080: frames 30 cropped 0 convert_us/frame 6772
+PASS: 30/30 frame hashes match
+PASS final2-hevc-1080 hashes
+final2-h264-1080: frames 300 cropped 0 convert_us/frame 8032
+PASS: 300/300 frame hashes match
+PASS final2-h264-1080 hashes
+final2-hevc-left64: frames 30 cropped 30 convert_us/frame 7300
+PASS: 30/30 frame hashes match
+PASS final2-hevc-left64 hashes
+final2-hevc-left6: frames 30 cropped 30 convert_us/frame 22555
+PASS: 30/30 frame hashes match
+PASS final2-hevc-left6 hashes
+final2-hevc-left16: frames 30 cropped 30 convert_us/frame 8044
+PASS: 30/30 frame hashes match
+PASS final2-hevc-left16 hashes
+final2-hevc-left30: frames 30 cropped 30 convert_us/frame 21300
+PASS: 30/30 frame hashes match
+PASS final2-hevc-left30 hashes
+final2-h264-1360x768: frames 30 cropped 0 convert_us/frame 6396
+PASS: 30/30 frame hashes match
+PASS final2-h264-1360x768 hashes
+final2-h264-1600x900: frames 30 cropped 0 convert_us/frame 6295
+PASS: 30/30 frame hashes match
+PASS final2-h264-1600x900 hashes
+DONE
+decoder from 1c47538fe47c7ef7
+dmesg warnings 0
+FAILS=0

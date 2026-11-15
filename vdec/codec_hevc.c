@@ -1337,15 +1337,18 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	hevc->height = param->p.pic_height_in_luma_samples;
 	dst_width = hevc->width;
 	dst_height = hevc->height;
+	sess->crop_left = 0;
+	sess->crop_top = 0;
+	/* The conformance window only applies to the SPS this picture uses. */
 	if (hevc->sps.coded_width == hevc->width &&
 	    hevc->sps.coded_height == hevc->height) {
 		dst_width = hevc->sps.width;
 		dst_height = hevc->sps.height;
+		sess->crop_left = hevc->sps.left;
+		sess->crop_top = hevc->sps.top;
 	}
 	sess->reference_width = hevc->width;
 	sess->reference_height = hevc->height;
-	sess->crop_left = hevc->sps.left;
-	sess->crop_top = hevc->sps.top;
 
 	lcu_size = 1 << (param->p.log2_min_coding_block_size_minus3 +
 		   3 + param->p.log2_diff_max_min_coding_block_size);

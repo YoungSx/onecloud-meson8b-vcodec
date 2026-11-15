@@ -16,6 +16,12 @@ pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
   whole-row multi-slice encoding.
 - Add the encode-test controls, synthetic sources, DMA-BUF input and per-frame
   latency, and the encode-baseline report with PSNR and bitrate windows.
+- Convert decoder output with kernel-mode NEON (1080p copy 15 ms to 7–8 ms),
+  with a scalar fallback outside SIMD contexts and bounded per-row window
+  copies for HEVC conformance cropping.
+- Size capture planes by the whole 32-byte aligned canvas, fixing out-of-range
+  writes for 1360x768 and 1600x900, and reset HEVC crop state when a picture's
+  SPS does not match.
 - Plan staged encoder controls, raw formats, DMA input, multi-slice and
   measured pipeline improvements; defer HEVC encoding research.
 - Document the S805 HEVC encoding hardware boundary and evidence-backed

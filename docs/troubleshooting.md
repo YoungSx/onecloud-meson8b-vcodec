@@ -18,6 +18,7 @@
 | 码率高于目标且 QP 停在 32 | 目标低于该内容在 QP 32 的码率；此微码在 QP 32 以上码率不再下降，应降低分辨率或帧率 |
 | 设置 MIN/MAX_QP 后客户端卡在 D 状态 | 仅 `bd1cb79`/v0.1.0 模块有此死锁；升级后修复。旧模块上不要修改这两个控件 |
 | RGB24 宽度被改小 | RGB24 最宽 1376；更宽时改用 XRGB32/XBGR32 等 32 位格式 |
+| 解码转换耗时偏高 | `/sys/kernel/debug/meson-vdec/` 的 `converted_frames`、`cropped_frames`、`convert_ns` 给出每帧 CPU 转换耗时；1080p 约 7–8 ms 属正常，明显更高时检查是否走未对齐左偏移路径或 CPU 被其他负载占满 |
 | DMA-BUF 输入未走直接路径 | 只有 NV12M/NV21M、每个平面一段连续地址、8 字节对齐且行宽等于 bytesperline 时直接读取；`/sys/kernel/debug/meson-venc/` 计数可确认 |
 
 目标原 FFmpeg 缺少 `hevc_v4l2m2m`，用包内独立工具。[使用指南](usage.md)

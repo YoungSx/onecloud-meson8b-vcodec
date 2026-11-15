@@ -17,6 +17,7 @@
 | HEVC Main 8-bit | [HEVC](HEVC-ACCEPTANCE-2026-11-14.md) |
 | 编码基线、控件与码率控制（P0/P1） | [Encoder controls](ENCODER-CONTROLS-2026-11-15.md) |
 | 编码输入格式、DMA-BUF、多分片（P2–P4） | [Encoder input](ENCODER-INPUT-SLICES-2026-11-15.md) |
+| 解码输出转换、canvas 尺寸与 GE2D 门槛（P5） | [Decoder convert](P5-DECODER-CONVERT-2026-11-15.md) |
 | 最终包校验/服务 | [Final state](hevc-2026-11-14/verified-live-state.log) |
 | HEVC 完整帧哈希 | [Content check](hevc-2026-11-14/verified-content-check.log) |
 | 构建和源码复现 | [Clean kernel build](hevc-2026-11-14/reproduced-kernel-build.log) |

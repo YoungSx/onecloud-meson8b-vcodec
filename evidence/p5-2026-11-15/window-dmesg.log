@@ -1,0 +1,22 @@
+[163062.827932] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[163062.827959] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[163063.129368] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163063.933793] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163066.120928] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163075.361322] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163077.065963] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163078.982256] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163080.730095] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163082.911907] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163084.351296] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163085.843879] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163086.515420] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163088.818658] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163098.342181] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163100.167317] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163102.086675] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163103.803936] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[163105.971838] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163107.380689] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[163108.924332] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[163108.924356] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion

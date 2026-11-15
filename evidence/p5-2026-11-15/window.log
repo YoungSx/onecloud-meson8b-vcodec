@@ -1,0 +1,59 @@
+decoder from b8009e10c4373aaf
+window1-hevc-crop: frames 10 cropped 0 convert_us/frame 1685
+PASS: 10/10 frame hashes match
+PASS window1-hevc-crop hashes
+window1-hevc-1080: frames 30 cropped 0 convert_us/frame 7496
+PASS: 30/30 frame hashes match
+PASS window1-hevc-1080 hashes
+window1-h264-1080: frames 300 cropped 0 convert_us/frame 8248
+PASS: 300/300 frame hashes match
+PASS window1-h264-1080 hashes
+window1-hevc-left64: frames 30 cropped 30 convert_us/frame 7595
+PASS: 30/30 frame hashes match
+PASS window1-hevc-left64 hashes
+window1-hevc-left6: frames 30 cropped 30 convert_us/frame 23352
+PASS: 30/30 frame hashes match
+PASS window1-hevc-left6 hashes
+window1-hevc-left16: frames 30 cropped 30 convert_us/frame 8458
+PASS: 30/30 frame hashes match
+PASS window1-hevc-left16 hashes
+window1-hevc-left30: frames 30 cropped 30 convert_us/frame 22417
+PASS: 30/30 frame hashes match
+PASS window1-hevc-left30 hashes
+window1-h264-1360x768: frames 30 cropped 0 convert_us/frame 3369
+PASS: 30/30 frame hashes match
+PASS window1-h264-1360x768 hashes
+window1-h264-1600x900: frames 30 cropped 0 convert_us/frame 8587
+PASS: 30/30 frame hashes match
+PASS window1-h264-1600x900 hashes
+window2-hevc-crop: frames 10 cropped 0 convert_us/frame 1620
+PASS: 10/10 frame hashes match
+PASS window2-hevc-crop hashes
+window2-hevc-1080: frames 30 cropped 0 convert_us/frame 10478
+PASS: 30/30 frame hashes match
+PASS window2-hevc-1080 hashes
+window2-h264-1080: frames 300 cropped 0 convert_us/frame 8893
+PASS: 300/300 frame hashes match
+PASS window2-h264-1080 hashes
+window2-hevc-left64: frames 30 cropped 30 convert_us/frame 7867
+PASS: 30/30 frame hashes match
+PASS window2-hevc-left64 hashes
+window2-hevc-left6: frames 30 cropped 30 convert_us/frame 23057
+PASS: 30/30 frame hashes match
+PASS window2-hevc-left6 hashes
+window2-hevc-left16: frames 30 cropped 30 convert_us/frame 7590
+PASS: 30/30 frame hashes match
+PASS window2-hevc-left16 hashes
+window2-hevc-left30: frames 30 cropped 30 convert_us/frame 24845
+PASS: 30/30 frame hashes match
+PASS window2-hevc-left30 hashes
+window2-h264-1360x768: frames 30 cropped 0 convert_us/frame 4982
+PASS: 30/30 frame hashes match
+PASS window2-h264-1360x768 hashes
+window2-h264-1600x900: frames 30 cropped 0 convert_us/frame 5178
+PASS: 30/30 frame hashes match
+PASS window2-h264-1600x900 hashes
+DONE
+decoder from 1c47538fe47c7ef7
+dmesg warnings 0
+FAILS=0

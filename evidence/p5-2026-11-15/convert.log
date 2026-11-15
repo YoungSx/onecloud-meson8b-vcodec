@@ -1,0 +1,42 @@
+decoder /dev/video0 from 7f7b966ce5863ffb
+instrumented-hevc-crop-1: frames 10 cropped 0 convert_us/frame 3832
+PASS: 10/10 frame hashes match
+PASS instrumented-hevc-crop-1 hashes
+instrumented-hevc-1080-1: frames 30 cropped 0 convert_us/frame 18140
+PASS: 30/30 frame hashes match
+PASS instrumented-hevc-1080-1 hashes
+instrumented-h264-1080-1: frames 300 cropped 0 convert_us/frame 15096
+PASS: 300/300 frame hashes match
+PASS instrumented-h264-1080-1 hashes
+instrumented-hevc-crop-2: frames 10 cropped 0 convert_us/frame 3021
+PASS: 10/10 frame hashes match
+PASS instrumented-hevc-crop-2 hashes
+instrumented-hevc-1080-2: frames 30 cropped 0 convert_us/frame 13163
+PASS: 30/30 frame hashes match
+PASS instrumented-hevc-1080-2 hashes
+instrumented-h264-1080-2: frames 300 cropped 0 convert_us/frame 16929
+PASS: 300/300 frame hashes match
+PASS instrumented-h264-1080-2 hashes
+decoder /dev/video0 from 5cd0de0e45fef9fd
+rowswap-hevc-crop-1: frames 10 cropped 0 convert_us/frame 2812
+PASS: 10/10 frame hashes match
+PASS rowswap-hevc-crop-1 hashes
+rowswap-hevc-1080-1: frames 30 cropped 0 convert_us/frame 17654
+PASS: 30/30 frame hashes match
+PASS rowswap-hevc-1080-1 hashes
+rowswap-h264-1080-1: frames 300 cropped 0 convert_us/frame 15501
+PASS: 300/300 frame hashes match
+PASS rowswap-h264-1080-1 hashes
+rowswap-hevc-crop-2: frames 10 cropped 0 convert_us/frame 2962
+PASS: 10/10 frame hashes match
+PASS rowswap-hevc-crop-2 hashes
+rowswap-hevc-1080-2: frames 30 cropped 0 convert_us/frame 15623
+PASS: 30/30 frame hashes match
+PASS rowswap-hevc-1080-2 hashes
+rowswap-h264-1080-2: frames 300 cropped 0 convert_us/frame 15483
+PASS: 300/300 frame hashes match
+PASS rowswap-h264-1080-2 hashes
+DONE
+decoder /dev/video0 from 1c47538fe47c7ef7
+dmesg warnings 0
+FAILS=0

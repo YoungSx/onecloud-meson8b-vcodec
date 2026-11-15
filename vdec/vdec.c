@@ -4,6 +4,7 @@
  * Author: Maxime Jourdan <mjourdan@baylibre.com>
  */
 
+#include <linux/debugfs.h>
 #include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/io.h>
@@ -34,9 +35,14 @@ struct dummy_buf {
 /* 16 MiB for parsed bitstream swap exchange */
 #define SIZE_VIFIFO SZ_16M
 
+/*
+ * Cover the whole canvas amvdec_set_canvases() programs: the hardware writes
+ * full macroblock rows at the 32-byte aligned stride, so width * height alone
+ * underruns for sizes such as 1360x768 or 1600x900.
+ */
 static u32 get_output_size(u32 width, u32 height)
 {
-	return ALIGN(width * height, SZ_64K);
+	return ALIGN(ALIGN(width, 32) * ALIGN(height, 32), SZ_64K);
 }
 
 u32 amvdec_get_output_size(struct amvdec_session *sess)
@@ -1296,6 +1302,14 @@ static int vdec_probe(struct platform_device *pdev)
 		goto err_vdev_release;
 	}
 
+	/* Conversion counters: frames per path and CPU time in nanoseconds. */
+	core->debugfs = debugfs_create_dir("meson-vdec", NULL);
+	debugfs_create_u64("converted_frames", 0444, core->debugfs,
+			   &core->converted_frames);
+	debugfs_create_u64("cropped_frames", 0444, core->debugfs,
+			   &core->cropped_frames);
+	debugfs_create_u64("convert_ns", 0444, core->debugfs,
+			   &core->convert_ns);
 	dev_info(dev, "registered %s as /dev/video%d\n",
 		 vdev->name, vdev->num);
 	if (core->platform->revision == VDEC_REVISION_MESON8B)
@@ -1313,6 +1327,7 @@ static int vdec_remove(struct platform_device *pdev)
 {
 	struct amvdec_core *core = platform_get_drvdata(pdev);
 
+	debugfs_remove_recursive(core->debugfs);
 	video_unregister_device(core->vdev_dec);
 	v4l2_device_unregister(&core->v4l2_dev);
 

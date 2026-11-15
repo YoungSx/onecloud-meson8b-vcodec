@@ -2,8 +2,11 @@
 # Makefile for Amlogic meson video decoder driver
 
 meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o
-meson-vdec-objs += meson8b-capture.o
+meson-vdec-objs += meson8b-capture.o meson8b-swap-neon.o
 meson-vdec-objs += vdec_1.o vdec_hevc.o
 meson-vdec-objs += codec_mpeg12.o codec_mpeg4.o codec_vc1.o codec_mjpeg.o codec_h264.o codec_hevc_common.o codec_hevc.o codec_vp9.o
 
 obj-m += meson-vdec.o
+
+# -ffreestanding lets arm_neon.h build in the kernel (as lib/raid6)
+CFLAGS_meson8b-swap-neon.o += -ffreestanding -march=armv7-a -mfloat-abi=softfp -mfpu=neon

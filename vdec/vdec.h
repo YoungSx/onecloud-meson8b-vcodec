@@ -99,6 +99,10 @@ struct amvdec_core {
 
 	struct amvdec_session *cur_sess;
 	struct mutex lock; /* video device lock */
+
+	/* Meson8b output conversion: frames per path and CPU time */
+	struct dentry *debugfs;
+	u64 converted_frames, cropped_frames, convert_ns;
 };
 
 /**

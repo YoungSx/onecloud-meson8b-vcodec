@@ -6,7 +6,7 @@ mkdir -p build/host-tests
 python3 scripts/extract-firmware.py --fetch
 python3 -m unittest discover -s tests -v
 shellcheck scripts/*.sh
-for test in copy jpeg esparser_padding hevc_sps rate_control h264_sps; do
+for test in copy window jpeg esparser_padding hevc_sps rate_control h264_sps; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
       -fno-pie -no-pie "tests/test_$test.c" -o "build/host-tests/$test" -lm
     if [[ "$test" == hevc_sps ]]; then
