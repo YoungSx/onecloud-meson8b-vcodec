@@ -36,10 +36,9 @@ dest, version, commit = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 data = {
     'version': version, 'source_commit': commit, 'kernel_release': '5.15.79-meson',
     'compiler': subprocess.check_output(['arm-linux-gnueabihf-gcc-11', '--version'], text=True).splitlines()[0],
-    'hardware_validation': 'Driver changes up to 03e13f1 were exercised on S805 '
-                           'hardware with candidate modules; the release runtime '
-                           'package itself is not deployed to the production box. '
-                           'CI does not test S805 hardware.',
+    'hardware_validation': 'Driver changes were exercised on S805 hardware; the '
+                           'current deployment status is recorded in '
+                           'docs/rollout-status.md. CI does not test S805 hardware.',
     'artifacts': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in dest.glob('*.tar.gz')},
 }
 (dest / 'PROVENANCE.json').write_text(json.dumps(data, indent=2) + '\n')
