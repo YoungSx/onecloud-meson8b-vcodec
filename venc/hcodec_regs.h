@@ -94,6 +94,7 @@
 #define VLC_VB_END_PTR		HREG(0x1d11)
 #define VLC_VB_WR_PTR		HREG(0x1d12)
 #define VLC_VB_SW_RD_PTR	HREG(0x1d14)
+#define VLC_VB_LEFT		HREG(0x1d15)
 #define VLC_VB_CONTROL		HREG(0x1d16)
 #define VLC_VB_MEM_CTL		HREG(0x1d17)
 #define VLC_TOTAL_BYTES		HREG(0x1d1a)

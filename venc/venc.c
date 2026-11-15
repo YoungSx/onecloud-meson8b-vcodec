@@ -27,6 +27,8 @@
 #define ENC_QUANT_DEFAULT	26
 #define ENC_GOP_DEFAULT		12
 #define ENC_TIMEOUT_MS		5000
+#define ENC_WAIT_SLICE_MS	100
+#define ENC_VB_FULL_BYTES	16	/* VLC_VB_LEFT of a stalled, full buffer */
 
 /*
  * QPPICTURE seeds the PPS pic_init_qp when the SEQUENCE/PICTURE commands
@@ -660,14 +662,23 @@ static int venc_start_cmd(struct venc_ctx *ctx, u32 cmd)
 	return 0;
 }
 
+/*
+ * When a picture outgrows the bitstream buffer the VLC stops at its end
+ * (nothing is written past VLC_VB_END_PTR) and the microcode waits for
+ * room forever. Report that as -ENOSPC after a short wait instead of the
+ * full command timeout.
+ */
 static int venc_wait_cmd(struct venc_core *core, u32 done_code)
 {
-	int ret;
+	unsigned int slices = ENC_TIMEOUT_MS / ENC_WAIT_SLICE_MS;
 
-	ret = wait_for_completion_timeout(&core->done,
-					  msecs_to_jiffies(ENC_TIMEOUT_MS));
-	if (!ret)
-		return -ETIMEDOUT;
+	while (!wait_for_completion_timeout(&core->done,
+					    msecs_to_jiffies(ENC_WAIT_SLICE_MS))) {
+		if (venc_read(core, VLC_VB_LEFT) < ENC_VB_FULL_BYTES)
+			return -ENOSPC;
+		if (!--slices)
+			return -ETIMEDOUT;
+	}
 	if (core->hw_status != done_code)
 		return -EIO;
 	return 0;
@@ -1064,8 +1075,14 @@ static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
 			    core->hw_status == ENCODER_NON_IDR_DONE))
 		ret = 0;
 	if (ret) {
-		dev_err(core->dev, "encode %s failed (%d), hw_status %u\n",
-			idr ? "IDR" : "NON_IDR", ret, core->hw_status);
+		if (ret == -ENOSPC)
+			dev_warn_ratelimited(core->dev,
+					     "%s picture at QP %u exceeds the %u KiB bitstream buffer\n",
+					     idr ? "IDR" : "P", ctx->quant,
+					     VENC_BITSTREAM_SIZE / 1024);
+		else
+			dev_err(core->dev, "encode %s failed (%d), hw_status %u\n",
+				idr ? "IDR" : "NON_IDR", ret, core->hw_status);
 		venc_light_reset(ctx);
 		return ret;
 	}
@@ -1116,8 +1133,13 @@ static int venc_encode_jpeg(struct venc_ctx *ctx, struct vb2_buffer *src,
 	ret = venc_wait_cmd(core, JPEGENC_DONE);
 	core->done_pending = false;
 	if (ret) {
-		dev_err(core->dev, "JPEG encode failed (%d), hw_status %u\n",
-			ret, core->hw_status);
+		if (ret == -ENOSPC)
+			dev_warn_ratelimited(core->dev,
+					     "JPEG at quality %u exceeds the %u KiB bitstream buffer\n",
+					     ctx->jpeg_quality, VENC_BITSTREAM_SIZE / 1024);
+		else
+			dev_err(core->dev, "JPEG encode failed (%d), hw_status %u\n",
+				ret, core->hw_status);
 		venc_hw_stop(ctx);
 		return ret;
 	}
@@ -1342,7 +1364,10 @@ static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 	return idr;
 }
 
-/* Account a finished picture; after a failure the next one is an IDR. */
+/*
+ * Account a finished picture. After a failure the next picture is an IDR;
+ * one that overflowed the bitstream buffer also coarsens rate control.
+ */
 static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 				 int result)
 {
@@ -1352,6 +1377,11 @@ static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 	rc = ctx->rc_enable && ctx->rc.bitrate && !ctx->rc_restart;
 	if (result) {
 		ctx->gop_idx = 0;
+		/* past the ceiling if need be: a lost picture is worse */
+		if (rc && result == -ENOSPC) {
+			ctx->rc.fullness = venc_rc_capacity(&ctx->rc);
+			ctx->rc.qp = venc_rc_clamp(&ctx->rc, ctx->rc.qp + VENC_RC_MAX_UP);
+		}
 	} else {
 		if (idr) {
 			ctx->force_key = false;
