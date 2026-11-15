@@ -31,6 +31,15 @@
 #define ENC_RC_MAX_STEP		4
 
 /*
+ * QPPICTURE seeds the PPS pic_init_qp when the SEQUENCE/PICTURE commands
+ * run and is the base the microcode codes slice_qp_delta against, so it
+ * must stay constant while the quantizer QP changes per picture (vendor
+ * init_qppicture). Rewriting it per picture yields slice_qp_delta 0 and a
+ * stream that decodes every picture at the session's first QP.
+ */
+#define ENC_PIC_INIT_QP		26
+
+/*
  * Vendor HDEC_319M: fclk_div4 (2550 MHz / 4) / 2. Must be exact: the hcodec
  * mux is CLK_SET_RATE_PARENT with MPLL parents, so an inexact request makes
  * the clk core reparent it and reprogram a shared MPLL (MPLL2 feeds the
@@ -280,7 +289,7 @@ static void venc_init_encoder(struct venc_ctx *ctx, bool idr)
 	venc_write(core, HENC_SCRATCH_8, 4);	/* log2_max_pic_order_cnt_lsb */
 	venc_write(core, HENC_SCRATCH_9, 4);	/* log2_max_frame_num */
 	venc_write(core, HENC_SCRATCH_A, 0);	/* ANC0_BUFFER_ID */
-	venc_write(core, HENC_SCRATCH_B, ctx->quant);	/* QPPICTURE */
+	venc_write(core, HENC_SCRATCH_B, ENC_PIC_INIT_QP);	/* QPPICTURE */
 }
 
 /* Vendor avc_init_input_buffer */
