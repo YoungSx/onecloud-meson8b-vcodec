@@ -17,6 +17,7 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 | H.264 并发转码 | 1080p B 帧输入十轮 60 帧完整；PSNR 最低 45.03 dB、平均 45.82 dB | [Concurrent B frames](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | 解码输出转换（候选模块） | NEON 后 1080p 每帧 6.8–8.3 ms（标量 15.2–16.1 ms）；左偏移窗口 7.3–8.5 ms；1360x768/1600x900 canvas 修复后哈希一致 | [Decoder convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
 | MPEG-1/2 drain 帧尾 | 90 帧参考流由 88 恢复为 90（99% 像素与软件参考相同，差异为舍入）；150 帧 B 帧流返回全部 150 帧 | [Drain EOS](../evidence/p6-2026-11-15/drain-eos.md) |
+| VC-1 drain 复验 | 两个 FATE 样片唯一图 6/7、14/15，硬解图像与软解逐字节相同，比旧模块多恢复末一幅 | [VC-1 drain](../evidence/p6-2026-11-15/vc1-drain.md) |
 | v0.2.0 运行包部署 | 包校验 52 文件通过，安装后服务 active；MPEG-2 90 帧复验、H.264/HEVC 解码、H.264/JPEG 编码回归通过 | [v0.2.0 deploy](../evidence/p6-2026-11-15/v020-deploy.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
 | 设备枚举 | v4l2-ctl 枚举两个设备、格式和控件 | [Enumeration](../evidence/hevc-2026-11-14/v4l2-enumeration.log) |
@@ -31,10 +32,11 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
   目标不可达。分片随整帧交付，没有逐片低延迟。单帧码流上限 1 MiB。
 - RGB24 最宽 1376，三字节 BGR 不支持；运动搜索随 DRAM 时序变化，有运动的
   码流在多次运行间不逐字节一致。
-- VC-1 advanced 的唯一图像匹配软解，但有历史末两帧 drain/RPS 重复显示边界。
-  MPEG-1/2 的帧尾已由候选模块修复（EOS 此前从未写入解析器）；MPEG-4 尾两帧
-  仍缺失，起始码方案已排除；VC-1 的同构改动无样本未实测。不能声称任意流
-  逐帧完整。
+- VC-1 advanced 的唯一图像与软解逐字节相同，RPS 重复显示帧不补发。
+  MPEG-1/2 帧尾已修复（EOS 此前从未写入解析器），参考流 90/90；VC-1 同构
+  改动在两个 FATE 样片上复验为 6/7、14/15 幅唯一图，仍差末一幅；MPEG-4
+  尾两帧仍缺失，起始码方案已排除。不能声称任意流逐帧完整，见
+  [VC-1 drain](../evidence/p6-2026-11-15/vc1-drain.md)。
 - MJPEG 带厂商全量程色度增益，不能声称与软解 bit-exact。
 - 分辨率切换由标准 V4L2 客户端验证 350 帧；FFmpeg 7.0.2 reinit 仍可能
   等待持有的 buffer ref。独立 drain 补丁不宣称修复所有 reinit 行为。
