@@ -38,6 +38,9 @@ byte for byte.
 - All arm DTBs build ([dtbs-build.log](dtbs-build.log)).
 - `dtbs_check` limited to `amlogic,gx-vdec.yaml` passes with dtschema
   2026.9 ([dtbs-check.log](dtbs-check.log)).
+- All four patches are clean under `checkpatch.pl --strict` (0 errors,
+  0 warnings), and applying 0000→0003 in order to a pristine tree reproduces
+  the built tree byte for byte.
 - The decompiled `meson8b-odroidc1.dtb` carries the expected node: DOS
   `0xd0050000`, parser `0xc110a580`, IRQs 44/32, three clocks, canvas and
   PMU phandles, `status = "okay"`.
