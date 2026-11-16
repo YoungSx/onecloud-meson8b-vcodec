@@ -96,7 +96,7 @@ I/P 流：k=2 在一轮里补到 50、两轮停在 49，**只有 k=3 三轮都�
 [m4v-depth-across-streams.log](m4v-depth-across-streams.log)、
 [m4v-depth-repeat.log](m4v-depth-repeat.log)。
 
-## B 帧：底部 4 个宏块行未写入
+## B 帧：这条流上底部 4 个宏块行未写入
 
 此前所有 MPEG-4 结论都来自 I/P 流（验收用的也是 `-g 1` 全 I 流），B 帧从未逐帧
 验过。补齐这一项时发现 testsrc 的 B 帧解错，于是把内容和质量交叉开，各加一条
