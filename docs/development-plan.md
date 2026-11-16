@@ -248,7 +248,10 @@ arm32 不允许 `kernel_neon_begin()` 与 NEON 代码同处一个编译单元，
 复位后无人工干预，内核启动 29 s
 时 overlay 已应用、`/dev/video0` 与 `/dev/video1` 已注册，原厂内核未替换，
 四项业务服务全部可用（见[重启验收](../evidence/p6-2026-11-16/reboot-autoload.md)）；
-开机后只做了 MPEG-4 解码冒烟，未跑全部 codec 回归，优雅重启路径未单独测。
+开机后只做了 MPEG-4 解码冒烟，未跑全部 codec 回归。优雅重启路径
+（`systemctl restart`，一次事务内卸载再加载、中间不重启）已于 2026-11-17 单独
+验收：rc=0、5 s 内两节点恢复、解码冒烟 22 帧、dmesg 无重复注册或告警
+（见[重启检查](../evidence/p6-2026-11-16/restart-check.md)）。
 HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
 明确依据的新 codec 不加入本轮交付承诺。
 
