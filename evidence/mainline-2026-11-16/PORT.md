@@ -39,7 +39,7 @@ byte for byte.
 - All arm DTBs build ([dtbs-build.log](dtbs-build.log)).
 - `dtbs_check` limited to `amlogic,gx-vdec.yaml` passes with dtschema
   2026.9 ([dtbs-check.log](dtbs-check.log)).
-- All thirteen patches are clean under `checkpatch.pl --strict` (0 errors,
+- All fourteen patches are clean under `checkpatch.pl --strict` (0 errors,
   0 warnings) and apply in order to a pristine tree
   ([series check](series-check.log)).
 - The decompiled `meson8b-odroidc1.dtb` carries the expected node: DOS
