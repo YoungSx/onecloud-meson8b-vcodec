@@ -79,6 +79,19 @@ window is therefore a bounded regression ending on a failure, not a
 zero-failure soak. See evidence/p6-2026-11-16/soak-overnight-v020.md and
 evidence/p6-2026-11-16/h264-tail-race.md.
 
+Once the USB disk was back and all five services were running, the same load
+ran for 377 iterations over 25 minutes while four HTTP entry points were
+probed every 20 s: 71 samples, every one returning 200, Arcane still advancing
+its own request log, and no kernel warnings in the window. That closes the
+coexistence gap the earlier runs left open; it is a bounded window, not a
+long-term coexistence claim. See evidence/p6-2026-11-16/service-coexist.md.
+
+Graceful restart was accepted separately: `systemctl restart meson8b-vcodec`
+runs ExecStop (withdraw the overlay, unload three modules) and ExecStart in
+one transaction with no reboot in between, and the stack came back in 5 s
+with rc=0, both nodes present and a 22-frame decode still correct. See
+evidence/p6-2026-11-16/restart-check.md.
+
 Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
 After ending codec clients, roll back using:
 
