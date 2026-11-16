@@ -7,11 +7,21 @@ changed.
 
 ## Unreleased
 
-Tooling only; the payload is unchanged from v0.2.1.
+Tooling and evidence only; the payload is unchanged from v0.2.1.
 
 - Check the shipped NEON body rather than a copy of it: `tests/test_swap_neon.c`
   includes `vdec/meson8b-swap-neon.c` and compares it with
   `__builtin_bswap64`, so `make test` fails if the two ever disagree.
+- Locate the MPEG-4 B-picture loss by content instead of by geometry: flipping
+  the same testsrc with `vflip` moves the moving strip to the top, the bottom
+  recovers, and 21 of 22 pictures come back with no zero region, so the defect
+  is neither "the bottom of the frame" nor "B pictures" but the combination of
+  a B picture with content in the lower part of the frame. `vflip` also halves
+  nothing: the unflipped stream still loses 14 pictures.
+- Accept the graceful-restart path on the production box: `systemctl restart`
+  withdraws the overlay and unloads three modules, then loads them again in one
+  transaction in 5 s, both nodes return, and a decode smoke test still produces
+  22 frames. Only the cold boot after a reset had been accepted before.
 
 ## v0.2.1 — 2026-11-16
 
