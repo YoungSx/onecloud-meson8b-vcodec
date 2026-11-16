@@ -12,7 +12,8 @@ v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
 `amlogic,gx-vdec.yaml`. The DT patch targets `meson8b.dtsi` plus
 `meson8b-odroidc1.dts` because mainline has no OneCloud board file. See
 [port record](../evidence/mainline-2026-11-16/PORT.md). Nothing here ran on
-S805 hardware, and Meson8b streaming still returns `-EOPNOTSUPP`.
+S805 hardware. The series no longer refuses to stream — `0013` implements
+the capture conversion — but the path is unproven on the silicon.
 
 Patches 0004–0008 add the Meson8b VDEC power domain: the AO sleep and
 isolation bits move to genpd, the decoder takes a runtime reference instead of
@@ -59,13 +60,16 @@ Review points to carry forward:
   `eos_sequence`, not just Meson8b; MPEG-2 recovers its last two pictures
   (88 → 90 frames) and the 150-frame B-frame stream returns all 150.
 - S805 lacks canvas endianness controls, so reference buffers stay separate
-  from CPU-visible output; cached alias plus explicit synchronization makes
-  the byte-order conversion practical. There remains a copy, not zero-copy.
+  from CPU-visible output; a cached alias plus explicit synchronization makes
+  the byte-order conversion practical. `0013` does exactly that: one private
+  canvas block per capture buffer, converted into the dequeued buffer. It
+  costs a copy per picture and 1.5x the picture size in CMA per buffer, which
+  is why Meson8b also drops to twelve capture buffers and a 4 MiB FIFO.
 - DOS control bits and PMU fields are shared by VDEC1 and HCODEC. Masked
   writes require one owner/lock; no whole-register overwrite across engines.
   [Shared ownership design](power-domain-design.md) proposes two Meson8b genpd
-  domains plus a DOS syscon. The AO half is implemented (`0004..0008`) and
-  builds; the DOS syscon half is not, and neither has run on hardware.
+  domains plus a DOS syscon. Both halves are implemented (`0004..0008` and
+  `0009..0012`) and build; neither has run on hardware.
 - Vendor HEVC RPM lacks the conformance window. The bounded SPS prefix
   parser supplies geometry; HEVC Main10 and tiled streams are rejected.
 - On this 64 MiB CMA device the encoder raw input must match negotiated

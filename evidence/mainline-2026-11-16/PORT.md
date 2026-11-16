@@ -132,8 +132,7 @@ Verified at compile level only:
 Not verified: anything at runtime. Whether the reversed clock/power order
 matters on this silicon, whether the domain survives a stop/start cycle, and
 whether `DOS_MEM_PD_VDEC` is safe to keep in the driver once genpd owns the AO
-bits all need the board. Meson8b still returns `-EOPNOTSUPP` from STREAMON, so
-none of this changes what the port can do.
+bits all need the board.
 
 ## DOS syscon
 
@@ -190,13 +189,49 @@ Verified at compile level only:
 
 Nothing was run on hardware.
 
+## Capture conversion
+
+The last functional gap was that Meson8b rejected STREAMON: its canvas has no
+endian control, so the firmware writes byte-reversed 64-bit words, and the
+capture buffers double as the decoder's reference pictures, so the word cannot
+be fixed up in place. `0013` adds the conversion the production stack does
+outside mainline:
+
+| Piece | What it does |
+| --- | --- |
+| `meson8b-capture.c` | one private canvas block per capture buffer, from `dma_alloc_coherent()`; the CPU reads it through a cached `vmap()` alias |
+| `vdec_helpers.c` | the NV12M canvases point at that block with endian `0`, and `dst_buf_done()` converts the picture into the dequeued buffer |
+| `vdec.c` | the STREAMON rejection is gone; the blocks are freed with the canvases; the FIFO drops to 4 MiB |
+| `vdec_platform.c` | NV12M capture and twelve buffers, down from the GX twenty-four |
+
+The 1.5x-per-buffer block is what forces the last two: at 1080p the twelve
+capture buffers cost 36 MiB and their blocks another 36 MiB, so the GX
+limits plus a 16 MiB FIFO would not fit the 64 MiB of CMA these boards have.
+
+The conversion is scalar. The production stack's NEON body halves it at
+1080p, but that is a separate translation unit with `kernel_neon_begin()`
+brackets and belongs after this path works on the silicon.
+
+Verified at compile level only:
+
+- Fourteen patches apply to pristine v7.3.4 in order and are clean under
+  `checkpatch.pl --strict` ([series check](series-check.log)).
+- The module builds with no warning and the hash is
+  `d839c81148d2796a7f315ab183ae7d6f9c1cc411c3bb2ea1c5c4cceedb73b536`,
+  reproduced across a relink, and applying the series to a pristine tree
+  reproduces the built sources byte for byte.
+- `tests/test_capture.c` pins the plane split and the involution property of
+  the word swap, so a wrong plane offset or a partial swap fails on the host.
+- Nothing about the runtime behaviour is proven: whether twelve buffers and a
+  4 MiB FIFO are enough for this firmware, whether the cached alias needs the
+  explicit `dma_sync_single_for_cpu()` on a coherent block, and what the copy
+  actually costs on this CPU all need the board.
+
 ## What is still missing for upstream
 
-- Capture byte order. The driver still rejects STREAMON with `-EOPNOTSUPP`
-  on Meson8b; the production stack solves this with an NV12 shadow
-  conversion outside mainline's reach.
 - The encoder itself. Nothing upstream consumes the shared aperture yet, so
   the syscon is reviewable but its benefit is prospective until an HCODEC
   driver exists.
+- The NEON conversion, and with it any measured cost for the copy.
 - Nothing in this series has run on hardware; the vendor firmware is not in
   linux-firmware.

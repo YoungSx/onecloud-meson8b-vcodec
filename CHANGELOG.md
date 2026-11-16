@@ -15,7 +15,7 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   rejects, builds `meson-vdec.ko`, every ARM DTB and passes the
   `amlogic,gx-vdec.yaml` schema check. The DT patch targets `meson8b.dtsi`
   and `meson8b-odroidc1.dts` since mainline has no OneCloud board file.
-  Meson8b streaming still returns `-EOPNOTSUPP`; no hardware run.
+  At that point Meson8b still rejected STREAMON; no hardware run.
 - Add `patches/research/0000-esparser-eos-padding.patch`, the upstream fix for
   the end-of-stream buffer that is missing the 4 KiB packet and the
   `000001ff` terminator; it applies to pristine v7.3.4 alone and affects every
@@ -44,6 +44,14 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   absent. Compile-level only: thirteen patches apply in order, the module
   builds with no warning, the ODROID-C1 DTB carries the split nodes, and the
   GXBB/GXL/G12A/SM1 DTBs still validate against the changed binding.
+- Convert the Meson8b capture output in software (`0013`), which is what the
+  STREAMON rejection was waiting for: each capture buffer gets a private
+  canvas block in the firmware's byte order, converted into the dequeued
+  buffer through a cached alias. Meson8b drops to twelve capture buffers and
+  a 4 MiB bitstream FIFO so the blocks fit its 64 MiB CMA. Compile-level
+  only: fourteen patches apply in order, the module builds with no warning
+  and reproduces from a pristine tree, and a host test pins the plane split.
+  No hardware run, so the cost and the buffer budget are unproven.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 

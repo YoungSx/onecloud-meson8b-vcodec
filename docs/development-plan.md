@@ -200,7 +200,7 @@ README、使用/验收说明和 CI；CI 使用对应 head。硬件报告附源�
 
 当前主线移植、静态 DT/共享 power-domain 与公开 RFC 放在上述功能和
 稳定性之后。2026-11-16 完成主线编译级移植：`patches/research/` 以 v7.3.4
-为基准，模块、全部 ARM DTB 与 binding 检查通过，实机与采集字节序转换仍缺
+为基准，模块、全部 ARM DTB 与 binding 检查通过，实机验证仍缺
 （见 [移植记录](../evidence/mainline-2026-11-16/PORT.md)）。2026-11-16 又把
 共享 power-domain 的 AO 部分实现为 `patches/research/0004..0008`：Meson8b
 VDEC 域进入 genpd，驱动改为运行时引用并在无域时回退到原 AO 直写，
@@ -214,7 +214,14 @@ read-modify-write，binding 只在缺 phandle 时要求两段 reg。十三个补
 应用、`checkpatch --strict` 干净，模块无警告编译，ODROID-C1 DTB 拆出 syscon
 节点，GXBB/GXL/G12A/SM1 的 DTB 在改动后的 binding 下仍通过。实机行为仍未
 验证，上游也没有编码器消费该窗口（见[方案](power-domain-design.md)）。
-公开 RFC 仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
+2026-11-16 再补上最后一个功能性缺口 `patches/research/0013`：Meson8b 采集
+字节序转换。每个采集 buffer 拥有一块按固件字节序的私有 canvas 块，完成时经
+缓存别名转换进待出队的 buffer；NV12M canvas 的 endian 设为 0。每块多占
+1.5 倍图像大小的 CMA，因此采集 buffer 上限降到 12、VIFIFO 降到 4 MiB 以适配
+64 MiB CMA。十四个补丁按序应用、`checkpatch --strict` 干净，模块无警告编译且
+可由 pristine 树逐字节复现，主机测试锁定平面切分与字交换的自逆性。
+STREAMON 不再拒绝，但实机行为、拷贝开销与 buffer 预算均未验证。公开 RFC 仍
+待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
 通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
 明确依据的新 codec 不加入本轮交付承诺。
 

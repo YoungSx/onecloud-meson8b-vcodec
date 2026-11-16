@@ -12,6 +12,8 @@ af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e  meson-vdec.ko 
 5ad19f41f5d31ffc4ae441570eaee28c7da65655be4ab7c3e6d0af2138e2ef47  meson-vdec.ko (full, with 0000..0008)
 # with the DOS syscon patches 0009..0012 on top
 8fd4f7731534dcb7723aa37b3807119ac9fb4011863cbd9aafcca1fb237cd3e8  meson-vdec.ko (full, with 0000..0012)
+# with the capture conversion 0013 on top
+d839c81148d2796a7f315ab183ae7d6f9c1cc411c3bb2ea1c5c4cceedb73b536  meson-vdec.ko (full, with 0000..0013)
 59429ae041594436b3ceffeb8a8dee798a0332501c46bf313139def987f4f581  meson8b-odroidc1.dtb (with 0012)
 1a7eb61bfc07eea5a305e2c085b1362e6158d5b32a54838651ff62f2f70541c5  meson-ee-pwrc.o (with 0005)
 8ae7be002da9db03c3cbd87b5035d3f35de7c0d980634ef5967faaab657f0879  meson8b-odroidc1.dtb (with 0008)
@@ -58,3 +60,4 @@ bf8243128e43dba8ad3bde211a8018514cbed9d8c2415b78d496a274617ab05a  linux-7.3.4/Do
 dc44704139c48026db1f56e7968822de9dd2aef6612290dc956df75a57beb2c0  linux-7.3.4/arch/arm/boot/dts/amlogic/meson8b.dtsi
 69a0021e09d956c865baa0cdbb27ac3da9ffd5e5d445679ca74d56b47fda34d9  linux-7.3.4/drivers/pmdomain/amlogic/meson-ee-pwrc.c
 f84d574ba644c42fc83e27de6b50e9b6f6442e44a68f5c26b83b97ea50f9f918  linux-7.3.4/include/dt-bindings/power/meson8-power.h
+a9632795a85d188392ab5b693ffa8aa9c6960d78fb2e8e003cb14759a35eae35  patches/research/0013-meson8b-capture-conversion.patch

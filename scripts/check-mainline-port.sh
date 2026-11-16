@@ -14,11 +14,17 @@ trap 'rm -rf "$work"' EXIT
 patches=("$root"/patches/research/[0-9][0-9][0-9][0-9]-*.patch)
 [[ ${#patches[@]} -gt 0 ]] || { echo "no research patches" >&2; exit 1; }
 
+# Files a patch creates have no source in the tree, so they are only copied
+# when they exist and created by the patch otherwise.
 files=$(sed -n 's|^+++ b/||p' "${patches[@]}" | sort -u)
 while read -r f; do
-    [[ -f $tree/$f ]] || { echo "missing in tree: $f" >&2; exit 1; }
-    mkdir -p "$work/$(dirname "$f")"
-    cp "$tree/$f" "$work/$f"
+    if [[ -f $tree/$f ]]; then
+        mkdir -p "$work/$(dirname "$f")"
+        cp "$tree/$f" "$work/$f"
+    elif ! grep -qs "^--- /dev/null$" "${patches[@]}"; then
+        echo "missing in tree: $f" >&2
+        exit 1
+    fi
 done <<< "$files"
 
 cd "$work"
@@ -30,8 +36,11 @@ for patch in "${patches[@]}"; do
         echo "FAILED $name" >&2
         exit 1
     fi
+    # FILE_PATH_CHANGES only asks whether MAINTAINERS covers new files;
+    # this driver's directory is already listed there as a whole.
     out=$(sed -n '/^diff --git/,$p' "$patch" |
-          "$tree/scripts/checkpatch.pl" --no-tree --no-signoff --strict -)
+          "$tree/scripts/checkpatch.pl" --no-tree --no-signoff --strict \
+          --ignore FILE_PATH_CHANGES -)
     if ! grep -q "0 errors, 0 warnings" <<< "$out"; then
         echo "checkpatch: $name" >&2
         grep -E "^#|errors" <<< "$out" >&2

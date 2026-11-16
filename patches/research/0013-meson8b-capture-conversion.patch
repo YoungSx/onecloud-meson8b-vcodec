@@ -1,0 +1,463 @@
+Subject: [PATCH 13/13 RFC] media: meson: vdec: convert Meson8b capture output
+
+Meson8b's canvas has no endian control, so the firmware writes every
+64-bit word byte-reversed, while the capture buffers are also the
+decoder's reference pictures. The word cannot be fixed up in place: a
+later picture would then decode from swapped references.
+
+Each capture buffer gets a private canvas block in the firmware's own
+layout, and the picture is converted into the buffer the client dequeues
+when that buffer is done. The block comes from dma_alloc_coherent() so the
+canvas stays physically contiguous, and the CPU reads it through a cached
+vmap() alias invalidated before each read, because reading the uncached
+mapping costs more than the conversion itself. The client still sees
+NV12M.
+
+The conversion is scalar. A NEON body halves it at 1080p, and belongs in
+its own translation unit with the kernel_neon_begin() brackets once this
+path is known to work on the silicon.
+
+Two limits move to fit the extra block in the 64 MiB of CMA these boards
+have: twelve capture buffers instead of the GX twenty-four, and the 4 MiB
+bitstream FIFO the vendor stack uses instead of 16 MiB.
+
+This removes the STREAMON rejection that kept Meson8b from decoding at
+all. Nothing here has run on hardware.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/Kconfig b/drivers/staging/media/meson/vdec/Kconfig
+index 39627f9..25cecf6 100644
+--- a/drivers/staging/media/meson/vdec/Kconfig
++++ b/drivers/staging/media/meson/vdec/Kconfig
+@@ -10,5 +10,5 @@ config VIDEO_MESON_VDEC
+ 	help
+ 	Support for the video decoder found in gxbb/gxl/gxm chips,
+ 	with experimental platform bring-up for Meson8b (S805).
+-	Meson8b streaming is disabled until capture byte-order conversion
+-	is implemented. It requires its own firmware.
++	Meson8b needs its own firmware and converts the capture output in
++	software, because its canvas has no byte-order control.
+diff --git a/drivers/staging/media/meson/vdec/Makefile b/drivers/staging/media/meson/vdec/Makefile
+index 6e726af..4efd774 100644
+--- a/drivers/staging/media/meson/vdec/Makefile
++++ b/drivers/staging/media/meson/vdec/Makefile
+@@ -2,6 +2,7 @@
+ # Makefile for Amlogic meson video decoder driver
+ 
+ meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o
++meson-vdec-objs += meson8b-capture.o
+ meson-vdec-objs += vdec_1.o vdec_hevc.o
+ meson-vdec-objs += codec_mpeg12.o codec_h264.o codec_hevc_common.o codec_vp9.o
+ 
+diff --git a/drivers/staging/media/meson/vdec/meson8b-capture.c b/drivers/staging/media/meson/vdec/meson8b-capture.c
+new file mode 100644
+index 0000000..c5ec866
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/meson8b-capture.c
+@@ -0,0 +1,161 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Meson8b capture byte-order conversion.
++ *
++ * The VDEC canvas has no endian control on Meson8b, so the firmware writes
++ * every 64-bit word byte-reversed, and the capture buffers double as the
++ * decoder's reference pictures. The word therefore cannot be fixed up in
++ * place: a later picture would decode from swapped references. Each capture
++ * buffer gets a private canvas block that keeps the firmware's layout, and
++ * the display copy is converted into the buffer the client dequeues.
++ */
++
++#include <linux/dma-mapping.h>
++#include <linux/mm.h>
++#include <linux/slab.h>
++#include <linux/swab.h>
++#include <linux/vmalloc.h>
++#include <media/videobuf2-dma-contig.h>
++
++#include "meson8b-capture.h"
++
++static void shadow_free(struct amvdec_session *sess,
++			struct amvdec_shadow *shadow)
++{
++	if (shadow->cached)
++		vunmap(shadow->cached);
++	if (shadow->vaddr)
++		dma_free_coherent(sess->core->dev, shadow->size,
++				  shadow->vaddr, shadow->paddr);
++	memset(shadow, 0, sizeof(*shadow));
++}
++
++/*
++ * The canvas must be physically contiguous, so the block comes from
++ * dma_alloc_coherent(). On this non-coherent SoC that mapping is uncached,
++ * and reading it at uncached speed costs more than the conversion itself.
++ * Hardware is the only writer, so the CPU can read through a cached vmap()
++ * alias instead, invalidated before each read. Nothing writes through the
++ * alias, so no dirty line can be lost.
++ */
++static int shadow_alloc(struct amvdec_session *sess,
++			struct amvdec_shadow *shadow, u32 luma)
++{
++	unsigned int npages = PAGE_ALIGN(luma + luma / 2) >> PAGE_SHIFT;
++	struct device *dev = sess->core->dev;
++	struct page **pages;
++	unsigned int i;
++
++	shadow->size = luma + luma / 2;
++	shadow->vaddr = dma_alloc_coherent(dev, shadow->size,
++					   &shadow->paddr, GFP_KERNEL);
++	if (!shadow->vaddr)
++		return -ENOMEM;
++	shadow->luma = luma;
++
++	pages = kmalloc_array(npages, sizeof(*pages), GFP_KERNEL);
++	if (!pages) {
++		shadow_free(sess, shadow);
++		return -ENOMEM;
++	}
++
++	/* dma_alloc_coherent() hands back either the direct map remapped
++	 * uncached or an uncached vmalloc alias; recover the pages either way.
++	 */
++	for (i = 0; i < npages; i++) {
++		void *va = shadow->vaddr + i * PAGE_SIZE;
++
++		pages[i] = is_vmalloc_addr(va) ? vmalloc_to_page(va)
++					       : virt_to_page(va);
++	}
++	shadow->cached = vmap(pages, npages, VM_MAP, PAGE_KERNEL);
++	kfree(pages);
++	if (!shadow->cached) {
++		shadow_free(sess, shadow);
++		return -ENOMEM;
++	}
++
++	return 0;
++}
++
++void amvdec_meson8b_free_capture(struct amvdec_session *sess)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(sess->shadow); i++)
++		shadow_free(sess, &sess->shadow[i]);
++}
++
++int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
++				struct vb2_buffer *vb, dma_addr_t addr[])
++{
++	struct amvdec_shadow *shadow;
++	u32 luma = amvdec_get_output_size(sess);
++
++	if (vb->index >= ARRAY_SIZE(sess->shadow) ||
++	    sess->pixfmt_cap != V4L2_PIX_FMT_NV12M)
++		return -EINVAL;
++
++	shadow = &sess->shadow[vb->index];
++	/* A mid-session resolution change leaves a block of the wrong size. */
++	if (shadow->vaddr && shadow->luma != luma)
++		shadow_free(sess, shadow);
++	if (!shadow->vaddr && shadow_alloc(sess, shadow, luma))
++		return -ENOMEM;
++
++	addr[0] = shadow->paddr;
++	addr[1] = shadow->paddr + luma;
++	return 0;
++}
++
++/* Reverse every 64-bit word of @size bytes; @size is a multiple of 8. */
++static void swap64(void *dst, const void *src, size_t size)
++{
++	const u64 *s = src;
++	u64 *d = dst;
++
++	for (; size >= sizeof(u64); size -= sizeof(u64))
++		*d++ = swab64p(s++);
++}
++
++/*
++ * Scalar on purpose: a NEON body halves this at 1080p (measured on the same
++ * silicon outside mainline), and belongs in its own file with the
++ * kernel_neon_begin()/end() brackets once this path is known to work.
++ */
++int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
++				struct vb2_buffer *vb)
++{
++	struct amvdec_shadow *shadow;
++	u32 luma = amvdec_get_output_size(sess);
++	void *dst;
++
++	if (vb->index >= ARRAY_SIZE(sess->shadow) ||
++	    sess->pixfmt_cap != V4L2_PIX_FMT_NV12M)
++		return -EINVAL;
++
++	shadow = &sess->shadow[vb->index];
++	if (!shadow->vaddr || shadow->luma != luma)
++		return -EINVAL;
++
++	/*
++	 * Drop the lines the previous read left in the cache. The block is
++	 * coherent, so the API does not require this, but arm32 implements it
++	 * as real cache maintenance by physical address, which is what makes
++	 * the alias safe; dma_alloc_noncoherent() is not available there.
++	 */
++	dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
++				DMA_FROM_DEVICE);
++
++	dst = vb2_plane_vaddr(vb, 0);
++	if (!dst || vb2_plane_size(vb, 0) < luma)
++		return -EINVAL;
++	swap64(dst, shadow->cached, luma);
++
++	dst = vb2_plane_vaddr(vb, 1);
++	if (!dst || vb2_plane_size(vb, 1) < luma / 2)
++		return -EINVAL;
++	swap64(dst, shadow->cached + luma, luma / 2);
++
++	return 0;
++}
+diff --git a/drivers/staging/media/meson/vdec/meson8b-capture.h b/drivers/staging/media/meson/vdec/meson8b-capture.h
+new file mode 100644
+index 0000000..4782c17
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/meson8b-capture.h
+@@ -0,0 +1,41 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Meson8b capture byte-order conversion.
++ */
++
++#ifndef __MESON_VDEC_MESON8B_CAPTURE_H_
++#define __MESON_VDEC_MESON8B_CAPTURE_H_
++
++#include "vdec.h"
++
++/**
++ * amvdec_meson8b_capture_addr() - Canvas addresses for a capture buffer
++ *
++ * @sess: current session
++ * @vb: the capture buffer being configured
++ * @addr: filled with the luma and chroma addresses of its canvas block
++ *
++ * The canvases point at a private block per capture buffer rather than at
++ * the buffer itself, because the byte-order conversion cannot happen in
++ * place while the firmware still decodes from those references.
++ */
++int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
++				struct vb2_buffer *vb, dma_addr_t addr[]);
++
++/**
++ * amvdec_meson8b_copy_capture() - Convert a decoded picture into @vb
++ *
++ * @sess: current session
++ * @vb: the capture buffer whose canvas block just finished decoding
++ */
++int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
++				struct vb2_buffer *vb);
++
++/**
++ * amvdec_meson8b_free_capture() - Release every canvas block of @sess
++ *
++ * @sess: current session
++ */
++void amvdec_meson8b_free_capture(struct amvdec_session *sess);
++
++#endif
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+index 75e8829..c4db7fc 100644
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -24,6 +24,7 @@
+ #include "vdec.h"
+ #include "esparser.h"
+ #include "vdec_helpers.h"
++#include "meson8b-capture.h"
+ 
+ struct dummy_buf {
+ 	struct vb2_v4l2_buffer vb;
+@@ -299,13 +300,6 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+ 	struct vb2_v4l2_buffer *buf;
+ 	int ret;
+ 
+-	/* Meson8b cannot perform the canvas byte swap this capture path needs. */
+-	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+-		dev_err(core->dev, "Meson8b capture byte-order conversion is not implemented\n");
+-		ret = -EOPNOTSUPP;
+-		goto bufs_done;
+-	}
+-
+ 	if (core->cur_sess && core->cur_sess != sess) {
+ 		ret = -EBUSY;
+ 		goto bufs_done;
+@@ -332,7 +326,13 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+ 	    sess->status == STATUS_INIT)
+ 		return 0;
+ 
+-	sess->vififo_size = SIZE_VIFIFO;
++	/*
++	 * The bitstream FIFO is 16 MiB for every GX platform, but Meson8b
++	 * boards ship with 64 MiB of CMA and each capture buffer already owns
++	 * a conversion block there, so it gets the 4 MiB the vendor stack uses.
++	 */
++	sess->vififo_size = core->platform->revision == VDEC_REVISION_MESON8B ?
++			    SZ_4M : SIZE_VIFIFO;
+ 	sess->vififo_vaddr =
+ 		dma_alloc_coherent(sess->core->dev, sess->vififo_size,
+ 				   &sess->vififo_paddr, GFP_KERNEL);
+@@ -429,6 +429,7 @@ static void vdec_stop_streaming(struct vb2_queue *q)
+ 
+ 		vdec_poweroff(sess);
+ 		vdec_free_canvas(sess);
++		amvdec_meson8b_free_capture(sess);
+ 		dma_free_coherent(sess->core->dev, sess->vififo_size,
+ 				  sess->vififo_vaddr, sess->vififo_paddr);
+ 		vdec_reset_timestamps(sess);
+@@ -1159,7 +1160,7 @@ static int vdec_probe(struct platform_device *pdev)
+ 	dev_info(dev, "registered %s as /dev/video%d\n",
+ 		 vdev->name, vdev->num);
+ 	if (core->platform->revision == VDEC_REVISION_MESON8B)
+-		dev_warn(dev, "Meson8b platform bring-up only; streaming is disabled\n");
++		dev_warn(dev, "Meson8b capture output is converted in software\n");
+ 
+ 	return 0;
+ 
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+index 82a6c03..c6b9037 100644
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -46,6 +46,23 @@ struct amvdec_timestamp {
+ 
+ struct amvdec_session;
+ 
++/**
++ * struct amvdec_shadow - private canvas block of one capture buffer
++ *
++ * @vaddr: uncached mapping the canvases point at
++ * @cached: cached alias the CPU reads through
++ * @paddr: physical address of @vaddr
++ * @size: size of the block in bytes
++ * @luma: size of its luma plane, which also locates the chroma plane
++ */
++struct amvdec_shadow {
++	void *vaddr;
++	void *cached;
++	dma_addr_t paddr;
++	u32 size;
++	u32 luma;
++};
++
+ /**
+  * struct amvdec_core - device parameters, singleton
+  *
+@@ -282,6 +299,9 @@ struct amvdec_session {
+ 	u8 canvas_alloc[MAX_CANVAS];
+ 	u32 canvas_num;
+ 
++	/* Meson8b only: one conversion block per capture buffer. */
++	struct amvdec_shadow shadow[32];
++
+ 	void *vififo_vaddr;
+ 	dma_addr_t vififo_paddr;
+ 	u32 vififo_size;
+diff --git a/drivers/staging/media/meson/vdec/vdec_helpers.c b/drivers/staging/media/meson/vdec/vdec_helpers.c
+index 9a4bef6..0c37bf3 100644
+--- a/drivers/staging/media/meson/vdec/vdec_helpers.c
++++ b/drivers/staging/media/meson/vdec/vdec_helpers.c
+@@ -10,6 +10,7 @@
+ #include <media/videobuf2-dma-contig.h>
+ 
+ #include "vdec_helpers.h"
++#include "meson8b-capture.h"
+ 
+ #define NUM_CANVAS_NV12 2
+ #define NUM_CANVAS_YUV420 3
+@@ -179,30 +180,42 @@ static int set_canvas_nv12m(struct amvdec_session *sess,
+ 	struct amvdec_core *core = sess->core;
+ 	u8 canvas_id[NUM_CANVAS_NV12]; /* Y U/V */
+ 	dma_addr_t buf_paddr[NUM_CANVAS_NV12]; /* Y U/V */
++	bool meson8b = core->platform->revision == VDEC_REVISION_MESON8B;
++	u32 endian = MESON_CANVAS_ENDIAN_SWAP64;
+ 	int ret, i;
+ 
+ 	for (i = 0; i < NUM_CANVAS_NV12; ++i) {
+ 		ret = canvas_alloc(sess, &canvas_id[i]);
+ 		if (ret)
+ 			return ret;
++	}
+ 
+-		buf_paddr[i] =
+-		    vb2_dma_contig_plane_dma_addr(vb, i);
++	/*
++	 * Meson8b has no canvas endian control, so the firmware writes
++	 * byte-reversed words into a private block and the display copy is
++	 * converted on the way out (meson8b-capture.c).
++	 */
++	if (meson8b) {
++		ret = amvdec_meson8b_capture_addr(sess, vb, buf_paddr);
++		if (ret)
++			return ret;
++		endian = 0;
++	} else {
++		for (i = 0; i < NUM_CANVAS_NV12; ++i)
++			buf_paddr[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+ 	}
+ 
+ 	/* Y plane */
+ 	ret = meson_canvas_config(core->canvas, canvas_id[0], buf_paddr[0],
+ 				  width, height, MESON_CANVAS_WRAP_NONE,
+-				  MESON_CANVAS_BLKMODE_LINEAR,
+-				  MESON_CANVAS_ENDIAN_SWAP64);
++				  MESON_CANVAS_BLKMODE_LINEAR, endian);
+ 	if (ret)
+ 		return ret;
+ 
+ 	/* U/V plane */
+ 	ret = meson_canvas_config(core->canvas, canvas_id[1], buf_paddr[1],
+ 				  width, height / 2, MESON_CANVAS_WRAP_NONE,
+-				  MESON_CANVAS_BLKMODE_LINEAR,
+-				  MESON_CANVAS_ENDIAN_SWAP64);
++				  MESON_CANVAS_BLKMODE_LINEAR, endian);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -316,6 +329,13 @@ static void dst_buf_done(struct amvdec_session *sess,
+ 	struct device *dev = sess->core->dev_dec;
+ 	u32 output_size = amvdec_get_output_size(sess);
+ 
++	if (sess->core->platform->revision == VDEC_REVISION_MESON8B &&
++	    amvdec_meson8b_copy_capture(sess, &vbuf->vb2_buf)) {
++		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
++		amvdec_abort(sess);
++		return;
++	}
++
+ 	switch (sess->pixfmt_cap) {
+ 	case V4L2_PIX_FMT_NV12M:
+ 		vb2_set_plane_payload(&vbuf->vb2_buf, 0, output_size);
+diff --git a/drivers/staging/media/meson/vdec/vdec_platform.c b/drivers/staging/media/meson/vdec/vdec_platform.c
+index 9ef894c..2397c5b 100644
+--- a/drivers/staging/media/meson/vdec/vdec_platform.c
++++ b/drivers/staging/media/meson/vdec/vdec_platform.c
+@@ -19,14 +19,19 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
+ 	{
+ 		.pixfmt = V4L2_PIX_FMT_H264,
+ 		.min_buffers = 2,
+-		.max_buffers = 24,
++		/*
++		 * Each capture buffer also owns a conversion block of 1.5x
++		 * the luma size, so the GX buffer count does not fit in the
++		 * 64 MiB CMA of the boards this platform ships on.
++		 */
++		.max_buffers = 12,
+ 		.max_width = 1920,
+ 		.max_height = 1080,
+ 		.vdec_ops = &vdec_1_ops,
+ 		.codec_ops = &codec_h264_ops,
+ 		.firmware_path = "meson/vdec/meson8b_h264.bin",
+-		/* The vendor two-plane path uses NV21, not GX's NV12. */
+-		.pixfmts_cap = { V4L2_PIX_FMT_YUV420M, 0 },
++		/* The capture conversion path writes NV12M only. */
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+ 		.flags = V4L2_FMT_FLAG_COMPRESSED |
+ 			 V4L2_FMT_FLAG_DYN_RESOLUTION,
+ 	},
