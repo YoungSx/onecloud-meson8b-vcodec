@@ -99,9 +99,14 @@ only then resets `DOS_SW_RESET1` and enables the clock.
 
 Mainline `vdec_1_start()` currently does the opposite — `clk_prepare_enable()`
 before clearing the sleep bits — and it works on GX/G12. A genpd conversion
-has to pick one: if the domain's `power_on` clears sleep/iso and the driver
-keeps enabling the clock afterwards, the order becomes power-first like the
-vendor. That is the safer of the two, and it is what `meson_ee_pwrc_on()`
-already does for every other Meson domain. Verifying it on S805 hardware is
-still required; the vendor sequence is evidence of intent, not proof that
-the reversed order breaks anything.
+makes the driver's order irrelevant, because the power sequencing moves out
+of `vdec_1_start()` entirely: `platform_probe()` calls
+`dev_pm_domain_attach()` with `PD_FLAG_ATTACH_POWER_ON`, and
+`__genpd_dev_pm_attach()` runs `genpd_power_on()` before `drv->probe()` is
+entered at all. So `meson_ee_pwrc_on()` — sleep bits, memory power-down,
+isolation — completes before the vdec driver can enable `vdec_1`, which is
+the vendor order.
+
+Verifying the conversion on S805 hardware is still required; the vendor
+sequence and the attach ordering are evidence of intent, not proof that the
+reversed order breaks anything.
