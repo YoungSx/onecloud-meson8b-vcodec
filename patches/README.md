@@ -19,7 +19,10 @@ v7.3.4 on 2026-11-16 and verified by compiling:
 | [0003](research/0003-meson8b-vdec-device-tree.patch) | Meson8b VDEC device tree, enabled on ODROID-C1 |
 
 They apply with `patch -p1 -F0` to pristine v7.3.4, and the module, every ARM
-DTB and the binding schema check all pass. None of it ran on S805 hardware and
+DTB and the binding schema check all pass. Reproduce the apply/checkpatch part
+with `bash scripts/check-mainline-port.sh /path/to/linux-7.3.4`, which copies
+only the touched files into a temporary tree and runs `checkpatch.pl --strict`
+on each patch. None of it ran on S805 hardware and
 Meson8b streaming still returns `-EOPNOTSUPP`; see the
 [port record](../evidence/mainline-2026-11-16/PORT.md). The research series is
 not in the current 5.15.79 series and must not be stacked on the current patch.
