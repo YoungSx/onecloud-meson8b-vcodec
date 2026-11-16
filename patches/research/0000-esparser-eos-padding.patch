@@ -1,31 +1,35 @@
 Subject: [PATCH] media: meson: vdec: pad the ESPARSER end-of-stream buffer
 
 esparser_queue_eos() allocates len + SEARCH_PATTERN_LEN bytes, copies the
-sequence-end code and writes exactly len bytes to the parser. Two things are
-missing compared to a regular input buffer: the 4 KiB minimum packet the VDEC
-needs to raise interrupts, and the 000001ff start code that makes the ESPARSER
-report a match.
+sequence-end code and writes exactly len bytes. Regular input buffers go
+through esparser_pad_start_code() first, which extends them to the 4 KiB
+minimum packet the VDEC needs and appends 000001ff in the search window. The
+EOS buffer gets neither.
 
-The MPEG-1/2, MPEG-4 and VC-1 eos sequences are 4 to 12 bytes long, so the
-parser is asked to scan 516 bytes of a buffer whose remaining content is
-uninitialised DMA memory. The sequence end therefore never reliably reaches
-the firmware, and the last pictures of a stream stay in the decoder: a 90
-frame MPEG-2 stream yields 88 frames, and the 150 frame B-frame stream stops
-short the same way. vdec_stop_streaming() ignores the return value, so nothing
-is logged.
+codec_mpeg12_eos_sequence() reports ARRAY_SIZE(eos_sequence): 1024 bytes whose
+only content is 00 00 01 b7 followed by zeros. That is below
+ESPARSER_MIN_PACKET_SIZE and carries no terminator, while
+esparser_write_data() asks the parser to fetch size + SEARCH_PATTERN_LEN, so the
+512-byte search window is uninitialised dma_alloc_coherent() memory. The parser
+therefore has no deterministic start code to match and need not raise its
+search interrupt, which leaves the last pictures of an MPEG-1/2 stream in the
+decoder. codec_h264_eos_sequence() is a full 4 KiB picture that already ends in
+000001ff, so H.264 is not affected; VP9 and HEVC have no eos_sequence at all.
 
 Factor the padding out of esparser_pad_start_code() into
 esparser_pad_payload(), which takes the buffer and its capacity instead of a
 vb2_buffer, and use it for the EOS buffer as well: allocate
 max(len, ESPARSER_MIN_PACKET_SIZE) + SEARCH_PATTERN_LEN, pad, and write
-len + pad_size so the terminator is part of the data the parser fetches.
+len + pad_size so the terminator is part of the data the parser fetches. The
+H.264 write size is unchanged.
 
-With this change the same MPEG-2 stream returns 90 frames matching a software
-reference and the B-frame stream returns all 150.
-
-Tested on Amlogic Meson8b (S805) with a vendor MPEG-1/2 microcode. This is
-an independent fix for every Meson platform using eos_sequence; it does not
-depend on the Meson8b bring-up patches that follow.
+The same defect was diagnosed and fixed on Amlogic Meson8b (S805) running a
+vendor 5.15 tree with a vendor MPEG-1/2 microcode, where the drain had been
+writing four bytes and nothing else: after padding the EOS buffer a 90-frame
+stream went from 88 to 90 frames matching a software reference, and a
+150-frame B-frame stream returned all 150. Mainline itself was only built with
+this patch, not run. The fix does not depend on the Meson8b bring-up patches
+that follow.
 
 ---
 diff --git a/drivers/staging/media/meson/vdec/esparser.c b/drivers/staging/media/meson/vdec/esparser.c
