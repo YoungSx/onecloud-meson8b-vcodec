@@ -1,0 +1,18 @@
+Subject: [PATCH 4/8 RFC] dt-bindings: power: add the Meson8b VDEC power domain ID
+
+Meson8b brings VDEC1 up through two AO sleep bits and two isolation bits
+that no mainline driver owns today. Give the domain an ID so the pwrc
+driver and the device tree can refer to it.
+
+---
+diff --git a/include/dt-bindings/power/meson8-power.h b/include/dt-bindings/power/meson8-power.h
+index 7a55ba2..c3fa477 100644
+--- a/include/dt-bindings/power/meson8-power.h
++++ b/include/dt-bindings/power/meson8-power.h
+@@ -9,5 +9,6 @@
+ #define PWRC_MESON8_VPU_ID			0
+ #define PWRC_MESON8_ETHERNET_MEM_ID		1
+ #define PWRC_MESON8_AUDIO_DSP_MEM_ID		2
++#define PWRC_MESON8_VDEC_ID			3
+ 
+ #endif /* _DT_BINDINGS_MESON8_POWER_H */

@@ -1,0 +1,276 @@
+Subject: [PATCH 6/8 RFC] media: meson: vdec: let a power domain own the AO bits
+
+The driver writes AO sleep and isolation bits directly in vdec_1_start(),
+__vdec_1_stop() and the HEVC equivalents, in the order clock first, power
+second. The vendor tree does the opposite: vdec_poweron() clears the sleep
+bits, waits, resets, and only then enables vdec_clock_enable(). That order
+cannot be expressed while the driver owns the bits, because the clock is
+enabled before the engine start callback runs.
+
+Take the AO bits from a generic power domain when the device has one, and
+wrap the device in runtime PM so resuming it powers the domain on before
+vdec_poweron() enables dos_parser and dos. platform_probe() attaches the
+domain with PD_FLAG_ATTACH_POWER_ON, so the domain is already on when probe
+runs; the runtime reference keeps it on for the session and drops it in
+vdec_poweroff() after the engine reset, so the domain powers off last.
+
+Platforms without a power domain keep writing the AO registers through the
+new amvdec_ao_power() helper, which is a plain regmap_update_bits() there,
+so GX, G12 and SM1 behaviour is unchanged. amlogic,ao-sysctrl becomes
+optional: a device with a domain needs neither the phandle nor the regmap.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+index 95b7e21..1431424 100644
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -9,6 +9,7 @@
+ #include <linux/io.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/slab.h>
+ #include <linux/interrupt.h>
+@@ -80,10 +81,19 @@ static int vdec_poweron(struct amvdec_session *sess)
+ 	int ret;
+ 	struct amvdec_ops *vdec_ops = sess->fmt_out->vdec_ops;
+ 
+-	ret = clk_prepare_enable(sess->core->dos_parser_clk);
++	/*
++	 * Resuming the device powers the domain on before the engine clock is
++	 * enabled, which is the order the vendor firmware was brought up with.
++	 * Without a domain this only moves the device out of RPM_SUSPENDED.
++	 */
++	ret = pm_runtime_resume_and_get(sess->core->dev);
+ 	if (ret)
+ 		return ret;
+ 
++	ret = clk_prepare_enable(sess->core->dos_parser_clk);
++	if (ret)
++		goto put_pm;
++
+ 	ret = clk_prepare_enable(sess->core->dos_clk);
+ 	if (ret)
+ 		goto disable_dos_parser;
+@@ -100,6 +110,8 @@ disable_dos:
+ 	clk_disable_unprepare(sess->core->dos_clk);
+ disable_dos_parser:
+ 	clk_disable_unprepare(sess->core->dos_parser_clk);
++put_pm:
++	pm_runtime_put(sess->core->dev);
+ 
+ 	return ret;
+ }
+@@ -125,6 +137,7 @@ static void vdec_poweroff(struct amvdec_session *sess)
+ 	vdec_ops->stop(sess);
+ 	clk_disable_unprepare(sess->core->dos_clk);
+ 	clk_disable_unprepare(sess->core->dos_parser_clk);
++	pm_runtime_put(sess->core->dev);
+ }
+ 
+ static void
+@@ -1022,14 +1035,29 @@ static int vdec_probe(struct platform_device *pdev)
+ 	if (IS_ERR(core->esparser_base))
+ 		return PTR_ERR(core->esparser_base);
+ 
++	/*
++	 * A generic power domain owns the AO sleep and isolation bits when the
++	 * device has one; the AO sysctrl is then not needed at all. GX, G12 and
++	 * SM1 still write those registers themselves.
++	 */
++	core->pm_domain = !!dev->pm_domain;
++
+ 	core->regmap_ao =
+-		syscon_regmap_lookup_by_phandle(dev->of_node,
+-						"amlogic,ao-sysctrl");
+-	if (IS_ERR(core->regmap_ao)) {
+-		dev_err(dev, "Couldn't regmap AO sysctrl\n");
+-		return PTR_ERR(core->regmap_ao);
++		syscon_regmap_lookup_by_phandle_optional(dev->of_node,
++							 "amlogic,ao-sysctrl");
++	if (IS_ERR(core->regmap_ao))
++		return dev_err_probe(dev, PTR_ERR(core->regmap_ao),
++				     "Couldn't regmap AO sysctrl\n");
++
++	if (!core->pm_domain && !core->regmap_ao) {
++		dev_err(dev, "No AO sysctrl and no power domain\n");
++		return -EINVAL;
+ 	}
+ 
++	ret = devm_pm_runtime_enable(dev);
++	if (ret)
++		return ret;
++
+ 	core->canvas = meson_canvas_get(dev);
+ 	if (IS_ERR(core->canvas))
+ 		return PTR_ERR(core->canvas);
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+index 7a5d8e8..cf4a6ca 100644
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -51,7 +51,8 @@ struct amvdec_session;
+  *
+  * @dos_base: DOS memory base address
+  * @esparser_base: PARSER memory base address
+- * @regmap_ao: regmap for the AO bus
++ * @regmap_ao: regmap for the AO bus, NULL when a power domain owns it
++ * @pm_domain: a generic power domain owns the AO sleep and isolation bits
+  * @dev: core device
+  * @dev_dec: decoder device
+  * @platform: platform-specific data
+@@ -71,6 +72,7 @@ struct amvdec_core {
+ 	void __iomem *dos_base;
+ 	void __iomem *esparser_base;
+ 	struct regmap *regmap_ao;
++	bool pm_domain;
+ 
+ 	struct device *dev;
+ 	struct device *dev_dec;
+@@ -93,6 +95,22 @@ struct amvdec_core {
+ 	struct mutex lock;
+ };
+ 
++/**
++ * amvdec_ao_power - write the AO power registers of an engine
++ *
++ * The AO sleep and isolation bits belong to the generic power domain when the
++ * device is attached to one, so the driver must not touch them then. Platforms
++ * without a domain keep the direct write.
++ */
++static inline int amvdec_ao_power(struct amvdec_core *core, u32 reg, u32 mask,
++				  u32 val)
++{
++	if (core->pm_domain)
++		return 0;
++
++	return regmap_update_bits(core->regmap_ao, reg, mask, val);
++}
++
+ /**
+  * struct amvdec_ops - vdec operations
+  *
+diff --git a/drivers/staging/media/meson/vdec/vdec_1.c b/drivers/staging/media/meson/vdec/vdec_1.c
+index 276ebcf..6af0697 100644
+--- a/drivers/staging/media/meson/vdec/vdec_1.c
++++ b/drivers/staging/media/meson/vdec/vdec_1.c
+@@ -150,19 +150,19 @@ static void __vdec_1_stop(struct amvdec_session *sess)
+ 
+ 	/* enable vdec1 isolation */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, iso_reg,
+-				   GEN_PWR_VDEC_1_SM1, GEN_PWR_VDEC_1_SM1);
++		amvdec_ao_power(core, iso_reg,
++				GEN_PWR_VDEC_1_SM1, GEN_PWR_VDEC_1_SM1);
+ 	else
+-		regmap_update_bits(core->regmap_ao, iso_reg, 0xc0, 0xc0);
++		amvdec_ao_power(core, iso_reg, 0xc0, 0xc0);
+ 	/* power off vdec1 memories */
+ 	amvdec_write_dos(core, DOS_MEM_PD_VDEC, 0xffffffff);
+ 	/* power off vdec1 */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, sleep_reg,
+-				   GEN_PWR_VDEC_1_SM1, GEN_PWR_VDEC_1_SM1);
++		amvdec_ao_power(core, sleep_reg,
++				GEN_PWR_VDEC_1_SM1, GEN_PWR_VDEC_1_SM1);
+ 	else
+-		regmap_update_bits(core->regmap_ao, sleep_reg,
+-				   GEN_PWR_VDEC_1, GEN_PWR_VDEC_1);
++		amvdec_ao_power(core, sleep_reg,
++				GEN_PWR_VDEC_1, GEN_PWR_VDEC_1);
+ 
+ 	if (sess->priv)
+ 		codec_ops->stop(sess);
+@@ -197,11 +197,9 @@ static int vdec_1_start(struct amvdec_session *sess)
+ 
+ 	/* Enable power for VDEC_1 */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		ret = regmap_update_bits(core->regmap_ao, sleep_reg,
+-					 GEN_PWR_VDEC_1_SM1, 0);
++		ret = amvdec_ao_power(core, sleep_reg, GEN_PWR_VDEC_1_SM1, 0);
+ 	else
+-		ret = regmap_update_bits(core->regmap_ao, sleep_reg,
+-					 GEN_PWR_VDEC_1, 0);
++		ret = amvdec_ao_power(core, sleep_reg, GEN_PWR_VDEC_1, 0);
+ 	if (ret) {
+ 		clk_disable_unprepare(core->vdec_1_clk);
+ 		return ret;
+@@ -218,10 +216,9 @@ static int vdec_1_start(struct amvdec_session *sess)
+ 	amvdec_write_dos(core, DOS_MEM_PD_VDEC, 0);
+ 	/* Remove VDEC1 Isolation */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		ret = regmap_update_bits(core->regmap_ao, iso_reg,
+-					 GEN_PWR_VDEC_1_SM1, 0);
++		ret = amvdec_ao_power(core, iso_reg, GEN_PWR_VDEC_1_SM1, 0);
+ 	else
+-		ret = regmap_update_bits(core->regmap_ao, iso_reg, 0xc0, 0);
++		ret = amvdec_ao_power(core, iso_reg, 0xc0, 0);
+ 	if (ret)
+ 		goto stop;
+ 	/* Reset DOS top registers */
+diff --git a/drivers/staging/media/meson/vdec/vdec_hevc.c b/drivers/staging/media/meson/vdec/vdec_hevc.c
+index 1939c47..7d43072 100644
+--- a/drivers/staging/media/meson/vdec/vdec_hevc.c
++++ b/drivers/staging/media/meson/vdec/vdec_hevc.c
+@@ -125,23 +125,20 @@ static void __vdec_hevc_stop(struct amvdec_session *sess)
+ 
+ 	/* Enable VDEC_HEVC Isolation */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+-				   GEN_PWR_VDEC_HEVC_SM1,
+-				   GEN_PWR_VDEC_HEVC_SM1);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_ISO0,
++				GEN_PWR_VDEC_HEVC_SM1, GEN_PWR_VDEC_HEVC_SM1);
+ 	else
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+-				   0xc00, 0xc00);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_ISO0, 0xc00, 0xc00);
+ 
+ 	/* VDEC_HEVC Memories */
+ 	amvdec_write_dos(core, DOS_MEM_PD_HEVC, 0xffffffffUL);
+ 
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+-				   GEN_PWR_VDEC_HEVC_SM1,
+-				   GEN_PWR_VDEC_HEVC_SM1);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_SLEEP0,
++				GEN_PWR_VDEC_HEVC_SM1, GEN_PWR_VDEC_HEVC_SM1);
+ 	else
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+-				   GEN_PWR_VDEC_HEVC, GEN_PWR_VDEC_HEVC);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_SLEEP0,
++				GEN_PWR_VDEC_HEVC, GEN_PWR_VDEC_HEVC);
+ }
+ 
+ static int vdec_hevc_stop(struct amvdec_session *sess)
+@@ -174,11 +171,11 @@ static int __vdec_hevc_start(struct amvdec_session *sess)
+ 	}
+ 
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+-				   GEN_PWR_VDEC_HEVC_SM1, 0);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_SLEEP0,
++				GEN_PWR_VDEC_HEVC_SM1, 0);
+ 	else
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_SLEEP0,
+-				   GEN_PWR_VDEC_HEVC, 0);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_SLEEP0,
++				GEN_PWR_VDEC_HEVC, 0);
+ 	usleep_range(10, 20);
+ 
+ 	/* Reset VDEC_HEVC*/
+@@ -192,11 +189,10 @@ static int __vdec_hevc_start(struct amvdec_session *sess)
+ 
+ 	/* Remove VDEC_HEVC Isolation */
+ 	if (core->platform->revision == VDEC_REVISION_SM1)
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+-				   GEN_PWR_VDEC_HEVC_SM1, 0);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_ISO0,
++				GEN_PWR_VDEC_HEVC_SM1, 0);
+ 	else
+-		regmap_update_bits(core->regmap_ao, AO_RTI_GEN_PWR_ISO0,
+-				   0xc00, 0);
++		amvdec_ao_power(core, AO_RTI_GEN_PWR_ISO0, 0xc00, 0);
+ 
+ 	amvdec_write_dos(core, DOS_SW_RESET3, 0xffffffff);
+ 	amvdec_write_dos(core, DOS_SW_RESET3, 0x00000000);

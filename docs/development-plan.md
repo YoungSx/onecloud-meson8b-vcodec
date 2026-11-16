@@ -201,9 +201,14 @@ README、使用/验收说明和 CI；CI 使用对应 head。硬件报告附源�
 当前主线移植、静态 DT/共享 power-domain 与公开 RFC 放在上述功能和
 稳定性之后。2026-11-16 完成主线编译级移植：`patches/research/` 以 v7.3.4
 为基准，模块、全部 ARM DTB 与 binding 检查通过，实机与采集字节序转换仍缺
-（见 [移植记录](../evidence/mainline-2026-11-16/PORT.md)）。静态 DT/共享
-power-domain 只有[方案](power-domain-design.md)，未实现未上机；公开 RFC
-仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
+（见 [移植记录](../evidence/mainline-2026-11-16/PORT.md)）。2026-11-16 又把
+共享 power-domain 的 AO 部分实现为 `patches/research/0004..0008`：Meson8b
+VDEC 域进入 genpd，驱动改为运行时引用并在无域时回退到原 AO 直写，
+`amlogic,ao-sysctrl` 随 `power-domains` 的有无变成条件必需，DT 节点改用域
+phandle。九个补丁按序应用且 `checkpatch --strict` 干净，模块与 pwrc 无警告
+编译，六个 Meson8/8b/8m2 DTB 通过 schema 校验，负例（去掉域又不给 AO
+sysctrl）按预期报错；DOS syscon 那一半与实机行为仍未做（见[方案](power-domain-design.md)）。
+公开 RFC 仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
 通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
 明确依据的新 codec 不加入本轮交付承诺。
 

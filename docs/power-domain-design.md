@@ -1,9 +1,11 @@
 # Meson8b shared DOS ownership design
 
-2026-11-16. Design note for the upstream series; not implemented and not
-validated on hardware. It exists because the runtime stack solves this
-outside the kernel (a helper module takes the DOS aperture and exports a
-locked bit-update), and that workaround is not acceptable upstream.
+2026-11-16. Design note for the upstream series. Steps 1 and 4 are now
+implemented as `patches/research/0004..0008` and build at compile level; step 3
+(the DOS syscon) is not started, and nothing here has run on hardware. It
+exists because the runtime stack solves this outside the kernel (a helper
+module takes the DOS aperture and exports a locked bit-update), and that
+workaround is not acceptable upstream.
 
 ## What is actually shared
 
@@ -110,3 +112,28 @@ the vendor order.
 Verifying the conversion on S805 hardware is still required; the vendor
 sequence and the attach ordering are evidence of intent, not proof that the
 reversed order breaks anything.
+
+## Implementation status
+
+Done, compile-level only ([port record](../evidence/mainline-2026-11-16/PORT.md)):
+
+- `PWRC_MESON8_VDEC_ID` and a `meson8b_pwrc_domains[]` entry over the two AO
+  registers, with `TOP_PD_NO_MEM()` for the missing HHI memory register.
+- `vdec.c` takes a runtime reference around the session, so the domain is on
+  before `dos_parser`/`dos` are enabled and off after the engine reset;
+  `amvdec_ao_power()` is a no-op when a domain is present and the previous
+  `regmap_update_bits()` otherwise.
+- The binding makes `amlogic,ao-sysctrl` conditional on the absence of
+  `power-domains`, and the Meson8b node uses the domain instead.
+
+Still open:
+
+- Step 3, the DOS syscon. `amvdec_read_dos()`/`amvdec_write_dos()` still go
+  through `devm_platform_ioremap_resource_byname()`, so a second engine cannot
+  map the aperture. This is the half that unblocks HCODEC coexistence.
+- Runtime behaviour on S805: whether `DOS_MEM_PD_VDEC` may stay with the driver
+  once genpd owns the AO bits, and whether a stop/start cycle leaves the domain
+  consistent.
+- `meson8_pwrc_domains[]` (Meson8, no "b") deliberately has no VDEC entry: the
+  vendor Meson8 VDEC bring-up is not in this tree and the AO bit positions were
+  only confirmed for Meson8b.

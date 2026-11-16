@@ -1,0 +1,2 @@
+neg/odroid.dtb: video-codec@d0050000 (amlogic,meson8b-vdec): 'amlogic,ao-sysctrl' is a required property
+	from schema $id: http://devicetree.org/schemas/media/amlogic,gx-vdec.yaml

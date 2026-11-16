@@ -14,6 +14,13 @@ v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
 [port record](../evidence/mainline-2026-11-16/PORT.md). Nothing here ran on
 S805 hardware, and Meson8b streaming still returns `-EOPNOTSUPP`.
 
+Patches 0004–0008 add the Meson8b VDEC power domain: the AO sleep and
+isolation bits move to genpd, the decoder takes a runtime reference instead of
+writing them, `amlogic,ao-sysctrl` becomes conditional on the absence of a
+domain, and the DT node carries the phandle. This addresses review point
+"shared DOS/power-domain ownership" for the AO half only; the DOS aperture
+still has a single owner.
+
 Suggested series split:
 
 1. media: meson: vdec: pad the ESPARSER end-of-stream buffer
@@ -53,7 +60,8 @@ Review points to carry forward:
 - DOS control bits and PMU fields are shared by VDEC1 and HCODEC. Masked
   writes require one owner/lock; no whole-register overwrite across engines.
   [Shared ownership design](power-domain-design.md) proposes two Meson8b genpd
-  domains plus a DOS syscon; it is not implemented.
+  domains plus a DOS syscon. The AO half is implemented (`0004..0008`) and
+  builds; the DOS syscon half is not, and neither has run on hardware.
 - Vendor HEVC RPM lacks the conformance window. The bounded SPS prefix
   parser supplies geometry; HEVC Main10 and tiled streams are rejected.
 - On this 64 MiB CMA device the encoder raw input must match negotiated

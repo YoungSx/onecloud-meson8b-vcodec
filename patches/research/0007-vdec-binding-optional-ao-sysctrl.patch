@@ -1,0 +1,50 @@
+Subject: [PATCH 7/8 RFC] dt-bindings: media: make amlogic,ao-sysctrl optional
+
+A decoder attached to a power domain does not program the AO sleep and
+isolation bits itself, so the sysctrl phandle is not needed. Keep it
+required for every compatible that has no power domain, so GX, G12 and SM1
+nodes still have to describe where the AO registers live.
+
+---
+diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+index 631ba0a..18c9488 100644
+--- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
++++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+@@ -86,6 +86,12 @@ properties:
+     description: should point to a canvas provider node
+     $ref: /schemas/types.yaml#/definitions/phandle
+ 
++  power-domains:
++    description:
++      Power domain owning the AO sleep and isolation bits of the decoder.
++      When present the driver does not write amlogic,ao-sysctrl itself.
++    maxItems: 1
++
+ allOf:
+   - if:
+       properties:
+@@ -130,6 +136,16 @@ allOf:
+         clock-names:
+           minItems: 5
+ 
++  # Platforms without a power domain keep programming the AO registers, so the
++  # AO sysctrl stays mandatory for them.
++  - if:
++      not:
++        required:
++          - power-domains
++    then:
++      required:
++        - amlogic,ao-sysctrl
++
+ required:
+   - compatible
+   - reg
+@@ -140,7 +156,6 @@ required:
+   - clock-names
+   - resets
+   - reset-names
+-  - amlogic,ao-sysctrl
+   - amlogic,canvas
+ 
+ additionalProperties: false

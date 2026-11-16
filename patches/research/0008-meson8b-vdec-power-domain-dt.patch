@@ -1,0 +1,22 @@
+Subject: [PATCH 8/8 RFC] ARM: dts: meson8b: attach the VDEC to its power domain
+
+Meson8b has no canvas byte-order control, so the decoder still refuses to
+stream, but the DT topology is the one the driver needs: the decoder takes
+the AO bits from the pwrc domain instead of a sysctrl phandle, and the
+existing canvas and clock references are unchanged.
+
+---
+diff --git a/arch/arm/boot/dts/amlogic/meson8b.dtsi b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+index 4ded8eb..055b830 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b.dtsi
++++ b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+@@ -27,8 +27,8 @@
+ 			clock-names = "dos_parser", "dos", "vdec_1";
+ 			resets = <&reset RESET_PARSER>;
+ 			reset-names = "esparser";
+-			amlogic,ao-sysctrl = <&pmu>;
+ 			amlogic,canvas = <&canvas>;
++			power-domains = <&pwrc PWRC_MESON8_VDEC_ID>;
+ 			status = "disabled";
+ 		};
+ 	};

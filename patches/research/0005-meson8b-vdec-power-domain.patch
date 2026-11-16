@@ -1,0 +1,65 @@
+Subject: [PATCH 5/8 RFC] pmdomain: amlogic: add the Meson8b VDEC power domain
+
+Meson8b brings VDEC1 up by clearing two AO sleep bits, then two isolation
+bits, around the engine reset. Today no mainline driver owns those bits on
+this SoC: meson8b_pwrc_domains[] lists only VPU, ethernet memory and audio
+DSP memory, so a Meson8b decoder has to write the AO syscon itself and any
+second engine behind the same DOS aperture would race it.
+
+Add PWRC_MESON8_VDEC_ID as a top domain over GENMASK(3, 2) of
+AO_RTI_GEN_PWR_SLEEP0 and GENMASK(7, 6) of AO_RTI_GEN_PWR_ISO0, which are
+the bits the vendor vdec_poweron() clears. VDEC1 memory power-down is
+DOS_MEM_PD_VDEC inside the DOS aperture, not an HHI register, so the domain
+describes no memory PD and the decoder keeps owning that register; the new
+TOP_PD_NO_MEM() spells that out instead of passing an empty array.
+
+This only describes the domain. The decoder is switched over in the next
+patch, and the DT node gains the phandle after that.
+
+---
+diff --git a/drivers/pmdomain/amlogic/meson-ee-pwrc.c b/drivers/pmdomain/amlogic/meson-ee-pwrc.c
+index 55c8c9f..3503452 100644
+--- a/drivers/pmdomain/amlogic/meson-ee-pwrc.c
++++ b/drivers/pmdomain/amlogic/meson-ee-pwrc.c
+@@ -96,6 +96,18 @@ static const struct meson_ee_pwrc_top_domain meson8_pwrc_vpu = {
+ 	.iso_mask = BIT(9),
+ };
+ 
++/*
++ * VDEC1 has no memory power-down register inside the HHI window: its
++ * DOS_MEM_PD_VDEC register lives in the DOS aperture and is owned by the
++ * decoder driver. Only the AO sleep and isolation bits belong here.
++ */
++static const struct meson_ee_pwrc_top_domain meson8b_pwrc_vdec = {
++	.sleep_reg = MESON8_AO_RTI_GEN_PWR_SLEEP0,
++	.sleep_mask = GENMASK(3, 2),
++	.iso_reg = MESON8_AO_RTI_GEN_PWR_ISO0,
++	.iso_mask = GENMASK(7, 6),
++};
++
+ #define SM1_EE_PD(__bit)					\
+ 	{							\
+ 		.sleep_reg = GX_AO_RTI_GEN_PWR_SLEEP0, 		\
+@@ -268,6 +280,14 @@ static const struct meson_ee_pwrc_mem_domain g12a_pwrc_mem_isp[] = {
+ #define MEM_PD(__name, __mem)						\
+ 	TOP_PD(__name, NULL, __mem, NULL)
+ 
++/* A top domain whose memory power-down registers are not in the HHI window. */
++#define TOP_PD_NO_MEM(__name, __top_pd)					\
++	{								\
++		.name = __name,						\
++		.top_pd = __top_pd,					\
++		.is_powered_off = pwrc_ee_is_powered_off,		\
++	}
++
+ static bool pwrc_ee_is_powered_off(struct meson_ee_pwrc_domain *pwrc_domain);
+ 
+ static const struct meson_ee_pwrc_domain_desc axg_pwrc_domains[] = {
+@@ -311,6 +331,7 @@ static const struct meson_ee_pwrc_domain_desc meson8b_pwrc_domains[] = {
+ 					       meson_pwrc_mem_eth),
+ 	[PWRC_MESON8_AUDIO_DSP_MEM_ID] = MEM_PD("AUDIO_DSP_MEM",
+ 						meson8_pwrc_audio_dsp_mem),
++	[PWRC_MESON8_VDEC_ID] = TOP_PD_NO_MEM("VDEC", &meson8b_pwrc_vdec),
+ };
+ 
+ static const struct meson_ee_pwrc_domain_desc sm1_pwrc_domains[] = {

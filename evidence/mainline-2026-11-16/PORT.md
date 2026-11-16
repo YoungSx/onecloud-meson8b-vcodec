@@ -18,7 +18,7 @@ binding schema, not that Meson8b decoding works on mainline.
 
 ## Rebase
 
-The three research patches were regenerated against pristine v7.3.4, so they
+The three bring-up patches were regenerated against pristine v7.3.4, so they
 apply with `patch -p1 -F0` and no rejects:
 
 | Patch | Change on v7.3.4 |
@@ -39,12 +39,12 @@ byte for byte.
 - All arm DTBs build ([dtbs-build.log](dtbs-build.log)).
 - `dtbs_check` limited to `amlogic,gx-vdec.yaml` passes with dtschema
   2026.9 ([dtbs-check.log](dtbs-check.log)).
-- All four patches are clean under `checkpatch.pl --strict` (0 errors,
-  0 warnings), and applying 0000→0003 in order to a pristine tree reproduces
-  the built tree byte for byte.
+- All nine patches are clean under `checkpatch.pl --strict` (0 errors,
+  0 warnings) and apply in order to a pristine tree
+  ([series check](series-check.log)).
 - The decompiled `meson8b-odroidc1.dtb` carries the expected node: DOS
-  `0xd0050000`, parser `0xc110a580`, IRQs 44/32, three clocks, canvas and
-  PMU phandles, `status = "okay"`.
+  `0xd0050000`, parser `0xc110a580`, IRQs 44/32, three clocks, canvas
+  phandle, `power-domains` and `status = "okay"`.
 
 `patches/research/0000-esparser-eos-padding.patch` is a standalone fix for the
 upstream end-of-stream defect and applies to pristine v7.3.4 on its own; the
@@ -85,12 +85,58 @@ driver, as it must, and the hash above is stable across reruns.
 Neither hash is a loadable artifact for the S805: this is an ARMv7 mainline
 build, not the 5.15.79-meson production module.
 
+## Power domain
+
+The three-patch series left the AO sleep and isolation bits with the driver,
+so a Meson8b decoder had to write the AO syscon itself and any second engine
+behind the DOS aperture would race it. Five patches now move that ownership to
+genpd, which is what [the design note](../../docs/power-domain-design.md)
+proposed:
+
+| Patch | Change on v7.3.4 |
+| --- | --- |
+| 0004 | `PWRC_MESON8_VDEC_ID` added to `meson8-power.h` |
+| 0005 | `meson8b_pwrc_domains[]` gains a VDEC top domain over `GENMASK(3, 2)` of `AO_RTI_GEN_PWR_SLEEP0` and `GENMASK(7, 6)` of `AO_RTI_GEN_PWR_ISO0`; new `TOP_PD_NO_MEM()` because VDEC1 memory power-down is `DOS_MEM_PD_VDEC` in the DOS aperture, not an HHI register |
+| 0006 | the driver takes the AO bits from the domain when it has one, wraps the device in runtime PM, and writes AO only where there is no domain (`amvdec_ao_power()`); `amlogic,ao-sysctrl` becomes optional |
+| 0007 | binding: `power-domains` described, `amlogic,ao-sysctrl` required only when there is no domain |
+| 0008 | `meson8b.dtsi`: the VDEC node takes `power-domains` instead of the sysctrl phandle |
+
+Ordering is structural rather than a sequence the driver has to get right.
+`platform_probe()` calls `dev_pm_domain_attach()` with
+`PD_FLAG_ATTACH_POWER_ON`, so `genpd_power_on()` — sleep bits, then isolation —
+completes before `vdec_probe()` runs; `vdec_poweron()` then takes a runtime
+reference before enabling `dos_parser`/`dos`, and `vdec_poweroff()` drops it
+after the engine reset, so the domain powers off last. That is the vendor
+`vdec_poweron()` order, without the driver encoding it.
+
+Verified at compile level only:
+
+- All nine patches apply to pristine v7.3.4 in order and are clean under
+  `checkpatch.pl --strict` ([series check](series-check.log)).
+- `meson-vdec.ko` and `meson-ee-pwrc.o` build with no warning
+  ([modules](modules-power-domain.log), [pwrc](pwrc-build.log)); the module
+  hash is `5ad19f41f5d31ffc4ae441570eaee28c7da65655be4ab7c3e6d0af2138e2ef47`,
+  reproducible across relinks, and `depends`/`vermagic` are unchanged.
+- All six Meson8/8b/8m2 DTBs validate against the processed schema bundle with
+  no complaint ([positive](dtbs-check-power-domain.log)), and the negative case
+  is caught: dropping `power-domains` from the ODROID-C1 node without adding
+  `amlogic,ao-sysctrl` reports "'amlogic,ao-sysctrl' is a required property"
+  ([negative](dtbs-check-negative.log)).
+- The decompiled ODROID-C1 DTB has `power-domains = <&pwrc 3>` and no
+  `amlogic,ao-sysctrl`, and the phandle resolves to the pwrc node.
+
+Not verified: anything at runtime. Whether the reversed clock/power order
+matters on this silicon, whether the domain survives a stop/start cycle, and
+whether `DOS_MEM_PD_VDEC` is safe to keep in the driver once genpd owns the AO
+bits all need the board. Meson8b still returns `-EOPNOTSUPP` from STREAMON, so
+none of this changes what the port can do.
+
 ## What is still missing for upstream
 
 - Capture byte order. The driver still rejects STREAMON with `-EOPNOTSUPP`
   on Meson8b; the production stack solves this with an NV12 shadow
   conversion outside mainline's reach.
-- Shared DOS/power-domain ownership: VDEC1 and HCODEC both touch PMU fields,
-  and the node currently has no `power-domains` link.
+- Shared DOS aperture: `amlogic,dos` syscon ownership, so VDEC1 and HCODEC can
+  both map it. The AO half is done above; this is the remaining half.
 - Nothing in this series has run on hardware; the vendor firmware is not in
   linux-firmware.

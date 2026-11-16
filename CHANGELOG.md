@@ -29,6 +29,13 @@ Tooling only; the installed payload is unchanged from v0.2.0.
 - Record the vendor power/clock ordering in the shared-DOS design note: both
   `vdec_poweron()` and `avc_poweron()` clear the AO sleep bits before enabling
   the engine clock, which is what a genpd conversion would do.
+- Implement the Meson8b VDEC power domain in the research series
+  (`0004`–`0008`): the AO sleep and isolation bits move to genpd, the decoder
+  takes a runtime reference instead of writing them and falls back to the
+  previous direct writes where no domain exists, `amlogic,ao-sysctrl` becomes
+  conditional on the absence of `power-domains`, and the Meson8b node uses the
+  domain. Compile-level only: nine patches apply in order, the module and the
+  pwrc driver build with no warning, and all six Meson8/8b/8m2 DTBs validate.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 
