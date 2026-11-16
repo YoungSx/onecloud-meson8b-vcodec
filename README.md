@@ -31,8 +31,8 @@ appear, with the original kernel untouched. The
 compile-level only — the research series applies to v7.3.4 and builds the
 module and every ARM DTB, but has not run on S805 hardware — and the
 the
-[linux-media findings](docs/linux-media-rfc.md) are recorded in Discussions
-and are not submitted upstream.
+[linux-media findings](docs/linux-media-rfc.md) are recorded in
+[Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2) and are not submitted upstream.
 See [capabilities and limits](docs/validation.md).
 The encoder extensions and the MPEG/VC-1 drain fix were validated on
 2026-11-15 and are included in the `c20a473` package now installed.

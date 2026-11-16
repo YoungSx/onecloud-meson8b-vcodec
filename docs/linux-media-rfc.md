@@ -6,7 +6,8 @@ overlay, and a mainline submission would need a static device-tree topology
 with proper shared power-domain ownership that cannot be validated on this
 board. The findings below are kept because they are reproducible and useful
 to anyone who does pursue it; they are recorded in the repository's
-Discussions and are not emailed or submitted to linux-media.
+[Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2) and are not emailed or submitted to
+linux-media.
 
 Compile-side port, 2026-11-16: `patches/research/` is now based on pristine
 v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
