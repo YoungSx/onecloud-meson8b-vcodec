@@ -60,7 +60,10 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
   overlay 已应用、`/dev/video0` 与 `/dev/video1` 已注册，单元 `enabled`、
   `active (exited)`、退出码 0，四项业务服务端口全部返回 200；此次是复位后的
   冷启动而非优雅重启，开机后只做了 MPEG-4 解码冒烟，未跑全部 codec 回归
-  （见 [重启验收](../evidence/p6-2026-11-16/reboot-autoload.md)）。主线移植只到编译级：v7.3.4 上模块、
+  （见 [重启验收](../evidence/p6-2026-11-16/reboot-autoload.md)）。优雅重启路径
+  已于 2026-11-17 单独验收：`systemctl restart` 走 ExecStop 卸载（撤 overlay、
+  卸三个模块）再 ExecStart 加载，5 s 完成、rc=0、两节点恢复、随后解码 22 帧
+  正常（见 [重启检查](../evidence/p6-2026-11-16/restart-check.md)）。主线移植只到编译级：v7.3.4 上模块、
   DTB 与 binding 检查通过，未上 S805 实机；`0013` 实现了采集字节序转换，
   STREAMON 不再拒绝，`0014` 在调用方允许时改用 NEON，但该路径未经实机
   验证、驱动内收益未测量；上游结论记在 Discussions，不向上游提交。

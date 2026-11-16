@@ -1,0 +1,14 @@
+2026-11-17T02:41:02+08:00 state before: active enabled
+2026-11-17T02:41:02+08:00 nodes before: /dev/video0 /dev/video1 
+2026-11-17T02:41:07+08:00 restart rc=0 elapsed=5s
+2026-11-17T02:41:07+08:00 state after: active
+2026-11-17T02:41:08+08:00 show: Result=success ExecMainStatus=0 
+2026-11-17T02:41:08+08:00 nodes after: /dev/video0 /dev/video1 
+2026-11-17T02:41:08+08:00 === driver messages of this restart ===
+[23677.495318] meson8b-runtime: applied volatile codec overlay 1
+[23677.534553] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[23677.534579] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[23677.564874] meson-venc d0050000.video-encoder: registered meson-video-encoder as /dev/video1
+EOS frames=22 resolutions=1
+2026-11-17T02:41:13+08:00 decode smoke frames=22
+2026-11-17T02:41:13+08:00 RESTART_CHECK_DONE
