@@ -36,6 +36,12 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   conditional on the absence of `power-domains`, and the Meson8b node uses the
   domain. Compile-level only: nine patches apply in order, the module and the
   pwrc driver build with no warning, and all six Meson8/8b/8m2 DTBs validate.
+- Make the DOS aperture shareable in the research series (`0009`–`0012`): a
+  `amlogic,meson8b-dos` syscon owns the window, the decoder takes it through
+  `amlogic,dos` and reaches it through `regmap_mmio` instead of its own
+  `ioremap`, and the binding requires both regions exactly when the phandle is
+  absent. Compile-level only: thirteen patches apply in order, the module
+  builds with no warning, and the ODROID-C1 DTB carries the split nodes.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 

@@ -1,0 +1,21 @@
+Subject: [PATCH 9/12 RFC] dt-bindings: mfd: add the Meson8b DOS syscon
+
+The DOS aperture holds registers for both the decoder and the encoder:
+separate clock-gate and memory power-down registers per engine, and
+per-engine software resets. Mainline can only describe it once, as a
+syscon, otherwise a second engine cannot map it without an ioremap
+conflict.
+
+---
+diff --git a/Documentation/devicetree/bindings/mfd/syscon.yaml b/Documentation/devicetree/bindings/mfd/syscon.yaml
+index 1b2f0d7..2b542f3 100644
+--- a/Documentation/devicetree/bindings/mfd/syscon.yaml
++++ b/Documentation/devicetree/bindings/mfd/syscon.yaml
+@@ -37,6 +37,7 @@
+               - amlogic,meson-mx-bootrom
+               - amlogic,meson8-analog-top
+               - amlogic,meson8b-analog-top
++              - amlogic,meson8b-dos
+               - amlogic,meson8-pmu
+               - amlogic,meson8b-pmu
+               - apm,merlin-poweroff-mailbox

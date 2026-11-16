@@ -39,7 +39,7 @@ byte for byte.
 - All arm DTBs build ([dtbs-build.log](dtbs-build.log)).
 - `dtbs_check` limited to `amlogic,gx-vdec.yaml` passes with dtschema
   2026.9 ([dtbs-check.log](dtbs-check.log)).
-- All nine patches are clean under `checkpatch.pl --strict` (0 errors,
+- All thirteen patches are clean under `checkpatch.pl --strict` (0 errors,
   0 warnings) and apply in order to a pristine tree
   ([series check](series-check.log)).
 - The decompiled `meson8b-odroidc1.dtb` carries the expected node: DOS
@@ -111,8 +111,8 @@ after the engine reset, so the domain powers off last. That is the vendor
 
 Verified at compile level only:
 
-- All nine patches apply to pristine v7.3.4 in order and are clean under
-  `checkpatch.pl --strict` ([series check](series-check.log)).
+- The nine patches then in the series applied to pristine v7.3.4 in order and
+  were clean under `checkpatch.pl --strict` ([series check](series-check.log)).
 - `meson-vdec.ko` and `meson-ee-pwrc.o` build with no warning
   ([modules](modules-power-domain.log), [pwrc](pwrc-build.log)); the module
   hash is `5ad19f41f5d31ffc4ae441570eaee28c7da65655be4ab7c3e6d0af2138e2ef47`,
@@ -122,6 +122,10 @@ Verified at compile level only:
   is caught: dropping `power-domains` from the ODROID-C1 node without adding
   `amlogic,ao-sysctrl` reports "'amlogic,ao-sysctrl' is a required property"
   ([negative](dtbs-check-negative.log)).
+- The same six DTBs validate with the DOS syscon patches on top
+  ([positive](dtbs-check-dos-syscon.log)), and the aperture case is caught:
+  removing `amlogic,dos` while leaving one region reports that `reg` and
+  `reg-names` need two entries ([negative](dtbs-check-dos-negative.log)).
 - The decompiled ODROID-C1 DTB has `power-domains = <&pwrc 3>` and no
   `amlogic,ao-sysctrl`, and the phandle resolves to the pwrc node.
 
@@ -131,12 +135,65 @@ whether `DOS_MEM_PD_VDEC` is safe to keep in the driver once genpd owns the AO
 bits all need the board. Meson8b still returns `-EOPNOTSUPP` from STREAMON, so
 none of this changes what the port can do.
 
+## DOS syscon
+
+The other half of the design is the aperture itself. Four patches make it
+shareable, which is what a second engine behind the same window needs:
+
+| Patch | Change on v7.3.4 |
+| --- | --- |
+| 0009 | `amlogic,meson8b-dos` added to the `syscon.yaml` allowlist, so the window can be described once |
+| 0010 | binding: `amlogic,dos` phandle; one region (parser only) with it, both regions without it |
+| 0011 | `amvdec_read_dos()`/`amvdec_write_dos()` use the regmap when the phandle is present and keep `readl_relaxed()`/`writel_relaxed()` otherwise; the bit helpers become `regmap_update_bits()` so the read-modify-write is one locked op; the two raw HEVC accesses go through the helpers |
+| 0012 | `meson8b.dtsi`: the aperture becomes `dos: syscon@d0050000`, and the decoder moves to `video-codec@c110a580` carrying only `esparser` |
+
+The regmap is the `regmap_mmio` bus, which sets `fast_io`, so its lock is a
+spinlock and the hardirq writes in `codec_h264_isr()` stay legal. Every DOS
+offset in `dos_regs.h` and `hevc_regs.h` is 4-aligned, which is the
+`reg_stride` `of_syscon_register()` derives, so no access is rejected.
+
+The bit helpers matter more than the plain accesses. `DOS_GCLK_EN0` holds a
+bitfield per engine, and the old `amvdec_write_dos_bits()` read and wrote it
+in two steps; with a second engine on the aperture that pair is a lost-update
+race, and two separately-locked regmap ops would be just as racy. Under a
+syscon the helpers are `regmap_update_bits()`, which holds one lock across
+both halves.
+
+Two things this buys, and one it costs. The window is mapped once, so VDEC1
+and HCODEC no longer conflict in `devm_platform_ioremap_resource_byname()`;
+bit updates are serialised across both engines by the shared regmap lock
+instead of by a helper module's own spinlock. It costs a locked
+read-modify-write on every DOS access, including `vififo_level()` in the
+parser work handler, where the old path was a bare `readl_relaxed()`. That
+overhead is unmeasured and matters most on this CPU.
+
+Verified at compile level only:
+
+- Thirteen patches apply to pristine v7.3.4 in order and are clean under
+  `checkpatch.pl --strict` ([series check](series-check.log)).
+- The module builds with no warning and the hash is
+  `8fd4f7731534dcb7723aa37b3807119ac9fb4011863cbd9aafcca1fb237cd3e8`,
+  reproduced across a relink.
+- All six Meson8/8b/8m2 DTBs validate against the full processed schema
+  bundle ([positive](dtbs-check-dos-syscon.log), empty because there is
+  nothing to report), and the negative case is caught: dropping `amlogic,dos`
+  while leaving the single parser region reports `reg` and `reg-names`
+  "too short" ([negative](dtbs-check-dos-negative.log)). A bogus property on
+  the same node is also rejected, so the empty positive log is not a
+  validator that silently passes everything.
+- The ODROID-C1 DTB has the syscon at `0xd0050000`, the decoder at
+  `0xc110a580` with `amlogic,dos` pointing at it, and no duplicate
+  unit-address — the reason the decoder node had to move off `0xd0050000`.
+
+Nothing was run on hardware.
+
 ## What is still missing for upstream
 
 - Capture byte order. The driver still rejects STREAMON with `-EOPNOTSUPP`
   on Meson8b; the production stack solves this with an NV12 shadow
   conversion outside mainline's reach.
-- Shared DOS aperture: `amlogic,dos` syscon ownership, so VDEC1 and HCODEC can
-  both map it. The AO half is done above; this is the remaining half.
+- The encoder itself. Nothing upstream consumes the shared aperture yet, so
+  the syscon is reviewable but its benefit is prospective until an HCODEC
+  driver exists.
 - Nothing in this series has run on hardware; the vendor firmware is not in
   linux-firmware.

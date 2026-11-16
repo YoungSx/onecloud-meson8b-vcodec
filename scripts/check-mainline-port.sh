@@ -11,7 +11,7 @@ root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-patches=("$root"/patches/research/000*.patch)
+patches=("$root"/patches/research/[0-9][0-9][0-9][0-9]-*.patch)
 [[ ${#patches[@]} -gt 0 ]] || { echo "no research patches" >&2; exit 1; }
 
 files=$(sed -n 's|^+++ b/||p' "${patches[@]}" | sort -u)

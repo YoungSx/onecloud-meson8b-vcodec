@@ -10,6 +10,9 @@ af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e  meson-vdec.ko 
 1ca6432a8f6ef0e9a29caac816ce20ab0cb12dd1c2ccdc28a368c0ccc800604e  meson8b-odroidc1.dtb
 # with the power-domain patches 0004..0008 on top
 5ad19f41f5d31ffc4ae441570eaee28c7da65655be4ab7c3e6d0af2138e2ef47  meson-vdec.ko (full, with 0000..0008)
+# with the DOS syscon patches 0009..0012 on top
+8fd4f7731534dcb7723aa37b3807119ac9fb4011863cbd9aafcca1fb237cd3e8  meson-vdec.ko (full, with 0000..0012)
+59429ae041594436b3ceffeb8a8dee798a0332501c46bf313139def987f4f581  meson8b-odroidc1.dtb (with 0012)
 1a7eb61bfc07eea5a305e2c085b1362e6158d5b32a54838651ff62f2f70541c5  meson-ee-pwrc.o (with 0005)
 8ae7be002da9db03c3cbd87b5035d3f35de7c0d980634ef5967faaab657f0879  meson8b-odroidc1.dtb (with 0008)
 
@@ -22,6 +25,10 @@ f82d55e73f2974e2aaafa1739262bdaf1017cb3050fab65d628a0eb946f958e9  patches/resear
 7656ab80b785ac00a78e6daa0f459b187aa13cfe9553019c550c192398f88116  patches/research/0006-meson-vdec-ao-power-domain.patch
 35e558b4b9c1f1a488521ff5ce820114aa0303cccbb5460ba8652e816a475bc1  patches/research/0007-vdec-binding-optional-ao-sysctrl.patch
 e918df0bc937f88281fea614c71f7ba16259604803571c8d68bfeb8f925b9f79  patches/research/0008-meson8b-vdec-power-domain-dt.patch
+9fe4a781331ba4baa8c3420568a1cf5a84d644600092e2fc8fd926062b33f5ea  patches/research/0009-meson8b-dos-syscon-binding.patch
+0613e1d58ca19202fc44bcf03cad9d048bbc13c98a5ae5f2ab23014949f0270f  patches/research/0010-vdec-binding-dos-syscon.patch
+73876e6d7b6e1e9121c528000c0c656490a677cd3513d540458a84912c3a866d  patches/research/0011-meson-vdec-dos-syscon.patch
+5832fedf22a704dd2d7e119e456cf7c050208a7be01016b7360db906a1f6b202  patches/research/0012-meson8b-vdec-dos-syscon-dt.patch
 
 # pristine v7.3.4 files used as patch base
 d2bed2a23691cc3d2c7d74f1d0e0b450ad52a087359935dc49f4a06f08406c73  linux-7.3.4/drivers/staging/media/meson/vdec/codec_h264.c

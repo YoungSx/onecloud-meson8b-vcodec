@@ -17,9 +17,13 @@ S805 hardware, and Meson8b streaming still returns `-EOPNOTSUPP`.
 Patches 0004–0008 add the Meson8b VDEC power domain: the AO sleep and
 isolation bits move to genpd, the decoder takes a runtime reference instead of
 writing them, `amlogic,ao-sysctrl` becomes conditional on the absence of a
-domain, and the DT node carries the phandle. This addresses review point
-"shared DOS/power-domain ownership" for the AO half only; the DOS aperture
-still has a single owner.
+domain, and the DT node carries the phandle. Patches 0009–0012 finish the
+other half: `amlogic,meson8b-dos` is a syscon, the decoder reaches the
+aperture through `amlogic,dos` and `regmap_mmio`, and the node keeps its own
+`ioremap` only when no syscon is described. Together these are the answer to
+review point "shared DOS/power-domain ownership"; neither half has run on
+hardware, and nothing yet consumes the shared aperture because no encoder
+driver exists upstream.
 
 Suggested series split:
 

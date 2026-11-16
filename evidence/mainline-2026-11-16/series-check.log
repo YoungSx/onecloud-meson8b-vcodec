@@ -26,4 +26,15 @@ patching file Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
 applied 0007-vdec-binding-optional-ao-sysctrl.patch
 patching file arch/arm/boot/dts/amlogic/meson8b.dtsi
 applied 0008-meson8b-vdec-power-domain-dt.patch
-PASS: 9 patches apply to linux-7.3.4 in order
+patching file Documentation/devicetree/bindings/mfd/syscon.yaml
+applied 0009-meson8b-dos-syscon-binding.patch
+patching file Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+applied 0010-vdec-binding-dos-syscon.patch
+patching file drivers/staging/media/meson/vdec/vdec.c
+patching file drivers/staging/media/meson/vdec/vdec.h
+patching file drivers/staging/media/meson/vdec/vdec_helpers.c
+patching file drivers/staging/media/meson/vdec/vdec_hevc.c
+applied 0011-meson-vdec-dos-syscon.patch
+patching file arch/arm/boot/dts/amlogic/meson8b.dtsi
+applied 0012-meson8b-vdec-dos-syscon-dt.patch
+PASS: 13 patches apply to linux-7.3.4 in order

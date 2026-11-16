@@ -1,0 +1,74 @@
+Subject: [PATCH 10/12 RFC] dt-bindings: media: let the decoder take a DOS syscon
+
+A decoder whose DOS aperture is shared cannot own the region: the encoder
+needs the same window. Give the node an amlogic,dos phandle for that case,
+and make the region list and its names follow the phandle's presence —
+both regions when the driver maps the aperture, only the parser region
+when the syscon is mapped for it.
+
+---
+diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+index 18c9488..62f8bf9 100644
+--- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
++++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+@@ -49,12 +49,16 @@ properties:
+       - const: esparser
+ 
+   reg:
+-    minItems: 2
++    minItems: 1
++    maxItems: 2
+ 
+   reg-names:
+-    items:
+-      - const: dos
+-      - const: esparser
++    oneOf:
++      - items:
++          - const: dos
++          - const: esparser
++      - items:
++          - const: esparser
+ 
+   resets:
+     maxItems: 1
+@@ -86,6 +90,13 @@ properties:
+     description: should point to a canvas provider node
+     $ref: /schemas/types.yaml#/definitions/phandle
+ 
++  amlogic,dos:
++    description: |
++      Should point to the DOS syscon when the aperture is shared with another
++      engine. The driver then accesses it through the syscon instead of
++      mapping the "dos" region, so the node carries only the "esparser" one.
++    $ref: /schemas/types.yaml#/definitions/phandle
++
+   power-domains:
+     description:
+       Power domain owning the AO sleep and isolation bits of the decoder.
+@@ -136,6 +147,25 @@ allOf:
+         clock-names:
+           minItems: 5
+ 
++  # A shared DOS aperture is described by a syscon, and the node then only
++  # carries the parser region. Without one the driver maps the aperture
++  # itself, so both regions are required.
++  - if:
++      required:
++        - amlogic,dos
++    then:
++      properties:
++        reg:
++          maxItems: 1
++        reg-names:
++          maxItems: 1
++    else:
++      properties:
++        reg:
++          minItems: 2
++        reg-names:
++          minItems: 2
++
+   # Platforms without a power domain keep programming the AO registers, so the
+   # AO sysctrl stays mandatory for them.
+   - if:

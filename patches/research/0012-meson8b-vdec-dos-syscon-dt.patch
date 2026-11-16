@@ -1,0 +1,39 @@
+Subject: [PATCH 12/12 RFC] ARM: dts: meson8b: describe the DOS aperture as a syscon
+
+Move the aperture out of the decoder node into its own syscon and point the
+decoder at it. The node then carries only the parser region, and the DOS
+window is describable by any engine that needs it — which is what the
+encoder will need.
+
+---
+diff --git a/arch/arm/boot/dts/amlogic/meson8b.dtsi b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+index 055b830..f18c034 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b.dtsi
++++ b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+@@ -15,10 +15,15 @@
+ 
+ / {
+ 	soc {
+-		vdec: video-codec@d0050000 {
++		dos: syscon@d0050000 {
++			compatible = "amlogic,meson8b-dos", "syscon";
++			reg = <0xd0050000 0x10000>;
++		};
++
++		vdec: video-codec@c110a580 {
+ 			compatible = "amlogic,meson8b-vdec";
+-			reg = <0xd0050000 0x10000>, <0xc110a580 0xe4>;
+-			reg-names = "dos", "esparser";
++			reg = <0xc110a580 0xe4>;
++			reg-names = "esparser";
+ 			interrupts = <GIC_SPI 44 IRQ_TYPE_EDGE_RISING>,
+ 				     <GIC_SPI 32 IRQ_TYPE_EDGE_RISING>;
+ 			interrupt-names = "vdec", "esparser";
+@@ -27,6 +32,7 @@
+ 			clock-names = "dos_parser", "dos", "vdec_1";
+ 			resets = <&reset RESET_PARSER>;
+ 			reset-names = "esparser";
++			amlogic,dos = <&dos>;
+ 			amlogic,canvas = <&canvas>;
+ 			power-domains = <&pwrc PWRC_MESON8_VDEC_ID>;
+ 			status = "disabled";

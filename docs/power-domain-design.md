@@ -1,9 +1,9 @@
 # Meson8b shared DOS ownership design
 
-2026-11-16. Design note for the upstream series. Steps 1 and 4 are now
-implemented as `patches/research/0004..0008` and build at compile level; step 3
-(the DOS syscon) is not started, and nothing here has run on hardware. It
-exists because the runtime stack solves this outside the kernel (a helper
+2026-11-16. Design note for the upstream series. All three steps are now
+implemented: steps 1 and 4 as `patches/research/0004..0008`, step 3 as
+`0009..0012`. Everything is compile-level — nothing here has run on hardware.
+It exists because the runtime stack solves this outside the kernel (a helper
 module takes the DOS aperture and exports a locked bit-update), and that
 workaround is not acceptable upstream.
 
@@ -68,13 +68,19 @@ and audio-DSP memory.
            reg = <0xd0050000 0x10000>;
    };
 
-   vdec: video-codec@d0050000 {
-           reg = <0xd0050000 0x10000>, <0xc110a580 0xe4>;
+   vdec: video-codec@c110a580 {
+           reg = <0xc110a580 0xe4>;
+           reg-names = "esparser";
            amlogic,dos = <&dos>;
            power-domains = <&pwrc PWRC_MESON8_VDEC_ID>;
            /* no amlogic,ao-sysctrl: genpd owns the AO bits */
    };
    ```
+
+   The decoder node moves to the parser's unit address because the aperture
+   now belongs to the syscon; two nodes cannot share `@d0050000`. It carries
+   only the `esparser` region, and the binding requires both regions exactly
+   when `amlogic,dos` is absent.
 
    `amlogic,ao-sysctrl` has to stay in the binding for the existing GX/G12
    platforms, which still write those registers directly.
@@ -126,14 +132,27 @@ Done, compile-level only ([port record](../evidence/mainline-2026-11-16/PORT.md)
 - The binding makes `amlogic,ao-sysctrl` conditional on the absence of
   `power-domains`, and the Meson8b node uses the domain instead.
 
+Step 3, the DOS syscon, is implemented as `0009..0012`:
+
+- `amlogic,meson8b-dos` is an allowlisted syscon compatible, so the aperture is
+  mapped once with `regmap_mmio` and every user shares one lock.
+- `amlogic_read_dos()`/`amvdec_write_dos()` take the aperture from the regmap
+  when `amlogic,dos` is present and keep the direct `readl_relaxed()` path
+  otherwise, so GX/G12/SM1 are untouched. The two remaining raw accesses in
+  the HEVC path go through the helpers, which they must — a direct
+  `dos_base + reg` would fault once `dos_base` is NULL.
+- The binding allows one region (parser only) with `amlogic,dos` and requires
+  both without it, so a node cannot silently drop the aperture it still maps.
+- The Meson8b node moves to `video-codec@c110a580` and takes `amlogic,dos`.
+
 Still open:
 
-- Step 3, the DOS syscon. `amvdec_read_dos()`/`amvdec_write_dos()` still go
-  through `devm_platform_ioremap_resource_byname()`, so a second engine cannot
-  map the aperture. This is the half that unblocks HCODEC coexistence.
 - Runtime behaviour on S805: whether `DOS_MEM_PD_VDEC` may stay with the driver
-  once genpd owns the AO bits, and whether a stop/start cycle leaves the domain
-  consistent.
+  once genpd owns the AO bits, whether a stop/start cycle leaves the domain
+  consistent, and whether the regmap's shared spinlock is the right
+  serialisation for an ISR that currently writes the aperture unlocked.
+- No HCODEC driver exists upstream, so nothing consumes the shared aperture
+  yet; the syscon is reviewable but its benefit is prospective.
 - `meson8_pwrc_domains[]` (Meson8, no "b") deliberately has no VDEC entry: the
   vendor Meson8 VDEC bring-up is not in this tree and the AO bit positions were
   only confirmed for Meson8b.

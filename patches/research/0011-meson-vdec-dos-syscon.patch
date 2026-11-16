@@ -1,0 +1,152 @@
+Subject: [PATCH 11/12 RFC] media: meson: vdec: access a shared DOS through a syscon
+
+amvdec_read_dos() and amvdec_write_dos() are the driver's only DOS access
+path, so the aperture can come from a regmap without touching any codec.
+When amlogic,dos is present the aperture is read and written through the
+syscon, which serialises access for every user of the window; otherwise
+the driver keeps its exclusive ioremap, so GX, G12 and SM1 are unchanged.
+
+The bit helpers are the reason this has to be more than a read/write swap.
+DOS_GCLK_EN0 carries a bitfield per engine, so the existing read-modify-
+write in amvdec_write_dos_bits() would lose a second engine's bits if it
+landed between the read and the write. Under a syscon the helpers become
+regmap_update_bits(), which holds the one lock across both halves.
+
+The two remaining raw accesses in the HEVC path go through the helpers for
+the same reason: a direct read of dos_base would fault once dos_base is
+NULL.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+index 1431424..75e8829 100644
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -1027,9 +1027,24 @@ static int vdec_probe(struct platform_device *pdev)
+ 	core->dev = dev;
+ 	platform_set_drvdata(pdev, core);
+ 
+-	core->dos_base = devm_platform_ioremap_resource_byname(pdev, "dos");
+-	if (IS_ERR(core->dos_base))
+-		return PTR_ERR(core->dos_base);
++	/*
++	 * The DOS aperture is shared with the encoder, so it can be described as
++	 * a syscon and mapped once. Without one the driver keeps its exclusive
++	 * mapping, which is all the platforms that have no second user need.
++	 */
++	core->regmap_dos =
++		syscon_regmap_lookup_by_phandle_optional(dev->of_node,
++							 "amlogic,dos");
++	if (IS_ERR(core->regmap_dos))
++		return dev_err_probe(dev, PTR_ERR(core->regmap_dos),
++				     "Couldn't regmap DOS aperture\n");
++
++	if (!core->regmap_dos) {
++		core->dos_base =
++			devm_platform_ioremap_resource_byname(pdev, "dos");
++		if (IS_ERR(core->dos_base))
++			return PTR_ERR(core->dos_base);
++	}
+ 
+ 	core->esparser_base = devm_platform_ioremap_resource_byname(pdev, "esparser");
+ 	if (IS_ERR(core->esparser_base))
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+index cf4a6ca..82a6c03 100644
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -49,7 +49,8 @@ struct amvdec_session;
+ /**
+  * struct amvdec_core - device parameters, singleton
+  *
+- * @dos_base: DOS memory base address
++ * @dos_base: DOS memory base address, NULL when the aperture is a syscon
++ * @regmap_dos: regmap for the DOS aperture, NULL when the driver maps it
+  * @esparser_base: PARSER memory base address
+  * @regmap_ao: regmap for the AO bus, NULL when a power domain owns it
+  * @pm_domain: a generic power domain owns the AO sleep and isolation bits
+@@ -70,6 +71,7 @@ struct amvdec_session;
+  */
+ struct amvdec_core {
+ 	void __iomem *dos_base;
++	struct regmap *regmap_dos;
+ 	void __iomem *esparser_base;
+ 	struct regmap *regmap_ao;
+ 	bool pm_domain;
+diff --git a/drivers/staging/media/meson/vdec/vdec_helpers.c b/drivers/staging/media/meson/vdec/vdec_helpers.c
+index 4ecb738..9a4bef6 100644
+--- a/drivers/staging/media/meson/vdec/vdec_helpers.c
++++ b/drivers/staging/media/meson/vdec/vdec_helpers.c
+@@ -16,24 +16,52 @@
+ 
+ u32 amvdec_read_dos(struct amvdec_core *core, u32 reg)
+ {
++	unsigned int val;
++
++	if (core->regmap_dos) {
++		if (regmap_read(core->regmap_dos, reg, &val))
++			return 0;
++		return val;
++	}
++
+ 	return readl_relaxed(core->dos_base + reg);
+ }
+ EXPORT_SYMBOL_GPL(amvdec_read_dos);
+ 
+ void amvdec_write_dos(struct amvdec_core *core, u32 reg, u32 val)
+ {
++	if (core->regmap_dos) {
++		regmap_write(core->regmap_dos, reg, val);
++		return;
++	}
++
+ 	writel_relaxed(val, core->dos_base + reg);
+ }
+ EXPORT_SYMBOL_GPL(amvdec_write_dos);
+ 
+ void amvdec_write_dos_bits(struct amvdec_core *core, u32 reg, u32 val)
+ {
++	/*
++	 * A shared aperture needs the read and the write under one lock: the
++	 * clock-gate register holds a bitfield per engine, so a second engine
++	 * setting its own bits between our read and write would be lost.
++	 */
++	if (core->regmap_dos) {
++		regmap_update_bits(core->regmap_dos, reg, val, val);
++		return;
++	}
++
+ 	amvdec_write_dos(core, reg, amvdec_read_dos(core, reg) | val);
+ }
+ EXPORT_SYMBOL_GPL(amvdec_write_dos_bits);
+ 
+ void amvdec_clear_dos_bits(struct amvdec_core *core, u32 reg, u32 val)
+ {
++	if (core->regmap_dos) {
++		regmap_update_bits(core->regmap_dos, reg, val, 0);
++		return;
++	}
++
+ 	amvdec_write_dos(core, reg, amvdec_read_dos(core, reg) & ~val);
+ }
+ EXPORT_SYMBOL_GPL(amvdec_clear_dos_bits);
+diff --git a/drivers/staging/media/meson/vdec/vdec_hevc.c b/drivers/staging/media/meson/vdec/vdec_hevc.c
+index 7d43072..c56802b 100644
+--- a/drivers/staging/media/meson/vdec/vdec_hevc.c
++++ b/drivers/staging/media/meson/vdec/vdec_hevc.c
+@@ -63,7 +63,7 @@ static int vdec_hevc_load_firmware(struct amvdec_session *sess,
+ 	amvdec_write_dos(core, HEVC_IMEM_DMA_COUNT, MC_SIZE / 4);
+ 	amvdec_write_dos(core, HEVC_IMEM_DMA_CTRL, (0x8000 | (7 << 16)));
+ 
+-	while (i && (readl(core->dos_base + HEVC_IMEM_DMA_CTRL) & 0x8000))
++	while (i && (amvdec_read_dos(core, HEVC_IMEM_DMA_CTRL) & 0x8000))
+ 		i--;
+ 
+ 	if (i == 0) {
+@@ -107,7 +107,7 @@ static void vdec_hevc_conf_esparser(struct amvdec_session *sess)
+ 
+ static u32 vdec_hevc_vififo_level(struct amvdec_session *sess)
+ {
+-	return readl_relaxed(sess->core->dos_base + HEVC_STREAM_LEVEL);
++	return amvdec_read_dos(sess->core, HEVC_STREAM_LEVEL);
+ }
+ 
+ static void __vdec_hevc_stop(struct amvdec_session *sess)
