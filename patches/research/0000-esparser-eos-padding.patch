@@ -1,0 +1,109 @@
+Subject: [PATCH] media: meson: vdec: pad the ESPARSER end-of-stream buffer
+
+esparser_queue_eos() allocates len + SEARCH_PATTERN_LEN bytes, copies the
+sequence-end code and writes exactly len bytes to the parser. Two things are
+missing compared to a regular input buffer: the 4 KiB minimum packet the VDEC
+needs to raise interrupts, and the 000001ff start code that makes the ESPARSER
+report a match.
+
+The MPEG-1/2, MPEG-4 and VC-1 eos sequences are 4 to 12 bytes long, so the
+parser is asked to scan 516 bytes of a buffer whose remaining content is
+uninitialised DMA memory. The sequence end therefore never reliably reaches
+the firmware, and the last pictures of a stream stay in the decoder: a 90
+frame MPEG-2 stream yields 88 frames, and the 150 frame B-frame stream stops
+short the same way. vdec_stop_streaming() ignores the return value, so nothing
+is logged.
+
+Factor the padding out of esparser_pad_start_code() into
+esparser_pad_payload(), which takes the buffer and its capacity instead of a
+vb2_buffer, and use it for the EOS buffer as well: allocate
+max(len, ESPARSER_MIN_PACKET_SIZE) + SEARCH_PATTERN_LEN, pad, and write
+len + pad_size so the terminator is part of the data the parser fetches.
+
+With this change the same MPEG-2 stream returns 90 frames matching a software
+reference and the B-frame stream returns all 150.
+
+Tested on Amlogic Meson8b (S805) with a vendor MPEG-1/2 microcode. This is
+an independent fix for every Meson platform using eos_sequence; it does not
+depend on the Meson8b bring-up patches that follow.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/esparser.c b/drivers/staging/media/meson/vdec/esparser.c
+index 4632346..5a3a3bc 100644
+--- a/drivers/staging/media/meson/vdec/esparser.c
++++ b/drivers/staging/media/meson/vdec/esparser.c
+@@ -184,21 +184,22 @@ static int vp9_update_header(struct amvdec_core *core, struct vb2_buffer *buf)
+  * ISRs.
+  * Also append a start code 000001ff at the end to trigger
+  * the ESPARSER interrupt.
++ *
++ * Returns the number of padding bytes that were written, which the caller has
++ * to include in the size it hands to the ESPARSER: without them the 000001ff
++ * terminator never reaches the parser and no search interrupt is raised.
+  */
+-static u32 esparser_pad_start_code(struct amvdec_core *core,
+-				   struct vb2_buffer *vb,
+-				   u32 payload_size)
++static u32 esparser_pad_payload(struct amvdec_core *core, u8 *vaddr,
++				size_t capacity, u32 payload_size)
+ {
+ 	u32 pad_size = 0;
+-	u8 *vaddr = vb2_plane_vaddr(vb, 0);
+ 
+ 	if (payload_size < ESPARSER_MIN_PACKET_SIZE) {
+ 		pad_size = ESPARSER_MIN_PACKET_SIZE - payload_size;
+ 		memset(vaddr + payload_size, 0, pad_size);
+ 	}
+ 
+-	if ((payload_size + pad_size + SEARCH_PATTERN_LEN) >
+-						vb2_plane_size(vb, 0)) {
++	if ((payload_size + pad_size + SEARCH_PATTERN_LEN) > capacity) {
+ 		dev_warn(core->dev, "%s: unable to pad start code\n", __func__);
+ 		return pad_size;
+ 	}
+@@ -212,6 +213,14 @@ static u32 esparser_pad_start_code(struct amvdec_core *core,
+ 	return pad_size;
+ }
+ 
++static u32 esparser_pad_start_code(struct amvdec_core *core,
++				   struct vb2_buffer *vb,
++				   u32 payload_size)
++{
++	return esparser_pad_payload(core, vb2_plane_vaddr(vb, 0),
++				    vb2_plane_size(vb, 0), payload_size);
++}
++
+ static int
+ esparser_write_data(struct amvdec_core *core, dma_addr_t addr, u32 size)
+ {
+@@ -255,19 +264,25 @@ static u32 esparser_vififo_get_free_space(struct amvdec_session *sess)
+ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
+ {
+ 	struct device *dev = core->dev;
++	u32 padded = max(len, (u32)ESPARSER_MIN_PACKET_SIZE);
++	size_t alloc_size = padded + SEARCH_PATTERN_LEN;
+ 	void *eos_vaddr;
+ 	dma_addr_t eos_paddr;
++	u32 pad_size;
+ 	int ret;
+ 
+-	eos_vaddr = dma_alloc_coherent(dev, len + SEARCH_PATTERN_LEN,
+-				       &eos_paddr, GFP_KERNEL);
++	eos_vaddr = dma_alloc_coherent(dev, alloc_size, &eos_paddr, GFP_KERNEL);
+ 	if (!eos_vaddr)
+ 		return -ENOMEM;
+ 
+ 	memcpy(eos_vaddr, data, len);
+-	ret = esparser_write_data(core, eos_paddr, len);
+-	dma_free_coherent(dev, len + SEARCH_PATTERN_LEN,
+-			  eos_vaddr, eos_paddr);
++	pad_size = esparser_pad_payload(core, eos_vaddr, alloc_size, len);
++	dma_wmb();
++	/* The padding carries the 000001ff terminator, so it has to be written
++	 * as well; esparser_write_data() appends the search window itself.
++	 */
++	ret = esparser_write_data(core, eos_paddr, len + pad_size);
++	dma_free_coherent(dev, alloc_size, eos_vaddr, eos_paddr);
+ 
+ 	return ret;
+ }

@@ -16,6 +16,10 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   `amlogic,gx-vdec.yaml` schema check. The DT patch targets `meson8b.dtsi`
   and `meson8b-odroidc1.dts` since mainline has no OneCloud board file.
   Meson8b streaming still returns `-EOPNOTSUPP`; no hardware run.
+- Add `patches/research/0000-esparser-eos-padding.patch`, the upstream fix for
+  the end-of-stream buffer that is missing the 4 KiB packet and the
+  `000001ff` terminator; it applies to pristine v7.3.4 alone and affects every
+  platform with an `eos_sequence`.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 

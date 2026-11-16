@@ -42,6 +42,12 @@ byte for byte.
   `0xd0050000`, parser `0xc110a580`, IRQs 44/32, three clocks, canvas and
   PMU phandles, `status = "okay"`.
 
+`patches/research/0000-esparser-eos-padding.patch` is a standalone fix for the
+upstream end-of-stream defect and applies to pristine v7.3.4 on its own; the
+module above was rebuilt with it and still builds
+(`efeb04970d9c2730d891576edec742dcc253068a8b228747e6d02d485095bd0e`). It is not
+part of the three-patch Meson8b series because it affects every platform.
+
 `KBUILD_MODPOST_WARN=1` was needed only because the build stopped at a single
 `.ko` without a full `vmlinux`/`Module.symvers`; the ten reported unresolved
 symbols are all core kernel exports (`v4l2_m2m_init`, `vb2_queue_init`,

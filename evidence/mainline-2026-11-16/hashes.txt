@@ -1,7 +1,11 @@
 # meson-vdec for linux-7.3.4, arm-linux-gnueabihf-gcc 13.3.0, multi_v7_defconfig
-802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  /tmp/k734/out/drivers/staging/media/meson/vdec/meson-vdec.ko
-1ca6432a8f6ef0e9a29caac816ce20ab0cb12dd1c2ccdc28a368c0ccc800604e  /tmp/k734/out/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dtb
+# platform bring-up only
+802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  meson-vdec.ko
+# platform bring-up plus 0000-esparser-eos-padding.patch
+efeb04970d9c2730d891576edec742dcc253068a8b228747e6d02d485095bd0e  meson-vdec.ko (with 0000)
+1ca6432a8f6ef0e9a29caac816ce20ab0cb12dd1c2ccdc28a368c0ccc800604e  meson8b-odroidc1.dtb
 
+17696dfe2a9e6f5e2db4b772eacbfad4a7730695a22054804294304bf37e223b  patches/research/0000-esparser-eos-padding.patch
 f3d63d43f1e5afbf5bd7d200e2284ec413d8a95c84170e0bd15375ac1e3e031e  patches/research/0001-meson8b-h264-platform.patch
 8651ec6e22419f65078c4233ea4c7d614da968d8624a4d1683e48a1943d69633  patches/research/0002-meson8b-vdec-binding.patch
 392604c691bcaa10505bf15aa7f12ea4ca3642f35f8bc3c9a6598158af69b2ed  patches/research/0003-meson8b-vdec-device-tree.patch

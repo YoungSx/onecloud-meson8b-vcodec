@@ -16,13 +16,15 @@ S805 hardware, and Meson8b streaming still returns `-EOPNOTSUPP`.
 
 Suggested series split:
 
-1. media: meson: preserve shared DOS clock/control fields on engine startup
-2. media: meson: vdec: validate parser padding before writes and fetch DMA
-3. media: meson: vdec: reuse compatible capture queues after source change
-4. media: meson: vdec: add Meson8b platform and NV12 shadow conversion
-5. media: meson: vdec: add Meson8b vendor HEVC Main 8-bit protocol
-6. media: meson: add Meson8b HCODEC AVC/JPEG V4L2 encoder
-7. dt-bindings/media: describe shared Meson8b DOS engines and firmware
+1. media: meson: vdec: pad the ESPARSER end-of-stream buffer
+   (`patches/research/0000-esparser-eos-padding.patch`, independent of the rest)
+2. media: meson: preserve shared DOS clock/control fields on engine startup
+3. media: meson: vdec: validate parser padding before writes and fetch DMA
+4. media: meson: vdec: reuse compatible capture queues after source change
+5. media: meson: vdec: add Meson8b platform and NV12 shadow conversion
+6. media: meson: vdec: add Meson8b vendor HEVC Main 8-bit protocol
+7. media: meson: add Meson8b HCODEC AVC/JPEG V4L2 encoder
+8. dt-bindings/media: describe shared Meson8b DOS engines and firmware
 
 The additive compatibility patch is patches/0001-meson8b-runtime-codecs.patch.
 The runtime overlay/helper is for the production board's unchanged kernel,
@@ -32,14 +34,19 @@ publication or upstream acceptance is claimed.
 
 Review points to carry forward:
 
-- `esparser_queue_eos()` is still broken in v7.3.4 and worth a standalone
-  fix: it allocates `len + SEARCH_PATTERN_LEN`, copies the payload and writes
-  `len` bytes with no `00 00 01 ff` terminator. `esparser_pad_start_code()`
-  pads only regular input buffers, so a 4-byte sequence-end code is written
-  without the padding that raises the parser search interrupt. Callers ignore
-  the return value, so MPEG-1/2, MPEG-4 and VC-1 drains silently deliver no
-  end code. Our fix allocates `ESPARSER_PAD_SPAN(len)`, pads, and writes
-  `len + pad_size`; MPEG-2 recovers its last two pictures (88 → 90 frames).
+- `esparser_queue_eos()` is still broken in v7.3.4: it allocates
+  `len + SEARCH_PATTERN_LEN`, copies the payload and writes `len` bytes with
+  no `00 00 01 ff` terminator and no 4 KiB minimum packet.
+  `esparser_pad_start_code()` pads only regular input buffers, so the 4–12 byte
+  MPEG-1/2, MPEG-4 and VC-1 sequence-end codes never reliably reach the
+  firmware and the last pictures stay in the decoder. `vdec_stop_streaming()`
+  ignores the return value, so nothing is logged. The standalone fix is
+  `patches/research/0000-esparser-eos-padding.patch`: it factors the padding
+  into `esparser_pad_payload()` and has the EOS path allocate
+  `max(len, 4 KiB) + SEARCH_PATTERN_LEN`, pad, and write `len + pad_size`.
+  It applies to pristine v7.3.4 by itself and affects every platform with an
+  `eos_sequence`, not just Meson8b; MPEG-2 recovers its last two pictures
+  (88 → 90 frames) and the 150-frame B-frame stream returns all 150.
 - S805 lacks canvas endianness controls, so reference buffers stay separate
   from CPU-visible output; cached alias plus explicit synchronization makes
   the byte-order conversion practical. There remains a copy, not zero-copy.
