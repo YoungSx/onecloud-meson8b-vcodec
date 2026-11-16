@@ -264,7 +264,8 @@ Verified at compile level only:
   `vld1`/`vrev64`/`vst1` instructions and `meson8b-capture.o` holds none, so
   the NEON code really is confined to the unit that was compiled for it.
 - The intrinsic body equals `__builtin_bswap64` over the sizes the driver can
-  pass, checked on the host ([neon check](neon-check/README.md)).
+  pass, checked on the host by `tests/test_swap_neon.c`, which includes the
+  driver source rather than a copy of it ([log](neon-check/neon-check.log)).
 - Nothing is measured: whether the copy actually halves, and how often
   `may_use_simd()` is false on this board, both need the silicon.
 

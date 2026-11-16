@@ -67,8 +67,10 @@ evidence, and drops the pre-release default from the release flow.
   the scalar loop for contexts where `may_use_simd()` is false. Compile-level
   only: fifteen patches apply in order and pass `checkpatch.pl --strict`, the
   module builds with no warning, the NEON instructions land only in the unit
-  that was compiled for them, and a host check pins the body against
-  `__builtin_bswap64`. The saving itself is unmeasured in the driver.
+  that was compiled for them. The saving itself is unmeasured in the driver.
+- Check the shipped NEON body rather than a copy of it: `tests/test_swap_neon.c`
+  includes `vdec/meson8b-swap-neon.c` and compares it with
+  `__builtin_bswap64`, so `make test` fails if the two ever disagree.
 - Stop treating two replayed VOPs as the MPEG-4 drain constant. Replaying the
   final coded VOP k times before the visual object sequence end yields
   `88 + k` pictures: two is right for the reference stream in all three

@@ -16,6 +16,15 @@ for test in copy window capture jpeg esparser_padding hevc_sps rate_control h264
         "build/host-tests/$test"
     fi
 done
+# The swap body needs arm_neon.h, which an x86 host does not have; the ARM
+# cross compiler does, so probe with whatever cc resolves and skip on x86.
+if printf '#include <arm_neon.h>\n' | cc -E -x c - >/dev/null 2>&1; then
+    cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -Ivdec \
+      tests/test_swap_neon.c -o build/host-tests/swap_neon
+    build/host-tests/swap_neon
+else
+    echo 'skip: no arm_neon.h on this host' >&2
+fi
 cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined tests/encode-test.c \
   -o build/host-tests/encode-test
 build/host-tests/encode-test -g -p scene - - - 96 64 70 NV12 90 H264 > /dev/null
