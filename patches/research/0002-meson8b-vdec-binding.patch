@@ -3,12 +3,14 @@ Subject: [PATCH 2/3 RFC] dt-bindings: media: describe experimental Meson8b VDEC
 Describe Meson8b with three clocks and the local PMU syscon window.
 This binding accompanies guarded platform bring-up, not verified decoding.
 
+Rebased onto v7.3.4 (binding moved only by line offsets).
+
 ---
 diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
-index 5044c4b..ca232cb 100644
+index 47dce75..631ba0a 100644
 --- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
 +++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
-@@ -35,6 +35,7 @@ properties:
+@@ -36,6 +36,7 @@ properties:
                - amlogic,gxm-vdec # GXM (S912)
            - const: amlogic,gx-vdec
        - enum:
@@ -16,7 +18,7 @@ index 5044c4b..ca232cb 100644
            - amlogic,g12a-vdec # G12A (S905X2, S905D2)
            - amlogic,sm1-vdec # SM1 (S905X3, S905D3)
  
-@@ -62,11 +63,11 @@ properties:
+@@ -63,11 +64,11 @@ properties:
        - const: esparser
  
    clocks:
@@ -30,7 +32,7 @@ index 5044c4b..ca232cb 100644
      items:
        - const: dos_parser
        - const: dos
-@@ -75,7 +76,9 @@ properties:
+@@ -76,7 +77,9 @@ properties:
        - const: vdec_hevcf
  
    amlogic,ao-sysctrl:
@@ -41,7 +43,7 @@ index 5044c4b..ca232cb 100644
      $ref: /schemas/types.yaml#/definitions/phandle
  
    amlogic,canvas:
-@@ -83,6 +86,24 @@ properties:
+@@ -84,6 +87,24 @@ properties:
      $ref: /schemas/types.yaml#/definitions/phandle
  
  allOf:

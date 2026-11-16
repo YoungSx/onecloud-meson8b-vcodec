@@ -1,0 +1,9 @@
+make[1]: Entering directory '/tmp/k734/out'
+  SCHEMA  Documentation/devicetree/bindings/processed-schema.json
+  DTC [C] arch/arm/boot/dts/amlogic/meson8-minix-neo-x8.dtb
+  DTC [C] arch/arm/boot/dts/amlogic/meson8-fernsehfee3.dtb
+  DTC [C] arch/arm/boot/dts/amlogic/meson8b-ec100.dtb
+  DTC [C] arch/arm/boot/dts/amlogic/meson8b-mxq.dtb
+  DTC [C] arch/arm/boot/dts/amlogic/meson8b-odroidc1.dtb
+  DTC [C] arch/arm/boot/dts/amlogic/meson8m2-mxiii-plus.dtb
+make[1]: Leaving directory '/tmp/k734/out'

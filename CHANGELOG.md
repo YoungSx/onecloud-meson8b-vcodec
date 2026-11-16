@@ -11,6 +11,11 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   load runs, and document it in the validation guide.
 - Authenticate the pinned vendor source fetch with `GITHUB_TOKEN` and back off
   across the 429s shared CI runners get, instead of failing the host job.
+- Rebase the research series onto mainline v7.3.4: it applies with no
+  rejects, builds `meson-vdec.ko`, every ARM DTB and passes the
+  `amlogic,gx-vdec.yaml` schema check. The DT patch targets `meson8b.dtsi`
+  and `meson8b-odroidc1.dts` since mainline has no OneCloud board file.
+  Meson8b streaming still returns `-EOPNOTSUPP`; no hardware run.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 

@@ -8,9 +8,14 @@ Meson8b has no canvas endian conversion. This RFC explicitly rejects
 STREAMON with EOPNOTSUPP until a correct capture conversion path exists.
 It does not implement usable H.264 decoding or encoding.
 
+Rebased onto v7.3.4: the platform enum gained VDEC_REVISION_MESON8B as its
+first member and the AO register writes in vdec_1.c now use the offset
+derived from ao_sysctrl_offset, so the hunk context changed but the
+resulting behaviour is unchanged.
+
 ---
 diff --git a/drivers/staging/media/meson/vdec/Kconfig b/drivers/staging/media/meson/vdec/Kconfig
-index 9e14501..e19dae7 100644
+index 19ffea9..39627f9 100644
 --- a/drivers/staging/media/meson/vdec/Kconfig
 +++ b/drivers/staging/media/meson/vdec/Kconfig
 @@ -8,4 +8,7 @@ config VIDEO_MESON_VDEC
@@ -23,7 +28,7 @@ index 9e14501..e19dae7 100644
 +	Meson8b streaming is disabled until capture byte-order conversion
 +	is implemented. It requires its own firmware.
 diff --git a/drivers/staging/media/meson/vdec/codec_h264.c b/drivers/staging/media/meson/vdec/codec_h264.c
-index c61128f..68f2be5 100644
+index a6074de..c40b5ac 100644
 --- a/drivers/staging/media/meson/vdec/codec_h264.c
 +++ b/drivers/staging/media/meson/vdec/codec_h264.c
 @@ -287,10 +287,16 @@ static void codec_h264_resume(struct amvdec_session *sess)
@@ -47,10 +52,10 @@ index c61128f..68f2be5 100644
  	dev_dbg(core->dev, "max_refs = %u; actual_dpb_size = %u\n",
  		h264->max_refs, sess->num_dst_bufs);
 diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
-index 040ed56..c7782a1 100644
+index be29d5a..95b7e21 100644
 --- a/drivers/staging/media/meson/vdec/vdec.c
 +++ b/drivers/staging/media/meson/vdec/vdec.c
-@@ -285,6 +285,13 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+@@ -286,6 +286,13 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
  	struct vb2_v4l2_buffer *buf;
  	int ret;
  
@@ -64,7 +69,7 @@ index 040ed56..c7782a1 100644
  	if (core->cur_sess && core->cur_sess != sess) {
  		ret = -EBUSY;
  		goto bufs_done;
-@@ -961,6 +968,9 @@ static irqreturn_t vdec_isr(int irq, void *data)
+@@ -953,6 +960,9 @@ static irqreturn_t vdec_isr(int irq, void *data)
  	struct amvdec_core *core = data;
  	struct amvdec_session *sess = core->cur_sess;
  
@@ -74,7 +79,7 @@ index 040ed56..c7782a1 100644
  	sess->last_irq_jiffies = get_jiffies_64();
  
  	return sess->fmt_out->codec_ops->isr(sess);
-@@ -971,10 +981,15 @@ static irqreturn_t vdec_threaded_isr(int irq, void *data)
+@@ -963,10 +973,15 @@ static irqreturn_t vdec_threaded_isr(int irq, void *data)
  	struct amvdec_core *core = data;
  	struct amvdec_session *sess = core->cur_sess;
  
@@ -90,7 +95,7 @@ index 040ed56..c7782a1 100644
  	{ .compatible = "amlogic,gxbb-vdec",
  	  .data = &vdec_platform_gxbb },
  	{ .compatible = "amlogic,gxm-vdec",
-@@ -1050,9 +1065,15 @@ static int vdec_probe(struct platform_device *pdev)
+@@ -1041,9 +1056,15 @@ static int vdec_probe(struct platform_device *pdev)
  	if (IS_ERR(core->vdec_1_clk))
  		return -EPROBE_DEFER;
  
@@ -109,7 +114,7 @@ index 040ed56..c7782a1 100644
  
  	irq = platform_get_irq_byname(pdev, "vdec");
  	if (irq < 0)
-@@ -1101,6 +1122,11 @@ static int vdec_probe(struct platform_device *pdev)
+@@ -1092,6 +1113,11 @@ static int vdec_probe(struct platform_device *pdev)
  		goto err_vdev_release;
  	}
  
@@ -121,7 +126,7 @@ index 040ed56..c7782a1 100644
  	return 0;
  
  err_vdev_release:
-@@ -1129,6 +1155,6 @@ static struct platform_driver meson_vdec_driver = {
+@@ -1118,6 +1144,6 @@ static struct platform_driver meson_vdec_driver = {
  };
  module_platform_driver(meson_vdec_driver);
  
@@ -130,7 +135,7 @@ index 040ed56..c7782a1 100644
  MODULE_AUTHOR("Maxime Jourdan <mjourdan@baylibre.com>");
  MODULE_LICENSE("GPL");
 diff --git a/drivers/staging/media/meson/vdec/vdec_1.c b/drivers/staging/media/meson/vdec/vdec_1.c
-index 3fe2de0..7500810 100644
+index a65cb49..276ebcf 100644
 --- a/drivers/staging/media/meson/vdec/vdec_1.c
 +++ b/drivers/staging/media/meson/vdec/vdec_1.c
 @@ -9,6 +9,7 @@
@@ -186,7 +191,7 @@ index 3fe2de0..7500810 100644
  free_mc:
  	dma_free_coherent(core->dev, MC_SIZE, mc_addr, mc_addr_map);
  release_firmware:
-@@ -133,6 +137,8 @@ static int vdec_1_stop(struct amvdec_session *sess)
+@@ -133,6 +137,8 @@ static void __vdec_1_stop(struct amvdec_session *sess)
  {
  	struct amvdec_core *core = sess->core;
  	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
@@ -195,7 +200,7 @@ index 3fe2de0..7500810 100644
  
  	amvdec_write_dos(core, MPSR, 0);
  	amvdec_write_dos(core, CPSR, 0);
-@@ -144,18 +150,18 @@ static int vdec_1_stop(struct amvdec_session *sess)
+@@ -144,18 +150,18 @@ static void __vdec_1_stop(struct amvdec_session *sess)
  
  	/* enable vdec1 isolation */
  	if (core->platform->revision == VDEC_REVISION_SM1)
@@ -217,8 +222,8 @@ index 3fe2de0..7500810 100644
 +		regmap_update_bits(core->regmap_ao, sleep_reg,
  				   GEN_PWR_VDEC_1, GEN_PWR_VDEC_1);
  
- 	clk_disable_unprepare(core->vdec_1_clk);
-@@ -171,36 +177,46 @@ static int vdec_1_start(struct amvdec_session *sess)
+ 	if (sess->priv)
+@@ -178,36 +184,46 @@ static int vdec_1_start(struct amvdec_session *sess)
  	int ret;
  	struct amvdec_core *core = sess->core;
  	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
@@ -276,7 +281,7 @@ index 3fe2de0..7500810 100644
  	amvdec_write_dos(core, DOS_VDEC_MCRCC_STALL_CTRL, 0);
  
 diff --git a/drivers/staging/media/meson/vdec/vdec_helpers.c b/drivers/staging/media/meson/vdec/vdec_helpers.c
-index 06fd665..90e15d3 100644
+index f02c21d..4ecb738 100644
 --- a/drivers/staging/media/meson/vdec/vdec_helpers.c
 +++ b/drivers/staging/media/meson/vdec/vdec_helpers.c
 @@ -113,22 +113,28 @@ static int set_canvas_yuv420m(struct amvdec_session *sess,
@@ -350,7 +355,7 @@ index 06fd665..90e15d3 100644
  	amvdec_write_dos(core, reg,
  			 ((canvas_id[1]) << 16) |
 diff --git a/drivers/staging/media/meson/vdec/vdec_platform.c b/drivers/staging/media/meson/vdec/vdec_platform.c
-index eabbeba..068ec15 100644
+index 66bb307..9ef894c 100644
 --- a/drivers/staging/media/meson/vdec/vdec_platform.c
 +++ b/drivers/staging/media/meson/vdec/vdec_platform.c
 @@ -4,6 +4,8 @@
@@ -398,7 +403,7 @@ index eabbeba..068ec15 100644
  	{
  		.pixfmt = V4L2_PIX_FMT_H264,
 diff --git a/drivers/staging/media/meson/vdec/vdec_platform.h b/drivers/staging/media/meson/vdec/vdec_platform.h
-index 731877a..47a748d 100644
+index 88ca4a9..3a5272d 100644
 --- a/drivers/staging/media/meson/vdec/vdec_platform.h
 +++ b/drivers/staging/media/meson/vdec/vdec_platform.h
 @@ -12,6 +12,7 @@
@@ -408,8 +413,8 @@ index 731877a..47a748d 100644
 +	VDEC_REVISION_MESON8B,
  	VDEC_REVISION_GXBB,
  	VDEC_REVISION_GXL,
- 	VDEC_REVISION_GXM,
-@@ -23,8 +24,13 @@ struct vdec_platform {
+ 	VDEC_REVISION_GXLX,
+@@ -24,8 +25,13 @@ struct vdec_platform {
  	const struct amvdec_format *formats;
  	const u32 num_formats;
  	enum vdec_revision revision;

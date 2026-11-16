@@ -3,8 +3,16 @@
 This local draft documents the reviewable patch and its limits; it has not
 been emailed or submitted to linux-media. The driver targets the original
 OneCloud 5.15.79 kernel and uses a temporary runtime overlay. A mainline
-submission needs a current-kernel port and a static device-tree topology
-with proper shared power-domain ownership before it can be accepted.
+submission needs a static device-tree topology with proper shared
+power-domain ownership before it can be accepted.
+
+Compile-side port, 2026-11-16: `patches/research/` is now based on pristine
+v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
+(vermagic 7.3.4), all arm DTBs, and passes `dtbs_check` against
+`amlogic,gx-vdec.yaml`. The DT patch targets `meson8b.dtsi` plus
+`meson8b-odroidc1.dts` because mainline has no OneCloud board file. See
+[port record](../evidence/mainline-2026-11-16/PORT.md). Nothing here ran on
+S805 hardware, and Meson8b streaming still returns `-EOPNOTSUPP`.
 
 Suggested series split:
 
@@ -24,6 +32,14 @@ publication or upstream acceptance is claimed.
 
 Review points to carry forward:
 
+- `esparser_queue_eos()` is still broken in v7.3.4 and worth a standalone
+  fix: it allocates `len + SEARCH_PATTERN_LEN`, copies the payload and writes
+  `len` bytes with no `00 00 01 ff` terminator. `esparser_pad_start_code()`
+  pads only regular input buffers, so a 4-byte sequence-end code is written
+  without the padding that raises the parser search interrupt. Callers ignore
+  the return value, so MPEG-1/2, MPEG-4 and VC-1 drains silently deliver no
+  end code. Our fix allocates `ESPARSER_PAD_SPAN(len)`, pads, and writes
+  `len + pad_size`; MPEG-2 recovers its last two pictures (88 → 90 frames).
 - S805 lacks canvas endianness controls, so reference buffers stay separate
   from CPU-visible output; cached alias plus explicit synchronization makes
   the byte-order conversion practical. There remains a copy, not zero-copy.

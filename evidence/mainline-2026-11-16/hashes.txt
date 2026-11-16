@@ -1,0 +1,34 @@
+# meson-vdec for linux-7.3.4, arm-linux-gnueabihf-gcc 13.3.0, multi_v7_defconfig
+802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  /tmp/k734/out/drivers/staging/media/meson/vdec/meson-vdec.ko
+1ca6432a8f6ef0e9a29caac816ce20ab0cb12dd1c2ccdc28a368c0ccc800604e  /tmp/k734/out/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dtb
+
+f3d63d43f1e5afbf5bd7d200e2284ec413d8a95c84170e0bd15375ac1e3e031e  patches/research/0001-meson8b-h264-platform.patch
+8651ec6e22419f65078c4233ea4c7d614da968d8624a4d1683e48a1943d69633  patches/research/0002-meson8b-vdec-binding.patch
+392604c691bcaa10505bf15aa7f12ea4ca3642f35f8bc3c9a6598158af69b2ed  patches/research/0003-meson8b-vdec-device-tree.patch
+
+# pristine v7.3.4 files used as patch base
+d2bed2a23691cc3d2c7d74f1d0e0b450ad52a087359935dc49f4a06f08406c73  linux-7.3.4/drivers/staging/media/meson/vdec/codec_h264.c
+6d9f41e0d2e95a6b2154806633296109f0816660e53f288e6d571c5d11a343e7  linux-7.3.4/drivers/staging/media/meson/vdec/codec_hevc_common.c
+d882108ff7c52197bc0581adf43beb1a3686da22b4c51540b6b2804b45696c9f  linux-7.3.4/drivers/staging/media/meson/vdec/codec_mpeg12.c
+56513c9562861f90423db66c1eba0f0ba0a928482a496b4883ac30b693042627  linux-7.3.4/drivers/staging/media/meson/vdec/codec_vp9.c
+7aca5abc1f2216d6c7ed4a7e3b79fc1c01f809e4ea33507b4fe408c4040b0b4d  linux-7.3.4/drivers/staging/media/meson/vdec/esparser.c
+87177e166d07f2321b48d0450662466fad3f4e12d8b27586bf33e9a12c425abf  linux-7.3.4/drivers/staging/media/meson/vdec/vdec.c
+d8279599dc5b10526485465ecd5c8ff2c25e22fd330647888220adeb29645532  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_1.c
+ebebbb07cba4786f369574831c0a65a42fd852dc75203c1ce2ba31f30cc6b1bd  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_helpers.c
+8981788439e3c0c2bc0b7d3800b34158cc638b1578f11d8cc2e69985c6f10499  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_hevc.c
+483460cf84baf1349559cbbfe2bb27a60fce9b6f4e46e8140811591e774db3f2  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_platform.c
+fadf85c0fa987015eb6ff3c829c588ae0369bb420de2b1033b37ce1e217da9ac  linux-7.3.4/drivers/staging/media/meson/vdec/codec_h264.h
+8ad3548a56d02f662cb1b73fcb23b61bc72cc4ee47d4d4b1db703b23876ec8bf  linux-7.3.4/drivers/staging/media/meson/vdec/codec_hevc_common.h
+187a49826fe1627413143e72c44a2de3eb4f7f3b066184475ed049ee218e71a5  linux-7.3.4/drivers/staging/media/meson/vdec/codec_mpeg12.h
+06c6406c760ede5d2e9fe77591bf5ac7d31981f25f59cf3ccee0fa6b7fc66c3c  linux-7.3.4/drivers/staging/media/meson/vdec/codec_vp9.h
+febe9a3e10cb8278a85d1cba17e7c5f744ecc24d90142aa28616fe98845303f3  linux-7.3.4/drivers/staging/media/meson/vdec/dos_regs.h
+20d3b07efbcce1fa2a134f506f22fb3fb26340a0114c0393bf1f6b1d4d9f4ec6  linux-7.3.4/drivers/staging/media/meson/vdec/esparser.h
+cbb391bc7dd0391f72e2957039028a9a6b1011097ae908b056f9dc824c953932  linux-7.3.4/drivers/staging/media/meson/vdec/hevc_regs.h
+0a059afc60535e4f0294311744cdd802ffb32b0e5b1de89559cb5b08fa26c445  linux-7.3.4/drivers/staging/media/meson/vdec/vdec.h
+354c4bbae7eab9da26ac0411fea47405b4f457ef4cbb1ebf924da4f1011eb5bf  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_1.h
+fa5a92d27e8f43f328b51ff31904da2a54d1211ef4800ac18e60d05dc8f70ed0  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_helpers.h
+6bf2db3ed54a96db9e47d27bba0b38bfc34c6580c7cdbb6c31ac0baa553ab4b4  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_hevc.h
+050d2fd2068b585e003dadab27ba21d0396e5b0e1c2480c0bb7e0dc07621836f  linux-7.3.4/drivers/staging/media/meson/vdec/vdec_platform.h
+b47975c00965ddbc38a16ceb0d42810558b93b0e59fcd51c6391ed05ae6ebd06  linux-7.3.4/drivers/staging/media/meson/vdec/Kconfig
+bf8243128e43dba8ad3bde211a8018514cbed9d8c2415b78d496a274617ab05a  linux-7.3.4/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+dc44704139c48026db1f56e7968822de9dd2aef6612290dc956df75a57beb2c0  linux-7.3.4/arch/arm/boot/dts/amlogic/meson8b.dtsi

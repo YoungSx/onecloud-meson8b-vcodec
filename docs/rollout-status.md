@@ -23,9 +23,11 @@ original containers were restarted without configuration changes. They,
 SublinkPro, VoCat and Home Assistant remained running during mixed-load
 acceptance. The final HTTP and container checks are recorded separately.
 
-The local linux-media RFC draft is prepared but unsubmitted. A current
-mainline static-DT/power-domain port and review are still required for
-upstream acceptance. No email or external publication was requested.
+The local linux-media RFC draft is prepared but unsubmitted. The research
+series was rebased onto mainline v7.3.4 on 2026-11-16 and builds the module,
+every ARM DTB and the binding schema check; the static-DT/power-domain design
+and hardware validation are still required for upstream acceptance. No email
+or external publication was requested. See evidence/mainline-2026-11-16/PORT.md.
 
 Verified release archive: build/onecloud-verified-release.tar.gz, SHA-256
 71f7922e9a60cb9c4ae3bebb34181bf95f467a99e824f34d7bfd9daf9e3ff903.

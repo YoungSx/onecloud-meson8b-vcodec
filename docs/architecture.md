@@ -51,4 +51,7 @@ Meson8b H.264 最后 drain 批次可能按解码顺序返回，驱动按输入 P
 暂在用户态时的提前 EOF，以及 POLLERR 的队列状态处理。
 
 此架构面向原在役内核。[主线 RFC 草稿](linux-media-rfc.md)列出需要进一步
-处理的静态 DT、共享电源域 owner 和主线版本移植。
+处理的静态 DT 与共享电源域 owner。编译侧主线移植已完成：`patches/research/`
+以 v7.3.4 为基准，可编译 `meson-vdec.ko`、全部 ARM DTB 并通过
+`dtbs_check`；S805 实机与采集字节序转换仍缺（见
+[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。

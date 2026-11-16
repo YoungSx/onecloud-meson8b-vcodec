@@ -61,7 +61,9 @@ make dtbo
 安装器校验 phandle。[配置片段](../config/runtime-codecs.config)和
 [patches/series](../patches/series)用于同样实现的源码树集成，入口为
 `CONFIG_VIDEO_MESON8B_VCODEC=m`。`patches/research/` 为早期存档，不应用到
-当前实现。未验证新的启动内核；运行包只安装模块/固件，不改 `/boot`。
+当前实现；它已改为以主线 v7.3.4 为基准，仅用于编译级移植验证
+（见[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。未验证新的启动
+内核；运行包只安装模块/固件，不改 `/boot`。
 
 ## 打包和来源
 

@@ -1,33 +1,37 @@
-Subject: [PATCH 3/3 RFC] ARM: dts: describe Meson8b VDEC and enable on OneCloud
+Subject: [PATCH 3/3 RFC] ARM: dts: describe Meson8b VDEC and enable on ODROID-C1
 
 Use the S805 DOS aperture at 0xd0050000, parser at 0xc110a580,
 interrupts 44/32 and the existing clock, reset and canvas providers.
-The SoC node is disabled by default; OneCloud enables the lab device.
+The SoC node is disabled by default; ODROID-C1 enables it as a lab device.
 The accompanying driver refuses streaming until capture conversion exists.
 
+Rebased onto v7.3.4: mainline has no meson8b-onecloud.dts, so the enable
+hunk targets meson8b-odroidc1.dts and the node lives under /soc to match
+how the GX VDEC node is declared. Meson8b needs no vdec_hevc clock.
+
 ---
-diff --git a/arch/arm/boot/dts/meson8b-onecloud.dts b/arch/arm/boot/dts/meson8b-onecloud.dts
-index 89e3e32..99f2bc7 100644
---- a/arch/arm/boot/dts/meson8b-onecloud.dts
-+++ b/arch/arm/boot/dts/meson8b-onecloud.dts
-@@ -458,3 +458,7 @@ &ir_receiver {
- 	pinctrl-0 = <&ir_recv_pins>;
- 	pinctrl-names = "default";
+diff --git a/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dts b/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dts
+index 1cd2093..bfd0ea5 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dts
++++ b/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dts
+@@ -379,3 +379,7 @@
+ 		reset-gpios = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_LOW>;
+ 	};
  };
 +
 +&vdec {
 +	status = "okay";
 +};
-diff --git a/arch/arm/boot/dts/meson8b.dtsi b/arch/arm/boot/dts/meson8b.dtsi
-index 5519086..45ff757 100644
---- a/arch/arm/boot/dts/meson8b.dtsi
-+++ b/arch/arm/boot/dts/meson8b.dtsi
+diff --git a/arch/arm/boot/dts/amlogic/meson8b.dtsi b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+index 2d77b98..4ded8eb 100644
+--- a/arch/arm/boot/dts/amlogic/meson8b.dtsi
++++ b/arch/arm/boot/dts/amlogic/meson8b.dtsi
 @@ -14,6 +14,25 @@
  #include "meson.dtsi"
  
  / {
 +	soc {
-+		vdec: video-decoder@d0050000 {
++		vdec: video-codec@d0050000 {
 +			compatible = "amlogic,meson8b-vdec";
 +			reg = <0xd0050000 0x10000>, <0xc110a580 0xe4>;
 +			reg-names = "dos", "esparser";

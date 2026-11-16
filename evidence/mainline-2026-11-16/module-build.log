@@ -1,0 +1,23 @@
+make[1]: Entering directory '/tmp/k734/out'
+make[7]: 'drivers/staging/media/meson/vdec/meson-vdec.mod' is up to date.
+  MODPOST modules-only.symvers
+WARNING: vmlinux.o is missing.
+         Modules may not have dependencies or modversions.
+         You may get many unresolved symbol errors.
+         You can set KBUILD_MODPOST_WARN=1 to turn errors into warning
+         if you want to proceed at your own risk.
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'v4l2_m2m_init' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'vb2_queue_init' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'v4l2_fh_exit' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'v4l2_m2m_job_finish' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'video_ioctl2' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'release_firmware' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'devm_request_threaded_irq' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'devm_kmalloc' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'platform_driver_unregister' undefined!
+WARNING: modpost: drivers/staging/media/meson/vdec/meson-vdec.ko: symbol 'memmove' undefined!
+WARNING: modpost: suppressed 105 unresolved symbol warnings because there were too many)
+  CC [M]  drivers/staging/media/meson/vdec/meson-vdec.mod.o
+  CC [M]  .module-common.o
+  LD [M]  drivers/staging/media/meson/vdec/meson-vdec.ko
+make[1]: Leaving directory '/tmp/k734/out'
