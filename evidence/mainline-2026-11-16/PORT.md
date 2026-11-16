@@ -47,16 +47,42 @@ byte for byte.
 
 `patches/research/0000-esparser-eos-padding.patch` is a standalone fix for the
 upstream end-of-stream defect and applies to pristine v7.3.4 on its own; the
-module above was rebuilt with it and still builds
-(`af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e`). It is not
-part of the three-patch Meson8b series because it affects every platform.
+module above was rebuilt with it and still builds. It is not part of the
+three-patch Meson8b series because it affects every platform.
 
-`KBUILD_MODPOST_WARN=1` was needed only because the build stopped at a single
-`.ko` without a full `vmlinux`/`Module.symvers`; the ten reported unresolved
-symbols are all core kernel exports (`v4l2_m2m_init`, `vb2_queue_init`,
-`devm_request_threaded_irq`, …), which is what a partial build expects. A
-full `make modules` is not run here: 1.8 GB source plus 190 MB output against
-9.1 GB free.
+## Full build
+
+The first module builds stopped at a single `.ko` with no `vmlinux`, so
+modpost reported 105 unresolved symbols and `KBUILD_MODPOST_WARN=1` was
+needed to link anything. A full build removes that caveat. `vmlinux`
+(`multi_v7_defconfig`, `-j4`, 143 MB) produced `vmlinux.symvers`, and
+`make modules` then linked all 938 configured modules with no `WARNING`
+line and no unresolved symbol
+([modules-full-build.log](modules-full-build.log), 952 `=m` symbols in
+`.config`). modpost ran against a real `vmlinux.o`, so the dependency list in
+`modinfo` is now resolved rather than inferred:
+
+```
+depends=v4l2-mem2mem,videobuf2-v4l2,videobuf2-dma-contig,videobuf2-common
+vermagic=7.3.4 SMP mod_unload ARMv7 p2v8
+```
+
+The full-build hash is `9d6e8080c53e1cb1cf35df352fe58c78584dfab6d0f2325fe0858251895e24f5`,
+which supersedes the earlier `af170a6e…` recorded from the partial
+single-module link. The two are not byte-comparable — the partial link had no
+`vmlinux`/`Module.symvers`, so its build id and modpost-generated `.mod.c`
+differ — and the earlier `.ko` was not kept to diff. The source state is the
+same either way; only the link inputs changed.
+
+The full build is deterministic: reverting 0000 and rebuilding gives
+`5d2689ab94200db3e3dda8e1b1602f6972ff2ae43f89bdc9b5b8ca8460947a51`
+([without 0000](modules-full-build-without-0000.log)), and re-applying it
+reproduces `9d6e8080…`
+([rebuild](modules-full-build-rebuild.log)). So 0000 does change the compiled
+driver, as it must, and the hash above is stable across reruns.
+
+Neither hash is a loadable artifact for the S805: this is an ARMv7 mainline
+build, not the 5.15.79-meson production module.
 
 ## What is still missing for upstream
 

@@ -1,8 +1,11 @@
 # meson-vdec for linux-7.3.4, arm-linux-gnueabihf-gcc 13.3.0, multi_v7_defconfig
-# platform bring-up only
-802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  meson-vdec.ko
-# platform bring-up plus 0000-esparser-eos-padding.patch
-af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e  meson-vdec.ko (with 0000)
+# platform bring-up only, single-module link without vmlinux
+802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  meson-vdec.ko (partial, no 0000)
+# platform bring-up plus 0000-esparser-eos-padding.patch, same partial link
+af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e  meson-vdec.ko (partial, with 0000)
+# full vmlinux plus make modules, no unresolved symbols
+5d2689ab94200db3e3dda8e1b1602f6972ff2ae43f89bdc9b5b8ca8460947a51  meson-vdec.ko (full, no 0000)
+9d6e8080c53e1cb1cf35df352fe58c78584dfab6d0f2325fe0858251895e24f5  meson-vdec.ko (full, with 0000)
 1ca6432a8f6ef0e9a29caac816ce20ab0cb12dd1c2ccdc28a368c0ccc800604e  meson8b-odroidc1.dtb
 
 efea7753147e103cbad66d48d69c0b2dd203b57c32e293096849f885493a49d6  patches/research/0000-esparser-eos-padding.patch
