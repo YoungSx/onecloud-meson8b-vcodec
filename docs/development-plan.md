@@ -205,14 +205,16 @@ README、使用/验收说明和 CI；CI 使用对应 head。硬件报告附源�
 共享 power-domain 的 AO 部分实现为 `patches/research/0004..0008`：Meson8b
 VDEC 域进入 genpd，驱动改为运行时引用并在无域时回退到原 AO 直写，
 `amlogic,ao-sysctrl` 随 `power-domains` 的有无变成条件必需，DT 节点改用域
-phandle。九个补丁按序应用且 `checkpatch --strict` 干净，模块与 pwrc 无警告
+phandle。当时九个补丁按序应用且 `checkpatch --strict` 干净，模块与 pwrc 无警告
 编译，六个 Meson8/8b/8m2 DTB 通过 schema 校验，负例（去掉域又不给 AO
 sysctrl）按预期报错。2026-11-16 又实现共享 DOS 那另一半为 `patches/research/0009..0012`：
 `amlogic,meson8b-dos` syscon 拥有该窗口，驱动经 `amlogic,dos` 用 `regmap_mmio`
-访问并在无 syscon 时保留自有映射，binding 只在缺 phandle 时要求两段 reg；
-十三个补丁按序应用、`checkpatch --strict` 干净，模块无警告编译，ODROID-C1
-DTB 拆出 syscon 节点。实机行为仍未验证，上游也没有编码器消费该窗口
-（见[方案](power-domain-design.md)）。公开 RFC 仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
+访问并在无 syscon 时保留自有映射，位操作在 syscon 下改为单次加锁的
+read-modify-write，binding 只在缺 phandle 时要求两段 reg。十三个补丁按序
+应用、`checkpatch --strict` 干净，模块无警告编译，ODROID-C1 DTB 拆出 syscon
+节点，GXBB/GXL/G12A/SM1 的 DTB 在改动后的 binding 下仍通过。实机行为仍未
+验证，上游也没有编码器消费该窗口（见[方案](power-domain-design.md)）。
+公开 RFC 仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
 通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
 明确依据的新 codec 不加入本轮交付承诺。
 
