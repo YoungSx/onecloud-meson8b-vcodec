@@ -45,6 +45,8 @@ Review points to carry forward:
   the byte-order conversion practical. There remains a copy, not zero-copy.
 - DOS control bits and PMU fields are shared by VDEC1 and HCODEC. Masked
   writes require one owner/lock; no whole-register overwrite across engines.
+  [Shared ownership design](power-domain-design.md) proposes two Meson8b genpd
+  domains plus a DOS syscon; it is not implemented.
 - Vendor HEVC RPM lacks the conformance window. The bounded SPS prefix
   parser supplies geometry; HEVC Main10 and tiled streams are rejected.
 - On this 64 MiB CMA device the encoder raw input must match negotiated

@@ -202,9 +202,10 @@ README、使用/验收说明和 CI；CI 使用对应 head。硬件报告附源�
 稳定性之后。2026-11-16 完成主线编译级移植：`patches/research/` 以 v7.3.4
 为基准，模块、全部 ARM DTB 与 binding 检查通过，实机与采集字节序转换仍缺
 （见 [移植记录](../evidence/mainline-2026-11-16/PORT.md)）。静态 DT/共享
-power-domain 与公开 RFC 仍待做。重启验收需具备实际可恢复启动条件，再开展；
-不把 runtime 启停通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、
-多编码会话与其他无明确依据的新 codec 不加入本轮交付承诺。
+power-domain 只有[方案](power-domain-design.md)，未实现未上机；公开 RFC
+仍待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
+通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
+明确依据的新 codec 不加入本轮交付承诺。
 
 不按会话轮数承诺工期。P0 后依据真实测量、接口核查与小规模硬件结果
 细化 P1–P4 的实现工作；P5 的能否继续由其可行性实验决定。
