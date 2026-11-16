@@ -85,6 +85,23 @@ combination removes the helper: (1) alone leaves the aperture conflict,
 upstream, so (1) and (3) are reviewable now and the encoder follows later.
 
 Risk to check on hardware before submitting: whether the VDEC1 sleep bits
-must be cleared before or after `clk_prepare_enable(vdec_1)`. The current
-driver powers up first and clocks second; the vendor sequence clocks first.
-That ordering is unverified and cannot be settled by reading the code.
+must be cleared before or after `clk_prepare_enable(vdec_1)`.
+
+The vendor tree settles what the silicon was brought up with, though not
+whether it is mandatory. `vdec_poweron()` in
+`sources/vendor/drivers/amlogic/amports/vdec.c` for `MESON_CPU_TYPE >=
+MESON8` runs, in order: clear `AO_RTI_GEN_PWR_SLEEP0` bits 3:2 → `udelay(10)`
+→ `DOS_SW_RESET0` → `vdec_clock_enable()` → `DOS_MEM_PD_VDEC = 0` → clear
+`AO_RTI_GEN_PWR_ISO0` bits 7:6 → reset `DOS_VDEC_MCRCC_STALL_CTRL`. Power
+first, clock second. The encoder side does the same: `avc_poweron()` clears
+`AO_RTI_PWR_CNTL_REG0` bits 4:3, then `AO_RTI_GEN_PWR_SLEEP0` bits 1:0, and
+only then resets `DOS_SW_RESET1` and enables the clock.
+
+Mainline `vdec_1_start()` currently does the opposite — `clk_prepare_enable()`
+before clearing the sleep bits — and it works on GX/G12. A genpd conversion
+has to pick one: if the domain's `power_on` clears sleep/iso and the driver
+keeps enabling the clock afterwards, the order becomes power-first like the
+vendor. That is the safer of the two, and it is what `meson_ee_pwrc_on()`
+already does for every other Meson domain. Verifying it on S805 hardware is
+still required; the vendor sequence is evidence of intent, not proof that
+the reversed order breaks anything.
