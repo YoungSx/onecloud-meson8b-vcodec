@@ -19,10 +19,10 @@
 | 当前后续工作 | [Roadmap](../ROADMAP.md) |
 | 下一阶段顺序、验收门槛与范围 | [Development plan](development-plan.md) |
 | 发布历史 | [Changelog](../CHANGELOG.md) |
-| 主线 RFC、共享 DOS 所有权设计 | [linux-media RFC](linux-media-rfc.md) / [Power domain](power-domain-design.md) |
+| 上游结论、共享 DOS 所有权设计 | [linux-media 结论](linux-media-rfc.md) / [Power domain](power-domain-design.md) |
 
 [部署快照](rollout-status.md)记录在役机当前安装的 `c20a473` 包及
 2026-11-14 `bd1cb79` 验收版本，并非新版本的安装指令。[验收索引](../evidence/README.md)指向原始证据。
 [历史索引](history/README.md)保留研究阻断、开发日志和 HEVC 来源核查；
-[linux-media RFC 草稿](linux-media-rfc.md)尚未提交；[共享 DOS 所有权设计](power-domain-design.md)
+[linux-media 结论](linux-media-rfc.md)记录在 Discussions，本项目不向上游提交；[共享 DOS 所有权设计](power-domain-design.md)
 只是方案，未实现也未上机验证。

@@ -1,8 +1,8 @@
 # CI 与发版流程
 
-采用 SemVer 标签 `vMAJOR.MINOR.PATCH` 和 Conventional Commits。1.0 前
-默认预发布，绑定记录的 OneCloud 内核/设备树 ABI。版本标签生成 Release
-草稿，发布者审阅后才公开发布。
+采用 SemVer 标签 `vMAJOR.MINOR.PATCH` 和 Conventional Commits。版本
+绑定记录的 OneCloud 内核/设备树 ABI。版本标签生成 Release 草稿，发布者
+审阅后作为正式版发布；只有确实需要标注不稳定时才手工勾选 pre-release。
 
 ## CI
 
@@ -35,9 +35,9 @@ Actions artifact `release-assets` 包含运行包、源码包、`SHA256SUMS` 和
 
 4. `Release` 工作流重跑全部检查，从标签同一提交构建并创建 **draft**。
    草稿附运行包、包含上游源码的完整 source 包、外部校验和与来源 JSON。
-   默认 pre-release，不自动替换目标机上的版本。
+   草稿不标 pre-release，也不自动替换目标机上的版本。
 5. 下载校验资产，检查 changelog、source commit、历史硬件验收范围和
-   [安装/回滚说明](installation.md)，再将草稿发布为预发布版本。
+   [安装/回滚说明](installation.md)，再把草稿发布为正式版。
 
 重试失败 workflow 时，先修复来源明确的问题。已存在的 Release 不自动
 覆盖资产；不要复用已发布版本标签，修复应递增版本。维护者可清理自己

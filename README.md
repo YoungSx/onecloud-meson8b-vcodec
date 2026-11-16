@@ -30,7 +30,9 @@ appear, with the original kernel untouched. The
 [mainline port](evidence/mainline-2026-11-16/PORT.md) is
 compile-level only — the research series applies to v7.3.4 and builds the
 module and every ARM DTB, but has not run on S805 hardware — and the
-[linux-media RFC](docs/linux-media-rfc.md) is drafted but unsubmitted.
+the
+[linux-media findings](docs/linux-media-rfc.md) are recorded in Discussions
+and are not submitted upstream.
 See [capabilities and limits](docs/validation.md).
 The encoder extensions and the MPEG/VC-1 drain fix were validated on
 2026-11-15 and are included in the `c20a473` package now installed.

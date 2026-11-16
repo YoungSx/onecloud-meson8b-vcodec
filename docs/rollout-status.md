@@ -1,4 +1,4 @@
-# Deployment and acceptance status, 2026-11-15
+# Deployment and acceptance status, 2026-11-16
 
 Final driver is runtime-only on original 5.15.79-meson, with no reboot or
 /boot writes. JPEG/HEVC and concurrent B-frame input are validated on
@@ -23,11 +23,12 @@ original containers were restarted without configuration changes. They,
 SublinkPro, VoCat and Home Assistant remained running during mixed-load
 acceptance. The final HTTP and container checks are recorded separately.
 
-The local linux-media RFC draft is prepared but unsubmitted. The research
-series was rebased onto mainline v7.3.4 on 2026-11-16 and builds the module,
-every ARM DTB and the binding schema check; the static-DT/power-domain design
-and hardware validation are still required for upstream acceptance. No email
-or external publication was requested. See evidence/mainline-2026-11-16/PORT.md.
+The linux-media findings are recorded in the repository's Discussions and are
+not submitted upstream by decision; no email or external publication was made.
+The research series was rebased onto mainline v7.3.4 on 2026-11-16 and builds
+the module, every ARM DTB and the binding schema check; the static-DT/power-domain
+design and hardware validation were still required for upstream acceptance,
+which this project no longer pursues. See evidence/mainline-2026-11-16/PORT.md.
 
 Verified release archive: build/onecloud-verified-release.tar.gz, SHA-256
 71f7922e9a60cb9c4ae3bebb34181bf95f467a99e824f34d7bfd9daf9e3ff903.

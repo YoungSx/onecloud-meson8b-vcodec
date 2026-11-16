@@ -33,6 +33,6 @@ jobs:
           cd release-assets
           sha256sum -c SHA256SUMS
           cp ../CHANGELOG.md release-notes.md
-          printf '\nBuild/source provenance is attached. Hardware evidence is the 2026-11-14 acceptance report and the 2026-11-15 v0.2.0 deployment; CI does not test S805 hardware.\n' >> release-notes.md
+          printf '\nBuild/source provenance is attached. Hardware evidence per feature is in docs/validation.md and the evidence index; CI does not test S805 hardware.\n' >> release-notes.md
           gh release create "$GITHUB_REF_NAME" ./*.tar.gz SHA256SUMS PROVENANCE.json \
-            --verify-tag --draft --prerelease --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+            --verify-tag --draft --title "$GITHUB_REF_NAME" --notes-file release-notes.md

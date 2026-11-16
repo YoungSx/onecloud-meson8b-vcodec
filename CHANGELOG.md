@@ -1,11 +1,15 @@
 # Changelog
 
-Versions follow SemVer and Conventional Commits. Until 1.0, releases are
-pre-releases tied to the recorded OneCloud kernel and device-tree ABI.
+Versions follow SemVer and Conventional Commits. Releases are tied to the
+recorded OneCloud kernel and device-tree ABI. A patch release may ship the
+same modules as its predecessor when only documentation, evidence or tooling
+changed.
 
-## Unreleased
+## v0.2.1 — 2026-11-16
 
-Tooling only; the installed payload is unchanged from v0.2.0.
+No driver change; the modules and device tree are identical to v0.2.0. This
+release publishes the sustained-load, service-coexistence, reboot and MPEG-4
+evidence, and drops the pre-release default from the release flow.
 
 - Add `scripts/soak.sh`, the bounded decode/encode soak used for the sustained
   load runs, and document it in the validation guide.
@@ -86,7 +90,7 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   all-I streams only, so this had not been covered. No driver change: the
   decode is firmware-side and the root cause is not established.
 
-## v0.2.0 — 2026-11-15 (pre-release)
+## v0.2.0 — 2026-11-15
 
 Encoder controls, input formats, DMA-BUF input, multi-slice, the NEON output
 conversion and the MPEG/VC-1 drain fix. Deployed to the production OneCloud
@@ -123,7 +127,7 @@ claim.
 - Document the S805 HEVC encoding hardware boundary and evidence-backed
   H.264/JPEG extension paths; preserve both README languages and source provenance.
 
-## v0.1.0 — 2026-11-14 (pre-release)
+## v0.1.0 — 2026-11-14
 
 - Reorganize current installation, usage, architecture, build and validation
   guides; provide equivalent English and Simplified Chinese READMEs.

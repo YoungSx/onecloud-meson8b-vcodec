@@ -1,10 +1,12 @@
-# Meson8b codec RFC submission draft
+# Meson8b codec: upstream findings
 
-This local draft documents the reviewable patch and its limits; it has not
-been emailed or submitted to linux-media. The driver targets the original
-OneCloud 5.15.79 kernel and uses a temporary runtime overlay. A mainline
-submission needs a static device-tree topology with proper shared
-power-domain ownership before it can be accepted.
+Upstream submission is out of scope for this project, by decision. The driver
+targets the original OneCloud 5.15.79 kernel through a temporary runtime
+overlay, and a mainline submission would need a static device-tree topology
+with proper shared power-domain ownership that cannot be validated on this
+board. The findings below are kept because they are reproducible and useful
+to anyone who does pursue it; they are recorded in the repository's
+Discussions and are not emailed or submitted to linux-media.
 
 Compile-side port, 2026-11-16: `patches/research/` is now based on pristine
 v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
@@ -41,8 +43,8 @@ Suggested series split:
 The additive compatibility patch is patches/0001-meson8b-runtime-codecs.patch.
 The runtime overlay/helper is for the production board's unchanged kernel,
 not an upstream DT binding proposal. Its hardcoded board identity and
-phandles must be replaced for a static upstream deployment. No RFC
-publication or upstream acceptance is claimed.
+phandles must be replaced for a static upstream deployment. No publication
+or upstream acceptance is claimed.
 
 Review points to carry forward:
 
