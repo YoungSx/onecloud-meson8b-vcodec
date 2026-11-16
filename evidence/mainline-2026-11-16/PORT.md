@@ -181,6 +181,9 @@ Verified at compile level only:
   "too short" ([negative](dtbs-check-dos-negative.log)). A bogus property on
   the same node is also rejected, so the empty positive log is not a
   validator that silently passes everything.
+- The binding is shared, so the platforms that keep the old shape were
+  checked too: GXBB, GXL, G12A and SM1 DTBs validate unchanged with both
+  regions and `amlogic,ao-sysctrl` ([arm64](dtbs-check-dos-arm64.log)).
 - The ODROID-C1 DTB has the syscon at `0xd0050000`, the decoder at
   `0xc110a580` with `amlogic,dos` pointing at it, and no duplicate
   unit-address — the reason the decoder node had to move off `0xd0050000`.
