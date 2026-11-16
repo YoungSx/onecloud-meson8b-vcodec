@@ -5,6 +5,7 @@ cd "$root"
 mkdir -p build/host-tests
 python3 scripts/extract-firmware.py --fetch
 python3 -m unittest discover -s tests -v
+python3 -I scripts/m4v-frame-compare.py --self-test
 shellcheck scripts/*.sh
 for test in copy window capture jpeg esparser_padding hevc_sps rate_control h264_sps; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
