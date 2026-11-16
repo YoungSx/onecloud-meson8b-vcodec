@@ -76,6 +76,14 @@ bash scripts/check-mainline-port.sh /path/to/linux-7.3.4
 源码树必须带 `scripts/checkpatch.pl`，否则脚本直接失败而不是跳过风格检查。
 模块与 DTB 的实际编译见移植记录，两者都不代表 S805 硬件可用。
 
+"未打补丁"要自己保证。脚本不会检查，所以一个此前已经应用过研究系列的树会报
+`Reversed (or previously applied) patch detected`，看起来像系列本身坏了。重新
+从 tarball 解一份最省事：
+
+```sh
+tar xf linux-7.3.4.tar.xz -C /tmp/new     # 而不是复用旧的构建树
+```
+
 ## 打包和来源
 
 ```sh
