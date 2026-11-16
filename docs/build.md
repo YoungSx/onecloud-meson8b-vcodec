@@ -73,6 +73,7 @@ bash scripts/check-mainline-port.sh /path/to/linux-7.3.4
 
 脚本只把系列涉及的文件复制到临时目录，按序以 `patch -p1 -F0` 应用并对每个
 补丁运行 `checkpatch.pl --strict`，不修改源码树本身，也不需要交叉工具链。
+源码树必须带 `scripts/checkpatch.pl`，否则脚本直接失败而不是跳过风格检查。
 模块与 DTB 的实际编译见移植记录，两者都不代表 S805 硬件可用。
 
 ## 打包和来源
