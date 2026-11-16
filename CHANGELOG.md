@@ -23,6 +23,9 @@ Tooling only; the installed payload is unchanged from v0.2.0.
 - Add `scripts/check-mainline-port.sh`, which applies the research series to a
   temporary copy of a pristine tree and runs `checkpatch.pl --strict` on each
   patch, so the port claim is reproducible instead of transcribed.
+- Complete the mainline build: `vmlinux` plus all 938 modules link with no
+  modpost warnings and no unresolved symbols, so the port record no longer
+  carries a partial-link caveat.
 - Record the vendor power/clock ordering in the shared-DOS design note: both
   `vdec_poweron()` and `avc_poweron()` clear the AO sleep bits before enabling
   the engine clock, which is what a genpd conversion would do.
