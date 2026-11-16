@@ -25,7 +25,10 @@ kernel, device tree and production FFmpeg were preserved.
 HEVC Main10, tiles and long-term references are unsupported. Legacy MPEG,
 VC-1 and MJPEG have documented drain/chroma limits. Output still uses CPU
 byte-order conversion and copies. Autoload start/stop was tested without
-rebooting; there is no current-mainline port or published linux-media RFC.
+rebooting. The [mainline port](evidence/mainline-2026-11-16/PORT.md) is
+compile-level only — the research series applies to v7.3.4 and builds the
+module and every ARM DTB, but has not run on S805 hardware — and the
+[linux-media RFC](docs/linux-media-rfc.md) is drafted but unsubmitted.
 See [capabilities and limits](docs/validation.md).
 The encoder extensions and the MPEG/VC-1 drain fix were validated on
 2026-11-15 and are included in the `c20a473` package now installed.

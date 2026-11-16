@@ -22,7 +22,9 @@ ARMv7 hard-float。
 
 HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧尾及
 色度限制见验收记录。输出仍有 CPU 字节序转换和拷贝。自动加载启停已经
-测试，未重启验收；当前主线移植与公开 linux-media RFC 尚未完成。
+测试，未重启验收。[主线移植](evidence/mainline-2026-11-16/PORT.md)只到
+编译级：研究系列以 v7.3.4 为基准可编译模块与全部 ARM DTB，未在 S805 实机
+运行；[linux-media RFC](docs/linux-media-rfc.md) 已起草但未提交。
 详见[能力与边界](docs/validation.md)。上表的编码扩展与 MPEG/VC-1 drain
 修复于 2026-11-15 实机验证，已包含在在役机安装的 `c20a473` 包中。
 S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
