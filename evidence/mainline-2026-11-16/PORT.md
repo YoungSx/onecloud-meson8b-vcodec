@@ -6,7 +6,8 @@ binding schema, not that Meson8b decoding works on mainline.
 
 ## Base
 
-- Source: `linux-7.3.4.tar.xz` from cdn.kernel.org, `xz -t` clean.
+- Source: `linux-7.3.4.tar.xz` from cdn.kernel.org, `xz -t` clean, SHA-256
+  `b11b6df8295e8e991ff040b71aaa4994a8b55caa23b6b092907f195b5840fd1f`.
   Pristine file hashes in [hashes.txt](hashes.txt).
 - Cross toolchain: `arm-linux-gnueabihf-gcc` 13.3.0.
 - Config: `multi_v7_defconfig` plus `CONFIG_STAGING_MEDIA=y`,

@@ -1,4 +1,5 @@
 # meson-vdec for linux-7.3.4, arm-linux-gnueabihf-gcc 13.3.0, multi_v7_defconfig
+b11b6df8295e8e991ff040b71aaa4994a8b55caa23b6b092907f195b5840fd1f  linux-7.3.4.tar.xz
 # platform bring-up only, single-module link without vmlinux
 802b42eb3100eefbd60044a9bafec10cfc405e4a0405e7df549d724ad2e54b74  meson-vdec.ko (partial, no 0000)
 # platform bring-up plus 0000-esparser-eos-padding.patch, same partial link
