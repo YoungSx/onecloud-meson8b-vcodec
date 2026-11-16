@@ -33,7 +33,7 @@ that follow.
 
 ---
 diff --git a/drivers/staging/media/meson/vdec/esparser.c b/drivers/staging/media/meson/vdec/esparser.c
-index 4632346..5a3a3bc 100644
+index 4632346..f3c2bce 100644
 --- a/drivers/staging/media/meson/vdec/esparser.c
 +++ b/drivers/staging/media/meson/vdec/esparser.c
 @@ -184,21 +184,22 @@ static int vp9_update_header(struct amvdec_core *core, struct vb2_buffer *buf)
@@ -84,7 +84,7 @@ index 4632346..5a3a3bc 100644
  int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
  {
  	struct device *dev = core->dev;
-+	u32 padded = max(len, (u32)ESPARSER_MIN_PACKET_SIZE);
++	u32 padded = max_t(u32, len, ESPARSER_MIN_PACKET_SIZE);
 +	size_t alloc_size = padded + SEARCH_PATTERN_LEN;
  	void *eos_vaddr;
  	dma_addr_t eos_paddr;

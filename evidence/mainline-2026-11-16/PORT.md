@@ -45,7 +45,7 @@ byte for byte.
 `patches/research/0000-esparser-eos-padding.patch` is a standalone fix for the
 upstream end-of-stream defect and applies to pristine v7.3.4 on its own; the
 module above was rebuilt with it and still builds
-(`efeb04970d9c2730d891576edec742dcc253068a8b228747e6d02d485095bd0e`). It is not
+(`af170a6e77ffe626c8bc2e9ecd4b37efd5f5d42ab527c40c72ca2277f6208d1e`). It is not
 part of the three-patch Meson8b series because it affects every platform.
 
 `KBUILD_MODPOST_WARN=1` was needed only because the build stopped at a single
