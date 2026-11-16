@@ -15,6 +15,12 @@ D=/root/venc-deploy/p6
 LOG=$D/restart.log
 : > "$LOG"
 say() { echo "$(date -Iseconds) $*" >> "$LOG" && echo "$*"; }
+# Both nodes or neither; a missing one is the failure being looked for.
+nodes() {
+	for d in /dev/video0 /dev/video1; do
+		[ -e "$d" ] && printf '%s ' "$d" || printf '!%s ' "$d"
+	done
+}
 
 hold=$(fuser /dev/video0 /dev/video1 2>/dev/null || true)
 if [ -n "$hold" ]; then
@@ -25,7 +31,7 @@ fi
 
 before=$(dmesg | wc -l)
 say "state before: $(systemctl is-active meson8b-vcodec) $(systemctl is-enabled meson8b-vcodec)"
-say "nodes before: $(ls /dev/video0 /dev/video1 2>&1 | tr '\n' ' ')"
+say "nodes before: $(nodes)"
 
 t0=$(date +%s)
 systemctl restart meson8b-vcodec
@@ -40,7 +46,7 @@ i=0
 while [ $i -lt 5 ] && [ ! -e /dev/video0 ]; do
 	sleep 1; i=$((i + 1))
 done
-say "nodes after: $(ls /dev/video0 /dev/video1 2>&1 | tr '\n' ' ')"
+say "nodes after: $(nodes)"
 
 say "=== driver messages of this restart ==="
 dmesg | tail -n +$((before + 1)) >> "$LOG"
