@@ -5,6 +5,14 @@ recorded OneCloud kernel and device-tree ABI. A patch release may ship the
 same modules as its predecessor when only documentation, evidence or tooling
 changed.
 
+## Unreleased
+
+Tooling only; the payload is unchanged from v0.2.1.
+
+- Check the shipped NEON body rather than a copy of it: `tests/test_swap_neon.c`
+  includes `vdec/meson8b-swap-neon.c` and compares it with
+  `__builtin_bswap64`, so `make test` fails if the two ever disagree.
+
 ## v0.2.1 — 2026-11-16
 
 No driver change; the modules and device tree are identical to v0.2.0. This
@@ -68,9 +76,6 @@ evidence, and drops the pre-release default from the release flow.
   only: fifteen patches apply in order and pass `checkpatch.pl --strict`, the
   module builds with no warning, the NEON instructions land only in the unit
   that was compiled for them. The saving itself is unmeasured in the driver.
-- Check the shipped NEON body rather than a copy of it: `tests/test_swap_neon.c`
-  includes `vdec/meson8b-swap-neon.c` and compares it with
-  `__builtin_bswap64`, so `make test` fails if the two ever disagree.
 - Stop treating two replayed VOPs as the MPEG-4 drain constant. Replaying the
   final coded VOP k times before the visual object sequence end yields
   `88 + k` pictures: two is right for the reference stream in all three
