@@ -6,6 +6,8 @@ set -euo pipefail
 
 tree=${1:?usage: $0 <pristine kernel source tree>}
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
+[[ -x $tree/scripts/checkpatch.pl ]] ||
+    { echo "no scripts/checkpatch.pl in $tree" >&2; exit 1; }
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -28,14 +30,12 @@ for patch in "${patches[@]}"; do
         echo "FAILED $name" >&2
         exit 1
     fi
-    if [[ -x $tree/scripts/checkpatch.pl ]]; then
-        out=$(sed -n '/^diff --git/,$p' "$patch" |
-              "$tree/scripts/checkpatch.pl" --no-tree --no-signoff --strict -)
-        if ! grep -q "0 errors, 0 warnings" <<< "$out"; then
-            echo "checkpatch: $name" >&2
-            grep -E "^#|errors" <<< "$out" >&2
-            exit 1
-        fi
+    out=$(sed -n '/^diff --git/,$p' "$patch" |
+          "$tree/scripts/checkpatch.pl" --no-tree --no-signoff --strict -)
+    if ! grep -q "0 errors, 0 warnings" <<< "$out"; then
+        echo "checkpatch: $name" >&2
+        grep -E "^#|errors" <<< "$out" >&2
+        exit 1
     fi
 done
 
