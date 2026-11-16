@@ -76,6 +76,20 @@ Review points to carry forward:
   [Shared ownership design](power-domain-design.md) proposes two Meson8b genpd
   domains plus a DOS syscon. Both halves are implemented (`0004..0008` and
   `0009..0012`) and build; neither has run on hardware.
+- Even with the EOS padding fixed, MPEG-4 needs more than the sequence end
+  code: the firmware holds several pictures and completes them one per coded
+  VOP replayed, and the count varies by stream (2 for the 90-VOP reference,
+  3 for a 50-VOP stream encoded on the box). Replaying one more than the
+  firmware held emits a duplicate of a picture already delivered, so a fixed
+  number cannot be right for every stream, and no register exposes the depth
+  (`MREG_BUFFEROUT` is per-picture completion, `MP4_NOT_CODED_CNT` counts
+  not-coded repeats). A fix needs a firmware-visible depth or an EOS flush.
+  Details in [the MPEG-4 record](../evidence/p6-2026-11-16/m4v-tail.md).
+- No frame counter pairs firmware completion with delivery to userspace, so a
+  short output cannot be attributed to the driver or the client. One H.264
+  1080p decode in 7620 overnight iterations returned 299 of 300 frames, and
+  targeted repeats did not reproduce it; a debugfs counter is the
+  prerequisite for diagnosing that class of report, before any drain change.
 - Vendor HEVC RPM lacks the conformance window. The bounded SPS prefix
   parser supplies geometry; HEVC Main10 and tiled streams are rejected.
 - On this 64 MiB CMA device the encoder raw input must match negotiated
