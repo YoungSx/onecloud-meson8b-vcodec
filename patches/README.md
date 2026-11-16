@@ -17,13 +17,24 @@ v7.3.4 on 2026-11-16 and verified by compiling:
 | [0001](research/0001-meson8b-h264-platform.patch) | guarded Meson8b platform bring-up |
 | [0002](research/0002-meson8b-vdec-binding.patch) | Meson8b VDEC dt-binding |
 | [0003](research/0003-meson8b-vdec-device-tree.patch) | Meson8b VDEC device tree, enabled on ODROID-C1 |
+| [0004](research/0004-meson8b-vdec-power-domain-id.patch) | Meson8b VDEC power domain ID |
+| [0005](research/0005-meson8b-vdec-power-domain.patch) | Meson8b VDEC power domain in the Amlogic pmdomain driver |
+| [0006](research/0006-meson-vdec-ao-power-domain.patch) | let a power domain own the VDEC AO bits |
+| [0007](research/0007-vdec-binding-optional-ao-sysctrl.patch) | make `amlogic,ao-sysctrl` conditional on the domain |
+| [0008](research/0008-meson8b-vdec-power-domain-dt.patch) | attach the VDEC to its power domain |
+| [0009](research/0009-meson8b-dos-syscon-binding.patch) | Meson8b DOS syscon binding |
+| [0010](research/0010-vdec-binding-dos-syscon.patch) | let the decoder take a DOS syscon |
+| [0011](research/0011-meson-vdec-dos-syscon.patch) | access a shared DOS through a syscon |
+| [0012](research/0012-meson8b-vdec-dos-syscon-dt.patch) | describe the DOS aperture as a syscon |
+| [0013](research/0013-meson8b-capture-conversion.patch) | convert Meson8b capture output in software |
 
 They apply with `patch -p1 -F0` to pristine v7.3.4, and the module, every ARM
 DTB and the binding schema check all pass. Reproduce the apply/checkpatch part
 with `bash scripts/check-mainline-port.sh /path/to/linux-7.3.4`, which copies
 only the touched files into a temporary tree and runs `checkpatch.pl --strict`
-on each patch. None of it ran on S805 hardware and
-Meson8b streaming still returns `-EOPNOTSUPP`; see the
+on each patch. None of it ran on S805 hardware: capture conversion and the
+shared power-domain/DOS ownership are implemented, but unproven on the
+silicon; see the
 [port record](../evidence/mainline-2026-11-16/PORT.md). The research series is
 not in the current 5.15.79 series and must not be stacked on the current patch.
 CI compares a freshly exported current patch against the checked-in file.
