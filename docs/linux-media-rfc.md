@@ -65,6 +65,9 @@ Review points to carry forward:
   canvas block per capture buffer, converted into the dequeued buffer. It
   costs a copy per picture and 1.5x the picture size in CMA per buffer, which
   is why Meson8b also drops to twelve capture buffers and a 4 MiB FIFO.
+  `0014` moves the swap itself to NEON in its own FPU-compiled unit, which
+  arm32 requires, and keeps the scalar loop for contexts where
+  `may_use_simd()` is false; the saving is unmeasured in the driver.
 - DOS control bits and PMU fields are shared by VDEC1 and HCODEC. Masked
   writes require one owner/lock; no whole-register overwrite across engines.
   [Shared ownership design](power-domain-design.md) proposes two Meson8b genpd

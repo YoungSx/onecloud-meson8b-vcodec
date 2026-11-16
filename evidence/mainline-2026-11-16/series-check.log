@@ -46,4 +46,9 @@ patching file drivers/staging/media/meson/vdec/vdec.h
 patching file drivers/staging/media/meson/vdec/vdec_helpers.c
 patching file drivers/staging/media/meson/vdec/vdec_platform.c
 applied 0013-meson8b-capture-conversion.patch
-PASS: 14 patches apply to linux-7.3.4 in order
+patching file drivers/staging/media/meson/vdec/Makefile
+patching file drivers/staging/media/meson/vdec/meson8b-capture.c
+patching file drivers/staging/media/meson/vdec/meson8b-swap-neon.c
+patching file drivers/staging/media/meson/vdec/meson8b-swap-neon.h
+applied 0014-meson8b-capture-neon.patch
+PASS: 15 patches apply to linux-7.3.4 in order

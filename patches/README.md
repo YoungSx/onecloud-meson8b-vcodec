@@ -27,6 +27,7 @@ v7.3.4 on 2026-11-16 and verified by compiling:
 | [0011](research/0011-meson-vdec-dos-syscon.patch) | access a shared DOS through a syscon |
 | [0012](research/0012-meson8b-vdec-dos-syscon-dt.patch) | describe the DOS aperture as a syscon |
 | [0013](research/0013-meson8b-capture-conversion.patch) | convert Meson8b capture output in software |
+| [0014](research/0014-meson8b-capture-neon.patch) | swap the capture words with NEON where the caller allows it |
 
 They apply with `patch -p1 -F0` to pristine v7.3.4, and the module, every ARM
 DTB and the binding schema check all pass. Reproduce the apply/checkpatch part

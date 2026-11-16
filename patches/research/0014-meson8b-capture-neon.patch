@@ -1,0 +1,170 @@
+Subject: [PATCH 14/14 RFC] media: meson: vdec: swap Meson8b capture words with NEON
+
+The capture conversion added for Meson8b is a byte swap of every 64-bit
+word, and it runs on the CPU for every decoded picture: about 30 ms per
+1080p frame with the scalar loop, measured on this silicon outside
+mainline, against a 33 ms frame period.
+
+NEON halves it. The body goes in its own translation unit built with
+CC_FLAGS_FPU, because arm32 forbids kernel_neon_begin() and NEON code in
+the same file (asm/neon.h has a BUILD_BUG for it), and because
+<arm_neon.h> has to be reached through <asm/neon-intrinsics.h> to retype
+the C99 integer types. The caller keeps the scalar loop and selects
+between them with may_use_simd(): the copy runs in threaded handlers and
+work items, but a picture completed from hardirq context cannot take it.
+
+The unit is built only for CONFIG_ARM with CONFIG_KERNEL_MODE_NEON, which
+Meson8b needs anyway; without it the driver is unchanged and still
+scalar.
+
+Not verified on hardware: whether the measured 15 ms saving holds inside
+the driver, and whether may_use_simd() is false more often than the
+handlers suggest, both need the board.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/Makefile b/drivers/staging/media/meson/vdec/Makefile
+index 4efd774..74727da 100644
+--- a/drivers/staging/media/meson/vdec/Makefile
++++ b/drivers/staging/media/meson/vdec/Makefile
+@@ -7,3 +7,15 @@ meson-vdec-objs += vdec_1.o vdec_hevc.o
+ meson-vdec-objs += codec_mpeg12.o codec_h264.o codec_hevc_common.o codec_vp9.o
+ 
+ obj-$(CONFIG_VIDEO_MESON_VDEC) += meson-vdec.o
++
++# The word swap is the hot half of the Meson8b capture copy. Meson8b is
++# ARMv7 only, so the NEON body exists only there, and it stays in its own
++# unit because arm32 forbids kernel_neon_begin() and NEON code in one file;
++# see lib/raid/xor/Makefile and crypto/Makefile.
++ifeq ($(CONFIG_ARM),y)
++ifeq ($(CONFIG_KERNEL_MODE_NEON),y)
++meson-vdec-objs += meson8b-swap-neon.o
++CFLAGS_meson8b-swap-neon.o += $(CC_FLAGS_FPU)
++CFLAGS_REMOVE_meson8b-swap-neon.o += $(CC_FLAGS_NO_FPU)
++endif
++endif
+diff --git a/drivers/staging/media/meson/vdec/meson8b-capture.c b/drivers/staging/media/meson/vdec/meson8b-capture.c
+index c5ec866..a258601 100644
+--- a/drivers/staging/media/meson/vdec/meson8b-capture.c
++++ b/drivers/staging/media/meson/vdec/meson8b-capture.c
+@@ -17,7 +17,12 @@
+ #include <linux/vmalloc.h>
+ #include <media/videobuf2-dma-contig.h>
+ 
++#if IS_ENABLED(CONFIG_ARM) && IS_ENABLED(CONFIG_KERNEL_MODE_NEON)
++#include <asm/simd.h>
++#endif
++
+ #include "meson8b-capture.h"
++#include "meson8b-swap-neon.h"
+ 
+ static void shadow_free(struct amvdec_session *sess,
+ 			struct amvdec_shadow *shadow)
+@@ -114,15 +119,24 @@ static void swap64(void *dst, const void *src, size_t size)
+ 	const u64 *s = src;
+ 	u64 *d = dst;
+ 
++#if IS_ENABLED(CONFIG_ARM) && IS_ENABLED(CONFIG_KERNEL_MODE_NEON)
++	/*
++	 * NEON halves this: about 15 ms per 1080p picture with the scalar
++	 * loop, measured on this silicon outside mainline. The callers run
++	 * in threaded handlers and work items, where may_use_simd() holds;
++	 * a picture completed from hardirq context takes the scalar loop.
++	 */
++	if (may_use_simd()) {
++		kernel_neon_begin();
++		meson8b_swap64_neon(dst, src, size);
++		kernel_neon_end();
++		return;
++	}
++#endif
+ 	for (; size >= sizeof(u64); size -= sizeof(u64))
+ 		*d++ = swab64p(s++);
+ }
+ 
+-/*
+- * Scalar on purpose: a NEON body halves this at 1080p (measured on the same
+- * silicon outside mainline), and belongs in its own file with the
+- * kernel_neon_begin()/end() brackets once this path is known to work.
+- */
+ int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
+ 				struct vb2_buffer *vb)
+ {
+diff --git a/drivers/staging/media/meson/vdec/meson8b-swap-neon.c b/drivers/staging/media/meson/vdec/meson8b-swap-neon.c
+new file mode 100644
+index 0000000..812773f
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/meson8b-swap-neon.c
+@@ -0,0 +1,41 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * NEON body of the Meson8b capture conversion: reverse every 64-bit word
++ * while copying, 64 bytes per step with a read-ahead hint.
++ *
++ * Kept in its own translation unit because arm32 forbids
++ * kernel_neon_begin() and NEON code in the same one (see asm/neon.h); the
++ * caller brackets this with kernel_neon_begin()/kernel_neon_end().
++ */
++
++#include <linux/types.h>
++
++#include "meson8b-swap-neon.h"
++
++/*
++ * Not <arm_neon.h> directly: the wrapper retypes the C99 integer types so
++ * linux/types.h and stdint.h can coexist, as
++ * Documentation/arch/arm/kernel_mode_neon.rst requires.
++ */
++#include <asm/neon-intrinsics.h>
++
++void meson8b_swap64_neon(void *dst, const void *src, size_t size)
++{
++	const u8 *s = src;
++	u8 *d = dst;
++
++	for (; size >= 64; size -= 64, s += 64, d += 64) {
++		uint8x16_t a = vld1q_u8(s);
++		uint8x16_t b = vld1q_u8(s + 16);
++		uint8x16_t c = vld1q_u8(s + 32);
++		uint8x16_t e = vld1q_u8(s + 48);
++
++		__builtin_prefetch(s + 512);
++		vst1q_u8(d, vrev64q_u8(a));
++		vst1q_u8(d + 16, vrev64q_u8(b));
++		vst1q_u8(d + 32, vrev64q_u8(c));
++		vst1q_u8(d + 48, vrev64q_u8(e));
++	}
++	for (; size >= 8; size -= 8, s += 8, d += 8)
++		vst1_u8(d, vrev64_u8(vld1_u8(s)));
++}
+diff --git a/drivers/staging/media/meson/vdec/meson8b-swap-neon.h b/drivers/staging/media/meson/vdec/meson8b-swap-neon.h
+new file mode 100644
+index 0000000..a3fb42c
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/meson8b-swap-neon.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Meson8b NEON word swap.
++ */
++
++#ifndef __MESON_VDEC_MESON8B_SWAP_NEON_H_
++#define __MESON_VDEC_MESON8B_SWAP_NEON_H_
++
++#include <linux/kconfig.h>
++#include <linux/types.h>
++
++#if IS_ENABLED(CONFIG_ARM) && IS_ENABLED(CONFIG_KERNEL_MODE_NEON)
++/**
++ * meson8b_swap64_neon() - Reverse every 64-bit word of @size bytes
++ *
++ * @dst: destination, may be unaligned
++ * @src: source, may be unaligned
++ * @size: byte count, a multiple of 8
++ *
++ * Compiled as an FPU unit, so the caller brackets it with
++ * kernel_neon_begin() and kernel_neon_end() after checking may_use_simd().
++ */
++void meson8b_swap64_neon(void *dst, const void *src, size_t size);
++#endif
++
++#endif

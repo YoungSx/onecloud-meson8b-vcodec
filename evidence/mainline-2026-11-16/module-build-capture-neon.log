@@ -1,0 +1,16 @@
+  CC [M]  esparser.o
+  CC [M]  vdec.o
+  CC [M]  vdec_helpers.o
+  CC [M]  vdec_platform.o
+  CC [M]  meson8b-capture.o
+  CC [M]  vdec_1.o
+  CC [M]  vdec_hevc.o
+  CC [M]  codec_mpeg12.o
+  CC [M]  codec_h264.o
+  CC [M]  codec_hevc_common.o
+  CC [M]  codec_vp9.o
+  CC [M]  meson8b-swap-neon.o
+  LD [M]  meson-vdec.o
+  MODPOST Module.symvers
+  CC [M]  meson-vdec.mod.o
+  LD [M]  meson-vdec.ko

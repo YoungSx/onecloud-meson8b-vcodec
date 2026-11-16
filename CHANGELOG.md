@@ -52,6 +52,14 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   only: fourteen patches apply in order, the module builds with no warning
   and reproduces from a pristine tree, and a host test pins the plane split.
   No hardware run, so the cost and the buffer budget are unproven.
+- Swap the capture words with NEON (`0014`) where the caller allows it: the
+  intrinsic body moves to its own unit built with `CC_FLAGS_FPU`, because arm32
+  rejects `kernel_neon_begin()` and NEON code in one file, and the caller keeps
+  the scalar loop for contexts where `may_use_simd()` is false. Compile-level
+  only: fifteen patches apply in order and pass `checkpatch.pl --strict`, the
+  module builds with no warning, the NEON instructions land only in the unit
+  that was compiled for them, and a host check pins the body against
+  `__builtin_bswap64`. The saving itself is unmeasured in the driver.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 

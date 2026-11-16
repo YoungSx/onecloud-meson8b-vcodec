@@ -39,7 +39,7 @@ byte for byte.
 - All arm DTBs build ([dtbs-build.log](dtbs-build.log)).
 - `dtbs_check` limited to `amlogic,gx-vdec.yaml` passes with dtschema
   2026.9 ([dtbs-check.log](dtbs-check.log)).
-- All fourteen patches are clean under `checkpatch.pl --strict` (0 errors,
+- All fifteen patches are clean under `checkpatch.pl --strict` (0 errors,
   0 warnings) and apply in order to a pristine tree
   ([series check](series-check.log)).
 - The decompiled `meson8b-odroidc1.dtb` carries the expected node: DOS
@@ -208,30 +208,72 @@ The 1.5x-per-buffer block is what forces the last two: at 1080p the twelve
 capture buffers cost 36 MiB and their blocks another 36 MiB, so the GX
 limits plus a 16 MiB FIFO would not fit the 64 MiB of CMA these boards have.
 
-The conversion is scalar. The production stack's NEON body halves it at
-1080p, but that is a separate translation unit with `kernel_neon_begin()`
-brackets and belongs after this path works on the silicon.
+The conversion is scalar here. `0014` adds the NEON body below.
 
 Verified at compile level only:
 
-- Fourteen patches apply to pristine v7.3.4 in order and are clean under
-  `checkpatch.pl --strict` ([series check](series-check.log)).
-- The module builds with no warning and the hash is
-  `d839c81148d2796a7f315ab183ae7d6f9c1cc411c3bb2ea1c5c4cceedb73b536`,
-  reproduced across a relink, and applying the series to a pristine tree
-  reproduces the built sources byte for byte.
+- At the fourteen-patch state the series applied in order, was clean under
+  `checkpatch.pl --strict`, and the module built with no warning and hash
+  `d839c81148d2796a7f315ab183ae7d6f9c1cc411c3bb2ea1c5c4cceedb73b536`.
+- Applying the series to a pristine tree reproduces the built sources byte for
+  byte.
 - `tests/test_capture.c` pins the plane split and the involution property of
   the word swap, so a wrong plane offset or a partial swap fails on the host.
 - Nothing about the runtime behaviour is proven: whether twelve buffers and a
-  4 MiB FIFO are enough for this firmware, whether the cached alias needs the
-  explicit `dma_sync_single_for_cpu()` on a coherent block, and what the copy
-  actually costs on this CPU all need the board.
+  4 MiB FIFO are enough for this firmware, and whether the cached alias needs
+  the explicit `dma_sync_single_for_cpu()` on a coherent block, both need the
+  board. The copy cost is 0014's subject.
+
+## NEON capture swap
+
+`0014` puts the hot half of that conversion on NEON:
+
+| Piece | What it does |
+| --- | --- |
+| `meson8b-swap-neon.c` | the 64-byte-per-step `vrev64q_u8` body, in its own unit |
+| `meson8b-swap-neon.h` | declares it only when `CONFIG_ARM` and `CONFIG_KERNEL_MODE_NEON` |
+| `Makefile` | adds the unit and its `$(CC_FLAGS_FPU)` flags under those two |
+| `meson8b-capture.c` | keeps the scalar loop and selects with `may_use_simd()` |
+
+Three things are structural, not stylistic:
+
+- arm32 will not compile `kernel_neon_begin()` and NEON code in one unit —
+  `asm/neon.h` turns the call into a `BUILD_BUG_ON_MSG` when `__ARM_NEON__` is
+  set — so the body cannot be inlined into the caller, and the caller cannot
+  take the FPU flags. `lib/raid/xor` and `crypto` are split the same way.
+- `<arm_neon.h>` cannot be included directly: it pulls in `<stdint.h>`, whose
+  `intptr_t` disagrees with `linux/types.h` on arm32. The kernel's wrapper
+  `<asm/neon-intrinsics.h>` retypes those macros, which is what
+  `Documentation/arch/arm/kernel_mode_neon.rst` prescribes. Including
+  `arm_neon.h` instead fails the build with a conflicting-typedef error, as it
+  did on the first attempt here.
+- `may_use_simd()` is false in hardirq context and with interrupts disabled, so
+  the scalar loop stays. The capture copy runs from `amvdec_dst_buf_done()` in
+  threaded handlers and work items, but keeping the fallback means a codec that
+  completes a picture from its ISR still works, just slower.
+
+Verified at compile level only:
+
+- The series still applies in order and is clean under `checkpatch.pl
+  --strict`; the build has no warning
+  ([module](module-build-capture-neon.log)).
+- The module hash is
+  `8e0b95e933d2b84b9765ace1ae9b6c697271c73c5ba1a82f974621d3e95dba6f`,
+  reproduced across a clean rebuild and a relink.
+- The FPU split is visible in the objects: `meson8b-swap-neon.o` holds the
+  `vld1`/`vrev64`/`vst1` instructions and `meson8b-capture.o` holds none, so
+  the NEON code really is confined to the unit that was compiled for it.
+- The intrinsic body equals `__builtin_bswap64` over the sizes the driver can
+  pass, checked on the host ([neon check](neon-check/README.md)).
+- Nothing is measured: whether the copy actually halves, and how often
+  `may_use_simd()` is false on this board, both need the silicon.
 
 ## What is still missing for upstream
 
 - The encoder itself. Nothing upstream consumes the shared aperture yet, so
   the syscon is reviewable but its benefit is prospective until an HCODEC
   driver exists.
-- The NEON conversion, and with it any measured cost for the copy.
+- Any measured cost for the copy: 0014 is compiled and its intrinsic body is
+  checked on the host, but the saving it predicts is unmeasured in the driver.
 - Nothing in this series has run on hardware; the vendor firmware is not in
   linux-firmware.

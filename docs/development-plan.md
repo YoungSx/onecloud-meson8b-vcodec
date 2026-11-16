@@ -17,7 +17,7 @@
 | P3 | 完成：连续 DMA-BUF NV12/NV21 直读，其他导入拷贝 | 同上 |
 | P4 | 完成多分片；微码无 slice 中断，不提供逐片低延迟 | 同上 |
 | P5 | 完成：NEON 转换（1080p 约 7–8 ms）、canvas 尺寸修复、有界窗口拷贝；GE2D 不接入 | [Convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
-| P6 | 进行中：v0.2.0 运行包已部署并复验，30 分钟 545 轮与 2 小时 2205 轮持续负载均 0 失败；MPEG-1/2 帧尾已修复，VC-1 复验仍差末一幅，MPEG-4 尾两帧仍缺失；过夜负载、USB 磁盘恢复待办 | [v0.2.0](../evidence/p6-2026-11-15/v020-deploy.md)、[2h soak](../evidence/p6-2026-11-15/soak-2h-v020.md) |
+| P6 | 进行中：v0.2.0 运行包已部署并复验，30 分钟 545 轮与 2 小时 2205 轮持续负载均 0 失败；过夜负载 7620 轮在末轮出现 1 次 H.264 300→299 帧短输出；MPEG-1/2 帧尾已修复，VC-1 复验仍差末一幅，MPEG-4 尾帧探测未定论；五项业务服务并存验证待做 | [v0.2.0](../evidence/p6-2026-11-15/v020-deploy.md)、[2h soak](../evidence/p6-2026-11-15/soak-2h-v020.md) |
 
 ## 目标与约束
 
@@ -220,7 +220,14 @@ read-modify-write，binding 只在缺 phandle 时要求两段 reg。十三个补
 1.5 倍图像大小的 CMA，因此采集 buffer 上限降到 12、VIFIFO 降到 4 MiB 以适配
 64 MiB CMA。十四个补丁按序应用、`checkpatch --strict` 干净，模块无警告编译且
 可由 pristine 树逐字节复现，主机测试锁定平面切分与字交换的自逆性。
-STREAMON 不再拒绝，但实机行为、拷贝开销与 buffer 预算均未验证。公开 RFC 仍
+STREAMON 不再拒绝，但实机行为、拷贝开销与 buffer 预算均未验证。
+2026-11-16 另加 `patches/research/0014`：字交换在调用方允许时走 NEON。
+arm32 不允许 `kernel_neon_begin()` 与 NEON 代码同处一个编译单元，故主体单独
+成文件并用 `CC_FLAGS_FPU` 编译，调用方保留标量循环，由 `may_use_simd()`
+选择；`<arm_neon.h>` 经内核的 `<asm/neon-intrinsics.h>` 引入，否则 `intptr_t`
+与 `linux/types.h` 冲突。十五个补丁按序应用、`checkpatch --strict` 干净，模块
+无警告编译，NEON 指令只出现在为该编译单元生成的目标文件中，主机校验锁定其
+与 `__builtin_bswap64` 等价；驱动内的实际收益仍未测量。公开 RFC 仍
 待提交。重启验收需具备实际可恢复启动条件，再开展；不把 runtime 启停
 通过算成重启验收。HEVC Main10/tiles、4K/B 帧编码、多编码会话与其他无
 明确依据的新 codec 不加入本轮交付承诺。
