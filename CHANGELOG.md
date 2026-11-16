@@ -74,6 +74,11 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   changes with the stream and is not readable from the driver, so the drain
   keeps sending only the sequence end code and the limitation now reads
   "1–3 tail pictures, stream dependent" instead of "the last two".
+- Accept boot autoload on the production OneCloud: after an unplanned reset
+  the overlay applied 29 s into kernel boot with no manual step, both V4L2
+  nodes registered, the original 5.15.79-meson kernel untouched, and all four
+  production service ports answered. Only a decode smoke test followed the
+  reboot, and the graceful-restart path was not exercised on its own.
 - Record that MPEG-4 B pictures depend on content: on a static-gradient
   stream every B capture comes back with the bottom 48 rows unwritten, at
   both quality settings, while the all-I stream of the same content and the

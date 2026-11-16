@@ -35,7 +35,8 @@ ls /dev/video*
 安装目录为 `/opt/meson8b-vcodec/current`，备份路径写入
 `/opt/meson8b-vcodec/state-path`。Unit 加载前重新校验包和固件，并检查两个
 codec probe 成功；失败时卸载本次加载的模块。它仅绑定原内核版本。
-启停与失败清理已有实机记录，开机过程尚未通过重启验收。
+启停与失败清理已有实机记录；开机自动加载已于 2026-11-16 冷启动验收通过
+（见[重启验收](../evidence/p6-2026-11-16/reboot-autoload.md)）。
 
 ```sh
 # 先退出客户端，再停止或重启

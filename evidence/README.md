@@ -27,6 +27,7 @@
 | 过夜持续负载（7620 轮，末轮 1 次 299/300） | [Overnight](p6-2026-11-16/soak-overnight-v020.md) |
 | H.264 短输出定向复现（200 次全部 300/300） | [Tail race](p6-2026-11-16/h264-tail-race.md) |
 | 五项业务服务并存（71 采样 0 失败、377 轮 0 失败） | [Coexist](p6-2026-11-16/service-coexist.md) |
+| 冷启动自动加载（29 s 应用 overlay，两节点就绪，原厂内核未换） | [Reboot](p6-2026-11-16/reboot-autoload.md) |
 | MPEG-4 帧尾逐帧定位与 B 帧缺陷（幅数随流而变，静止内容 B 帧底部 48 行未写入） | [MPEG-4 tail](p6-2026-11-16/m4v-tail.md) |
 | 30 分钟持续负载（中断于 191 轮，历史） | [Soak](p6-2026-11-15/soak-30min.md) |
 | 两次硬复位与 USB 存储失效 | [Outage](p6-2026-11-15/outage-2026-11-15.md) |
