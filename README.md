@@ -86,8 +86,9 @@ JPEG requires a V4L2 client because FFmpeg 7.0.2 has no JPEG M2M encoder wrapper
 CI runs host tests and sanitizers, reproduces pinned firmware, cross-builds
 against the matching kernel, checks the additive patch and verifies packages.
 Version tags run the same checks and create a GitHub Release **draft** with
-runtime/source archives, checksums and build provenance. See the release guide
-before publishing a draft or installing a new build.
+runtime/source archives, checksums and build provenance; the publisher then
+reviews it, verifies the checksums and publishes it as a formal release. See
+the release guide before installing a new build.
 
 Code is GPL-2.0/GPL-2.0+ according to individual SPDX headers; vendor
 microcode is extracted from pinned GPL sources. [Firmware provenance and
