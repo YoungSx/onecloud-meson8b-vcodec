@@ -25,7 +25,8 @@
 | 30 分钟持续负载（v0.2.0，545 轮 0 失败） | [Soak v0.2.0](p6-2026-11-15/soak-30min-v020.md) |
 | 2 小时持续负载（v0.2.0，2205 轮 0 失败） | [Soak 2h](p6-2026-11-15/soak-2h-v020.md) |
 | 过夜持续负载（7620 轮，末轮 1 次 299/300） | [Overnight](p6-2026-11-16/soak-overnight-v020.md) |
-| H.264 短输出定向复现（200 次全部 300/300） | [Tail race](p6-2026-11-16/h264-tail-race.md) |
+| H.264 短输出定向复现（空闲 200 次全部 300/300） | [Tail race](p6-2026-11-16/h264-tail-race.md) |
+| H.264 短输出混载复现（400 轮全部 300/300，仍未复现） | [Short load](p6-2026-11-16/h264-shortload.md) |
 | 五项业务服务并存（71 采样 0 失败、377 轮 0 失败） | [Coexist](p6-2026-11-16/service-coexist.md) |
 | 冷启动自动加载（29 s 应用 overlay，两节点就绪，原厂内核未换） | [Reboot](p6-2026-11-16/reboot-autoload.md) |
 | 优雅重启（restart 5 s，卸载再加载，节点恢复、解码 22 帧） | [Restart](p6-2026-11-16/restart-check.md) |

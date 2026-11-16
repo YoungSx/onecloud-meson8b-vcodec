@@ -20,6 +20,12 @@ Tooling and evidence only; the payload is unchanged from v0.2.1.
   merely move the defect either: the unflipped stream loses all 14 B pictures
   to a stable 48-row band, while the flipped one loses a single picture to 176
   zero rows.
+- Repeat the short H.264 decode under the load that actually preceded the one
+  real failure, instead of on an idle box: 400 rounds of HEVC decode, then the
+  300-frame H.264 decode, then H.264 and JPEG hardware encodes, all through
+  the same CMA, still returned 300 frames with matching hashes every time.
+  Six hundred targeted repeats now exist and none reproduces it, so the cause
+  stays unattributed rather than fixed.
 - Accept the graceful-restart path on the production box: `systemctl restart`
   withdraws the overlay and unloads three modules, then loads them again in one
   transaction in 5 s, both nodes return, and a decode smoke test still produces

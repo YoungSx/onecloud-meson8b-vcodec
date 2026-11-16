@@ -72,12 +72,15 @@ An overnight run on the same package then went 7620 iterations over 6 h 54 min
 and ended on one failure: at iteration 7620 an H.264 1080p decode returned 299
 of 300 frames, with temperature, CMA and memory normal at the time. 7620 HEVC,
 1523 of 1524 H.264 and 7619 encode checks passed, and neither video device
-went down. A follow-up 200-run repeat of that same decode was clean
-(200/200 at 300 frames, hashes matching), so the short output is rare — about
-1 in 1700 H.264 runs — and its cause is not yet identified. The overnight
+went down. Two follow-up repeats were clean: 200 runs of that decode alone
+(200/200 at 300 frames, hashes matching) and 400 rounds under the soak's own
+order, an HEVC decode then the H.264 decode then H.264 and JPEG encodes
+through the same CMA (400/400 at 300 frames). The short output is therefore
+rare — about 1 in 1700 H.264 runs — and its cause is not yet identified. The overnight
 window is therefore a bounded regression ending on a failure, not a
 zero-failure soak. See evidence/p6-2026-11-16/soak-overnight-v020.md and
-evidence/p6-2026-11-16/h264-tail-race.md.
+evidence/p6-2026-11-16/h264-tail-race.md and
+evidence/p6-2026-11-16/h264-shortload.md.
 
 Once the USB disk was back and all five services were running, the same load
 ran for 377 iterations over 25 minutes while four HTTP entry points were
