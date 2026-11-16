@@ -23,7 +23,8 @@ ARMv7 hard-float。
 HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧尾及
 色度限制见验收记录。输出仍有 CPU 字节序转换和拷贝。自动加载已于
 2026-11-16 冷启动验收：overlay 在内核启动 29 s 时应用、两个 V4L2 节点出现，
-原厂内核未替换。[主线移植](evidence/mainline-2026-11-16/PORT.md)只到
+原厂内核未替换；`systemctl restart` 也在 5 s 内恢复，无需重启。
+[主线移植](evidence/mainline-2026-11-16/PORT.md)只到
 编译级：研究系列以 v7.3.4 为基准可编译模块与全部 ARM DTB，未在 S805 实机
 运行；[上游 linux-media 结论](docs/linux-media-rfc.md)记录在
 [Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2)，不向上游提交。
