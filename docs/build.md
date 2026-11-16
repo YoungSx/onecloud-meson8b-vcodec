@@ -65,6 +65,16 @@ make dtbo
 （见[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。未验证新的启动
 内核；运行包只安装模块/固件，不改 `/boot`。
 
+主线系列的可复现检查需要一份未打补丁的内核源码树：
+
+```sh
+bash scripts/check-mainline-port.sh /path/to/linux-7.3.4
+```
+
+脚本只把系列涉及的文件复制到临时目录，按序以 `patch -p1 -F0` 应用并对每个
+补丁运行 `checkpatch.pl --strict`，不修改源码树本身，也不需要交叉工具链。
+模块与 DTB 的实际编译见移植记录，两者都不代表 S805 硬件可用。
+
 ## 打包和来源
 
 ```sh
