@@ -65,6 +65,21 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   module builds with no warning, the NEON instructions land only in the unit
   that was compiled for them, and a host check pins the body against
   `__builtin_bswap64`. The saving itself is unmeasured in the driver.
+- Stop treating two replayed VOPs as the MPEG-4 drain constant. Replaying the
+  final coded VOP k times before the visual object sequence end yields
+  `88 + k` pictures: two is right for the reference stream in all three
+  rounds, three for a 50-VOP I/P stream encoded on the box itself (whose k=2
+  wobbles 49/49/50 across rounds), and one extra replay in either case shows
+  up as a repeat of the last real picture, not a new one. The required count
+  changes with the stream and is not readable from the driver, so the drain
+  keeps sending only the sequence end code and the limitation now reads
+  "1–3 tail pictures, stream dependent" instead of "the last two".
+- Record that MPEG-4 B pictures depend on content: on a static-gradient
+  stream every B capture comes back with the bottom 48 rows unwritten, at
+  both quality settings, while the all-I stream of the same content and the
+  B frames of a fully moving stream are exact. Earlier MPEG-4 acceptance used
+  all-I streams only, so this had not been covered. No driver change: the
+  decode is firmware-side and the root cause is not established.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 
