@@ -16,8 +16,10 @@ Tooling and evidence only; the payload is unchanged from v0.2.1.
   the same testsrc with `vflip` moves the moving strip to the top, the bottom
   recovers, and 21 of 22 pictures come back with no zero region, so the defect
   is neither "the bottom of the frame" nor "B pictures" but the combination of
-  a B picture with content in the lower part of the frame. `vflip` also halves
-  nothing: the unflipped stream still loses 14 pictures.
+  a B picture with content in the lower part of the frame. Flipping does not
+  merely move the defect either: the unflipped stream loses all 14 B pictures
+  to a stable 48-row band, while the flipped one loses a single picture to 176
+  zero rows.
 - Accept the graceful-restart path on the production box: `systemctl restart`
   withdraws the overlay and unloads three modules, then loads them again in one
   transaction in 5 s, both nodes return, and a decode smoke test still produces
