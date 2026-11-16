@@ -186,8 +186,14 @@ testsrc2 全对，进一步说明与内容的空间位置有关而不是与码�
 
 D-t2flip 的 `EOS frames=26` 与交付 22 幅的差额仍是帧尾待决，与本缺陷无关。
 
-原始日志与码流：[m4v-geo.log](bq-geometry/m4v-geo.log)，码流与软解参考在
-[bq-geometry/](bq-geometry/)。
+原始日志与码流：[m4v-geo.log](bq-geometry/m4v-geo.log)，三条 `.m4v` 在
+[bq-geometry/](bq-geometry/)。软解参考不入库（每条 2.7 MB，可由码流重新生成）：
+
+```sh
+for f in A-up B-flip D-t2flip; do
+    ffmpeg -c:v mpeg4 -i $f.m4v -f rawvideo -pix_fmt yuv420p $f.ref.yuv
+done
+```
 
 ## 复算修正：本页初版错在哪里
 
