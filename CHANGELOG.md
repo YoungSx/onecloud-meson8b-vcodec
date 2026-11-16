@@ -20,6 +20,12 @@ Tooling only; the installed payload is unchanged from v0.2.0.
   the end-of-stream buffer that is missing the 4 KiB packet and the
   `000001ff` terminator; it applies to pristine v7.3.4 alone and affects every
   platform with an `eos_sequence`.
+- Add `scripts/check-mainline-port.sh`, which applies the research series to a
+  temporary copy of a pristine tree and runs `checkpatch.pl --strict` on each
+  patch, so the port claim is reproducible instead of transcribed.
+- Record the vendor power/clock ordering in the shared-DOS design note: both
+  `vdec_poweron()` and `avc_poweron()` clear the AO sleep bits before enabling
+  the engine clock, which is what a genpd conversion would do.
 
 ## v0.2.0 — 2026-11-15 (pre-release)
 
