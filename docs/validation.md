@@ -43,7 +43,10 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 - 分辨率切换由标准 V4L2 客户端验证 350 帧；FFmpeg 7.0.2 reinit 仍可能
   等待持有的 buffer ref。独立 drain 补丁不宣称修复所有 reinit 行为。
 - 900 张 JPEG、十轮并发、30 分钟与 2 小时持续负载都是有界回归，非无限期
-  生产 soak；过夜验证未做。
+  生产 soak。过夜窗口跑满 6 h 54 min / 7620 轮，末轮出现 1 次 H.264
+  300→299 帧短输出（约 1/1700 次 H.264 运行）；随后 200 次定向复现全部
+  通过，根因未定，见 [过夜记录](../evidence/p6-2026-11-16/soak-overnight-v020.md)
+  与 [短输出复现](../evidence/p6-2026-11-16/h264-tail-race.md)。
 - 未替换启动内核、未重启验收自动加载。主线移植只到编译级：v7.3.4 上模块、
   DTB 与 binding 检查通过，未上 S805 实机；`0013` 实现了采集字节序转换，
   STREAMON 不再拒绝，`0014` 在调用方允许时改用 NEON，但该路径未经实机
@@ -71,7 +74,13 @@ python3 scripts/verify-hashes.py software.md5 hardware.md5
 
 持续负载用 `bash scripts/soak.sh <分钟>`：每轮 HEVC 1080p 解码比对软件
 参考、每五轮 H.264 1080p 解码，每轮 H.264 与 JPEG 编码，记录温度、内存、
-CMA 与设备状态，首次失败即停止。它只覆盖编解码栈，不替代服务共存检查。
+CMA 与设备状态，首次失败即停止。
+
+服务共存在同一负载上跑 `bash scripts/service-coexist.sh <分钟> [采样秒]`：
+它把上面的负载放到后台，按采样间隔探测 OpenList、SublinkPro、VoCat 与
+Home Assistant 的 HTTP 入口，并以自身日志行推进确认 Arcane agent 在服务；
+任何服务不可达或负载失败都记为失败。短输出等偶发问题用
+`bash scripts/h264-tail-race.sh <次数>` 定向重复，保留首个差异行。
 
 缺失/损坏固件应有界失败，恢复后新会话应正常。损坏流可能输出部分帧且
 FFmpeg 返回 0；验收必须检查内容。完整测试后核查服务、内存回收、dmesg

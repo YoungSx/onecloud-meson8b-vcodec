@@ -1,0 +1,32 @@
+frame 5 bytes 3386 flags 0x4001
+frame 6 bytes 3196 flags 0x4001
+frame 7 bytes 3451 flags 0x4001
+frame 8 bytes 3353 flags 0x4001
+frame 9 bytes 3405 flags 0x4001
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+frame 0 bytes 5597 flags 0x4009
+frame 1 bytes 5806 flags 0x4009
+frame 2 bytes 6122 flags 0x4009
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-16T12:18:27+08:00 iter=7618 temp=54C MemFree:=299 MemAvailable:=529 CmaTotal:=64 CmaFree:=44 video0=up video1=up
+PASS: 30/30 frame hashes match
+frame 0 bytes 2900 flags 0x4009
+frame 1 bytes 1571 flags 0x4001
+frame 2 bytes 3447 flags 0x4001
+frame 3 bytes 3232 flags 0x4001
+frame 4 bytes 3350 flags 0x4001
+frame 5 bytes 3386 flags 0x4001
+frame 6 bytes 3196 flags 0x4001
+frame 7 bytes 3451 flags 0x4001
+frame 8 bytes 3353 flags 0x4001
+frame 9 bytes 3405 flags 0x4001
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+frame 0 bytes 5597 flags 0x4009
+frame 1 bytes 5806 flags 0x4009
+frame 2 bytes 6122 flags 0x4009
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-16T12:18:29+08:00 iter=7619 temp=54C MemFree:=299 MemAvailable:=530 CmaTotal:=64 CmaFree:=44 video0=up video1=up
+PASS: 30/30 frame hashes match
+FAIL: software 300 frames, hardware 299 frames
+2026-11-16T12:18:38+08:00 iter=7620 FAIL h264 hashes
+2026-11-16T12:18:38+08:00 SOAK_DONE iter=7620 FAILS=1 elapsed=24855s

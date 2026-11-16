@@ -9,6 +9,11 @@ Tooling only; the installed payload is unchanged from v0.2.0.
 
 - Add `scripts/soak.sh`, the bounded decode/encode soak used for the sustained
   load runs, and document it in the validation guide.
+- Add `scripts/service-coexist.sh`, which runs that soak while probing the
+  box's production services, and `scripts/h264-tail-race.sh`, which repeats
+  the 1080p decode that came up one frame short in the overnight run. Record
+  both results: the overnight window ends on that single failure, and 200
+  targeted repeats did not reproduce it.
 - Authenticate the pinned vendor source fetch with `GITHUB_TOKEN` and back off
   across the 429s shared CI runners get, instead of failing the host job.
 - Rebase the research series onto mainline v7.3.4: it applies with no
