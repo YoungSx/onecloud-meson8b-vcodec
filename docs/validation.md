@@ -98,7 +98,11 @@ CMA 与设备状态，首次失败即停止。
 它把上面的负载放到后台，按采样间隔探测 OpenList、SublinkPro、VoCat 与
 Home Assistant 的 HTTP 入口，并以自身日志行推进确认 Arcane agent 在服务；
 任何服务不可达或负载失败都记为失败。短输出等偶发问题用
-`bash scripts/h264-tail-race.sh <次数>` 定向重复，保留首个差异行。
+`bash scripts/h264-tail-race.sh <次数>` 定向重复，保留首个差异行；它在空闲
+机器上单跑该解码，而唯一一次真实失败发生在混载中，所以
+`bash scripts/h264-shortload.sh <轮数>` 复刻负载顺序（先 HEVC 解码，再被测
+H.264 解码，之后 H.264/JPEG 硬件编码），同样在首次短输出时保留
+framemd5 与 dmesg 尾部。
 
 缺失/损坏固件应有界失败，恢复后新会话应正常。损坏流可能输出部分帧且
 FFmpeg 返回 0；验收必须检查内容。完整测试后核查服务、内存回收、dmesg
