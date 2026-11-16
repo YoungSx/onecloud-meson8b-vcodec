@@ -24,8 +24,9 @@ Tooling and evidence only; the payload is unchanged from v0.2.1.
   real failure, instead of on an idle box: 400 rounds of HEVC decode, then the
   300-frame H.264 decode, then H.264 and JPEG hardware encodes, all through
   the same CMA, still returned 300 frames with matching hashes every time.
-  Six hundred targeted repeats now exist and none reproduces it, so the cause
-  stays unattributed rather than fixed.
+  At the observed rate that clean result was the likely one (about 0.79), so
+  it narrows the condition rather than clearing it; 600 targeted repeats now
+  exist and none reproduces it, and the cause stays unattributed.
 - Accept the graceful-restart path on the production box: `systemctl restart`
   withdraws the overlay and unloads three modules, then loads them again in one
   transaction in 5 s, both nodes return, and a decode smoke test still produces
