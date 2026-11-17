@@ -31,6 +31,9 @@ for i in $(seq 1 "$N"); do
         first=$(diff /tmp/race-ref.txt /tmp/race-hw.txt | grep -m1 "^[<>]")
         echo "$i SHORT rc=$rc n=$n first_diff=$first" >> "$LOG"
         cp /tmp/race.md5 "$D/p6/race-short-$i.md5"
+        # The persistent log keeps the timeline a dmesg tail can miss.
+        LC_ALL=C grep "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
+            | tail -200 > "$D/p6/race-short-$i.kern.log" || true
     fi
 done
 echo "ok=$(grep -c ' ok ' "$LOG") short=$(grep -c SHORT "$LOG") mismatch=$(grep -c HASHMISMATCH "$LOG")" >> "$LOG"

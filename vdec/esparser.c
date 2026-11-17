@@ -268,7 +268,18 @@ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 	ret = esparser_write_data(core, eos_paddr, len + pad_size);
 	dma_free_coherent(dev, span, eos_vaddr, eos_paddr);
 
-	return ret;
+	/* A timed-out write used to return 0, hiding a drain terminator that
+	 * never reached the parser; the final picture then stays in the
+	 * firmware with no kernel trace. Callers still ignore the return;
+	 * this only makes the failure observable.
+	 */
+	if (ret <= 0) {
+		dev_err(dev, "esparser: EOS write %s, drain terminator not delivered\n",
+			ret ? "was interrupted" : "timed out");
+		return ret ? : -ETIMEDOUT;
+	}
+
+	return 0;
 }
 
 static u32 esparser_get_offset(struct amvdec_session *sess)

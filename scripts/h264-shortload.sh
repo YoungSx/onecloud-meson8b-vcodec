@@ -47,6 +47,11 @@ for i in $(seq 1 "$ROUNDS"); do
         cp /tmp/sl-h264.md5 "$D/p6/short-$i.md5" 2>/dev/null
         tail -40 /dev/kmsg > "$D/p6/short-$i.dmesg" 2>/dev/null \
             || dmesg | tail -40 > "$D/p6/short-$i.dmesg"
+        # The persistent log keeps the whole timeline; dmesg tail 40 may miss
+        # where the frame was lost (the failed overnight run left no dmesg
+        # trace at all, and kern.log did).
+        LC_ALL=C grep "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
+            | tail -200 > "$D/p6/short-$i.kern.log" || true
         break
     fi
     if python3 "$D/p5/verify-hashes.py" "$REF" /tmp/sl-h264.md5 \

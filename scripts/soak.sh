@@ -12,6 +12,15 @@ LOG=$D/soak.log
 FAILS=0
 : > "$LOG"
 say() { echo "$(date -Iseconds) $*" >> "$LOG"; }
+# The failing framemd5 and the persistent kern.log window are the only
+# attribution evidence for a short output; dmesg alone has none of the
+# timeline and the framemd5 was overwritten last time.
+keep_failure() {
+    cp /tmp/soak-hevc.md5 "$D/soak-fail-hevc.md5" 2>/dev/null || true
+    cp /tmp/soak-h264.md5 "$D/soak-fail-h264.md5" 2>/dev/null || true
+    LC_ALL=C grep "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
+        | tail -200 > "$D/soak-fail-kern.log" || true
+}
 
 say "== soak start minutes=$MINUTES"
 start=$(date +%s)
@@ -23,30 +32,30 @@ while [ "$(date +%s)" -lt "$end" ]; do
     if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v hevc_v4l2m2m \
         -num_capture_buffers 8 -i "$D/1080p.mp4" -pix_fmt nv12 \
         -f framemd5 -y /tmp/soak-hevc.md5; then
-        say "iter=$iter FAIL hevc decode"; FAILS=$((FAILS + 1)); break
+        say "iter=$iter FAIL hevc decode"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     if ! python3 "$D/p5/verify-hashes.py" "$D/p5/software-1080.md5" \
         /tmp/soak-hevc.md5 >> "$LOG" 2>&1; then
-        say "iter=$iter FAIL hevc hashes"; FAILS=$((FAILS + 1)); break
+        say "iter=$iter FAIL hevc hashes"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     if [ $((iter % 5)) -eq 0 ]; then
         if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v h264_v4l2m2m \
             -num_capture_buffers 10 -i "$D/p5/h264-1080p-baseline.mp4" \
             -pix_fmt nv12 -f framemd5 -y /tmp/soak-h264.md5; then
-            say "iter=$iter FAIL h264 decode"; FAILS=$((FAILS + 1)); break
+            say "iter=$iter FAIL h264 decode"; FAILS=$((FAILS + 1)); keep_failure; break
         fi
         if ! python3 "$D/p5/verify-hashes.py" \
             "$D/p5/h264-1080p-baseline.md5" /tmp/soak-h264.md5 >> "$LOG" 2>&1; then
-            say "iter=$iter FAIL h264 hashes"; FAILS=$((FAILS + 1)); break
+            say "iter=$iter FAIL h264 hashes"; FAILS=$((FAILS + 1)); keep_failure; break
         fi
     fi
     if ! timeout -k 5 60 "$ET" /dev/video1 /tmp/soak.h264 /tmp/soak.nv12 \
         320 240 10 NV12 90 H264 >> "$LOG" 2>&1; then
-        say "iter=$iter FAIL h264 encode"; FAILS=$((FAILS + 1)); break
+        say "iter=$iter FAIL h264 encode"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     if ! timeout -k 5 60 "$ET" /dev/video1 /tmp/soak.mjpg /tmp/soak.nv12 \
         320 240 3 NV12 90 JPEG >> "$LOG" 2>&1; then
-        say "iter=$iter FAIL jpeg encode"; FAILS=$((FAILS + 1)); break
+        say "iter=$iter FAIL jpeg encode"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     temp=$(cat /sys/class/thermal/thermal_zone0/temp)
     mem=$(awk '/MemFree|MemAvailable/ {printf "%s=%d ", $1, $2/1024}' /proc/meminfo)
