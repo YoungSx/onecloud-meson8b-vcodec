@@ -18,6 +18,13 @@ MPEG-2 帧尾、H.264/HEVC 解码与 H.264/JPEG 编码，然后跑满 30 分钟�
 | meson-venc.ko md5 | `2507c7cc69fb1b00943fb21e2c615800` |
 | meson8b-runtime.ko md5 | `75c8e3c2baf7290ce5c03bcdbd62dfe0` |
 
+表中模块是本机交叉构建、实际安装的版本。GitHub Release `v0.3.0` 的运行包由
+CI 从 `abee6f6`（`0a0542b` 之后只改文档、证据和脚本）构建：`meson-vdec.ko`、
+`meson-venc.ko` 与上表 md5 相同；`meson8b-runtime.ko` 为
+`af61f4dea7b68e06015d78d5dc52ab05`，与安装版的差别只在嵌入的源文件路径字符串
+（`.rodata.str1.4`）和随之变化的 build-id，`.text`、`.init.text`、`.exit.text`
+与 `.modinfo` 逐字节相同；v0.2.1 的 Release 包也是这一 md5。
+
 包按 400 KiB 分块经 DERP 传输，逐块 md5 与本机清单一致后重组，重组后
 包 sha256 与本机相同。安装沿用既有升级路径：移除旧安装，再以新状态
 目录 `codec-state-v030-install` 安装；14:37:04 停 unit，14:37:34 安装后
