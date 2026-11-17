@@ -61,7 +61,12 @@ Review points to carry forward:
   `max(len, 4 KiB) + SEARCH_PATTERN_LEN`, pad, and write `len + pad_size`.
   It applies to pristine v7.3.4 by itself and affects every platform with an
   `eos_sequence`, not just Meson8b; MPEG-2 recovers its last two pictures
-  (88 → 90 frames) and the 150-frame B-frame stream returns all 150.
+  (88 → 90 frames). The 150-frame B-frame stream is not deterministic even
+  with the fix: repeated runs on the Meson8b branch delivered 149 or 150
+  pictures, and a short run loses the last picture in decode order, so the
+  padding fix is necessary but the final picture's release is still
+  unreliable. That branch also logs the EOS write timeout in
+  `esparser_queue_eos()`; the standalone patch does not.
 - S805 lacks canvas endianness controls, so reference buffers stay separate
   from CPU-visible output; a cached alias plus explicit synchronization makes
   the byte-order conversion practical. `0013` does exactly that: one private

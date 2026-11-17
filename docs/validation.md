@@ -1,10 +1,11 @@
 # 验证范围与证据
 
-下列结果来自 **2026-11-16 及之前的 OneCloud 实机记录**，原内核
+下列结果来自 **2026-11-17 及之前的 OneCloud 实机记录**，原内核
 `5.15.79-meson`，64 MiB CMA。2026-11-14 完整验收对应 `bd1cb79`；
-在役机 2026-11-15 起安装 `c20a473`（v0.2.0 包，含 P1–P5 编码扩展、
-NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动继承
-新二进制的硬件验收。[部署快照](rollout-status.md)包含包哈希和服务状态。
+在役机 2026-11-15 起安装 `c20a473`（v0.2.0 包），2026-11-17 起安装
+`0a0542b`（v0.3.0 包，含 P1–P5 编码扩展、NEON、MPEG/VC-1 drain 修复
+与 EOS 超时可观测）。后续文档、打包和 CI 变更不自动继承新二进制的
+硬件验收。[部署快照](rollout-status.md)包含包哈希和服务状态。
 
 | 项目 | 已验证结果 | 证据 |
 | --- | --- | --- |
@@ -16,9 +17,11 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
 | JPEG 编码 | 八组输入矩阵；3×300 张 1080p 图像软解；质量、时间戳、互斥及 EOS | [JPEG](../evidence/P6-JPEG-ENCODE-ACCEPTANCE-2026-11-14.md) / [Long run](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | H.264 并发转码 | 1080p B 帧输入十轮 60 帧完整；PSNR 最低 45.03 dB、平均 45.82 dB | [Concurrent B frames](../evidence/BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | 解码输出转换（候选模块） | NEON 后 1080p 每帧 6.8–8.3 ms（标量 15.2–16.1 ms）；左偏移窗口 7.3–8.5 ms；1360x768/1600x900 canvas 修复后哈希一致 | [Decoder convert](../evidence/P5-DECODER-CONVERT-2026-11-15.md) |
-| MPEG-1/2 drain 帧尾 | 90 帧参考流由 88 恢复为 90（99% 像素与软件参考相同，差异为舍入）；150 帧 B 帧流返回全部 150 帧 | [Drain EOS](../evidence/p6-2026-11-15/drain-eos.md) |
+| MPEG-1/2 drain 帧尾 | 90 帧参考流由 88 恢复为 90（99% 像素与软件参考相同，差异为舍入）；150 帧 B 帧流交付 149 或 150 帧（20 次中 14 次 150），短输出缺解码序最后一幅 B 帧，其余帧在位一致 | [Drain EOS](../evidence/p6-2026-11-15/drain-eos.md) / [B 帧交付](../evidence/p6-2026-11-17/m2v-bf-delivery.md) |
 | VC-1 drain 复验 | 两个 FATE 样片唯一图 6/7、14/15，硬解图像与软解逐字节相同，比旧模块多恢复末一幅 | [VC-1 drain](../evidence/p6-2026-11-15/vc1-drain.md) |
 | v0.2.0 运行包部署 | 包校验 52 文件通过，安装后服务 active；MPEG-2 90 帧复验、H.264/HEVC 解码、H.264/JPEG 编码回归通过 | [v0.2.0 deploy](../evidence/p6-2026-11-15/v020-deploy.md) |
+| v0.3.0 运行包部署 | 包校验 53 文件通过，安装后服务 active、四个 HTTP 入口 200；MPEG-2 90 帧 md5 与 v0.2.0 相同，H.264/HEVC 解码与 H.264/JPEG 编码回归通过 | [v0.3.0 deploy](../evidence/p6-2026-11-17/v030-deploy.md) |
+| 30 分钟持续负载（v0.3.0） | 525 轮 0 失败；HEVC 30/30 与 H.264 300/300 逐帧哈希全部匹配；CMA 与可用内存无单调下降，窗口内 0 条内核警告 | [Soak v0.3.0](../evidence/p6-2026-11-17/v030-deploy.md) |
 | 30 分钟持续负载 | 545 轮 0 失败；HEVC 30/30 与 H.264 300/300 逐帧哈希全部匹配；CMA 与可用内存无单调下降，dmesg 无警告 | [Soak v0.2.0](../evidence/p6-2026-11-15/soak-30min-v020.md) |
 | 2 小时持续负载 | 2205 轮 0 失败；66150 帧 HEVC 与 132300 帧 H.264 逐帧哈希全部匹配；CMA 与可用内存无下降趋势，dmesg 无警告 | [Soak 2h](../evidence/p6-2026-11-15/soak-2h-v020.md) |
 | 原有服务与回滚 | OpenList、Arcane、Home Assistant、SublinkPro、VoCat 均运行；加载/卸载/固件恢复通过 | [Final state](../evidence/hevc-2026-11-14/verified-live-state.log) / [Autoload](../evidence/hevc-2026-11-14/autoload-cycle.log) |
@@ -72,7 +75,7 @@ NEON 与 MPEG/VC-1 drain 修复）。后续文档、打包和 CI 变更不自动
   STREAMON 不再拒绝，`0014` 在调用方允许时改用 NEON，但该路径未经实机
   验证、驱动内收益未测量；上游结论记在 Discussions，不向上游提交。
 - CPU 输出字节序转换与编码输入拷贝存在，非端到端零拷贝；NEON 转换
-  自 `cd4e6b5` 起包含在安装包中，当前在役机的 `c20a473` 包同样包含。
+  自 `cd4e6b5` 起包含在安装包中，当前在役机的 `0a0542b` 包同样包含。
 - 解码输出按 canvas 对齐尺寸（32 字节行宽、32 行高）补零，`bytesused`
   即该尺寸；左偏移不是 8 字节倍数的裁剪窗口走逐字节路径，约 21–23 ms/1080p。
 
@@ -104,7 +107,9 @@ Home Assistant 的 HTTP 入口，并以自身日志行推进确认 Arcane agent 
 机器上单跑该解码，而唯一一次真实失败发生在混载中，所以
 `bash scripts/h264-shortload.sh <轮数>` 复刻负载顺序（先 HEVC 解码，再被测
 H.264 解码，之后 H.264/JPEG 硬件编码），同样在首次短输出时保留
-framemd5 与 dmesg 尾部。
+framemd5 与 dmesg 尾部。MPEG-2 B 帧流的交付帧数用
+`bash scripts/m2v-bf-delivery.sh <次数>` 逐次统计：同一输入得到 149 或
+150，单次 150 不能当作结论。
 
 缺失/损坏固件应有界失败，恢复后新会话应正常。损坏流可能输出部分帧且
 FFmpeg 返回 0；验收必须检查内容。完整测试后核查服务、内存回收、dmesg

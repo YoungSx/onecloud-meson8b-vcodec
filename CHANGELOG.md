@@ -5,10 +5,42 @@ recorded OneCloud kernel and device-tree ABI. A patch release may ship the
 same modules as its predecessor when only documentation, evidence or tooling
 changed.
 
-## Unreleased
+## v0.3.0 — 2026-11-17
 
-Tooling and evidence only; the payload is unchanged from v0.2.1.
+First payload change since v0.2.1: `esparser_queue_eos()` now reports a drain
+terminator that times out instead of returning 0. The driver does not retry
+and still does not change the drain; `meson-vdec.ko` differs from v0.2.1,
+the other two modules do not. The package built from `0a0542b` was deployed
+to the production box on 2026-11-17 and passed the regression set and a
+30-minute soak (525 iterations, 0 failures); see
+[v0.3.0 deploy](evidence/p6-2026-11-17/v030-deploy.md). Commits after
+`0a0542b` in this release change only documentation, evidence and scripts.
 
+- Make the EOS drain timeout observable: `esparser_write_data()` returns the
+  remaining wait count, so a 200 ms search-interrupt timeout used to come back
+  as 0, indistinguishable from success, with all four callers ignoring it.
+  `esparser_queue_eos()` now logs `drain terminator not delivered` and returns
+  `-ETIMEDOUT` in that case. The driver still does not retry.
+- Report where a hash mismatch diverges: `scripts/verify-hashes.py` says
+  whether the hardware output is a prefix of the reference (a lost tail, the
+  EOS/DPB family) or names the first differing frame (interior loss), so the
+  next short output is classified instead of only counted. Host tests cover
+  all four divergence shapes.
+- Keep the failure artifacts: `soak.sh`, `h264-shortload.sh` and
+  `h264-tail-race.sh` preserve the failing framemd5 and the persistent
+  `/var/log/kern.log` window, because the one real failure left no dmesg
+  trace and the framemd5 was overwritten.
+- Add `scripts/m2v-bf-delivery.sh`, which counts MPEG-2 B-frame delivery per
+  run, and `scripts/m2v-frame-order.py`, which places each captured picture
+  by its luma. The 8x8 grid signature of `m4v-frame-compare.py` cannot tell
+  two adjacent pictures of that stream apart and reported the wrong one.
+- Correct the MPEG-2 B-frame claim: the 150-picture stream delivers 149 or
+  150 frames, not always 150; 14 of 20 runs were full. A short run loses the
+  last picture in decode order, the B picture shown at position 148, and
+  every other picture stays in place. The new EOS log stayed silent, so the
+  end code was delivered. Appending a picture header recovers the picture in
+  16 of 16 runs but adds a duplicate of the last one in 8, so the drain is
+  left unchanged.
 - Check the shipped NEON body rather than a copy of it: `tests/test_swap_neon.c`
   includes `vdec/meson8b-swap-neon.c` and compares it with
   `__builtin_bswap64`, so `make test` fails if the two ever disagree.
