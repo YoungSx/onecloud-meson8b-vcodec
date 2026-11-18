@@ -391,8 +391,8 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 }
 
 /* Feed every m2m OUTPUT buffer waiting in the queue into the ESPARSER.
- * Stops early on should_stop or when the VIFIFO is full (-EAGAIN leaves
- * the buffer queued for the next run). */
+ * Stops early on should_stop, once the session has ended, or when the
+ * VIFIFO is full (-EAGAIN leaves the buffer queued for the next run). */
 void esparser_queue_all(struct amvdec_session *sess)
 {
 	struct v4l2_m2m_buffer *buf, *n;
@@ -400,6 +400,13 @@ void esparser_queue_all(struct amvdec_session *sess)
 	mutex_lock(&sess->lock);
 	v4l2_m2m_for_each_src_buf_safe(sess->m2m_ctx, buf, n) {
 		if (sess->should_stop)
+			break;
+
+		/* STREAMOFF of either queue while running ends the session
+		 * and frees its VIFIFO, which the ESPARSER still points at;
+		 * input queued on the other queue must not be written there.
+		 */
+		if (sess->status == STATUS_STOPPED)
 			break;
 
 		/* For formats without dynamic-resolution events, the
