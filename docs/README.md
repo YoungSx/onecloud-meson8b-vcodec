@@ -21,7 +21,7 @@
 | 发布历史 | [Changelog](../CHANGELOG.md) |
 | 上游结论、共享 DOS 所有权设计 | [linux-media 结论](linux-media-rfc.md) / [Power domain](power-domain-design.md) |
 
-[部署快照](rollout-status.md)记录在役机当前安装的 `0a0542b` 包及
+[部署快照](rollout-status.md)记录在役机当前安装的 v0.3.0 发布包及
 2026-11-14 `bd1cb79` 验收版本，并非新版本的安装指令。[验收索引](../evidence/README.md)指向原始证据。
 [历史索引](history/README.md)保留研究阻断、开发日志和 HEVC 来源核查；
 [linux-media 结论](linux-media-rfc.md)记录在 Discussions，本项目不向上游提交；[共享 DOS 所有权设计](power-domain-design.md)

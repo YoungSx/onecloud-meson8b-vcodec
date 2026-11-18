@@ -38,15 +38,16 @@ Independent tools and all scripts are covered by the manifest.
 Installed at /opt/meson8b-vcodec/current. The enabled and active
 meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
 
-Current installation (2026-11-17): package source commit 0a0542b (v0.3.0),
-kernel release 5.15.79-meson, state
-/root/venc-deploy/p6/codec-state-v030-install. Module hashes meson-vdec
+Current installation (2026-11-17 23:27): the GitHub release v0.3.0 runtime
+package, built by CI from abee6f6, kernel release 5.15.79-meson, state
+/root/venc-deploy/p6/codec-state-v030-release. Module hashes meson-vdec
 c60842e8ffc02a1c, meson-venc 2507c7cc69fb1b00, meson8b-runtime
-75c8e3c2baf7290c; firmware files unchanged. The package was verified
-53/53 against its SHA256SUMS and installed with a fresh state directory;
-see evidence/p6-2026-11-17/v030-deploy.md for the regression and 30-minute
-soak, and evidence/p6-2026-11-15/v020-deploy.md for the v0.2.0 install that
-superseded cd4e6b5.
+af61f4dea7b68e06; firmware files unchanged. It replaced the locally built
+0a0542b package, whose driver code is byte-identical (only the embedded
+build path differs), and passed the regression set again; see
+evidence/p6-2026-11-17/v030-deploy.md for both installs, the regression and
+the 30-minute soak, and evidence/p6-2026-11-15/v020-deploy.md for the v0.2.0
+install that superseded cd4e6b5.
 
 The first 30-minute soak stopped after 191 iterations (0 failures), short of
 its window, and the box reset afterwards. The USB disk behind /mnt/sda2 then
@@ -100,7 +101,9 @@ On 2026-11-17 the v0.3.0 package (source commit 0a0542b, which only adds the
 EOS-write timeout log and tooling) replaced it: 53/53 files verified, same
 MPEG-2 reference md5, H.264 300/300, HEVC 30/30, both encode checks and all
 four HTTP services passing, then 525 soak iterations over 30 minutes with 0
-failures and no kernel warning in the window.
+failures and no kernel warning in the window. The same evening the GitHub
+release package replaced that local build and passed the regression set
+again.
 See evidence/p6-2026-11-17/v030-deploy.md.
 
 The same rerun corrected the MPEG-2 B-frame count: a 150-picture stream

@@ -18,12 +18,13 @@ MPEG-2 帧尾、H.264/HEVC 解码与 H.264/JPEG 编码，然后跑满 30 分钟�
 | meson-venc.ko md5 | `2507c7cc69fb1b00943fb21e2c615800` |
 | meson8b-runtime.ko md5 | `75c8e3c2baf7290ce5c03bcdbd62dfe0` |
 
-表中模块是本机交叉构建、实际安装的版本。GitHub Release `v0.3.0` 的运行包由
-CI 从 `abee6f6`（`0a0542b` 之后只改文档、证据和脚本）构建：`meson-vdec.ko`、
-`meson-venc.ko` 与上表 md5 相同；`meson8b-runtime.ko` 为
-`af61f4dea7b68e06015d78d5dc52ab05`，与安装版的差别只在嵌入的源文件路径字符串
+表中模块是本机交叉构建的版本，本文的回归与负载都在它上面完成。GitHub Release
+`v0.3.0` 的运行包由 CI 从 `abee6f6`（`0a0542b` 之后只改文档、证据和脚本）构建：
+`meson-vdec.ko`、`meson-venc.ko` 与上表 md5 相同；`meson8b-runtime.ko` 为
+`af61f4dea7b68e06015d78d5dc52ab05`，与本机构建的差别只在嵌入的源文件路径字符串
 （`.rodata.str1.4`）和随之变化的 build-id，`.text`、`.init.text`、`.exit.text`
-与 `.modinfo` 逐字节相同；v0.2.1 的 Release 包也是这一 md5。
+与 `.modinfo` 逐字节相同；v0.2.1 的 Release 包也是这一 md5。当晚该 Release
+包替换了本机构建并重新回归，见文末「正式发布包安装」。
 
 包按 400 KiB 分块经 DERP 传输，逐块 md5 与本机清单一致后重组，重组后
 包 sha256 与本机相同。安装沿用既有升级路径：移除旧安装，再以新状态
@@ -96,3 +97,25 @@ CMA 与可用内存在窗口内没有单调下降（CmaFree 前后 50 轮均值 
 - MPEG-2 B 帧流的交付帧数另见 [m2v-bf-delivery.md](m2v-bf-delivery.md)：
   该流不是每次都返回 150 帧。
 - MPEG-4 尾帧限制与 VC-1 结论不变，见 [drain-eos.md](../p6-2026-11-15/drain-eos.md)。
+
+## 正式发布包安装
+
+23:27 用 GitHub Release `v0.3.0` 的运行包（sha256
+`61156c632a79d8370893248ce3b7e182b9b8ea82e84dcd89b446f4840fff308d`，
+`SOURCE_COMMIT` 为 `abee6f6`）替换本机构建：分块传输后外层与包内 53 个文件
+校验通过，`runtime-device.py check` 通过；`remove-autoload.sh` 移除旧安装并
+恢复固件，再以新状态目录 `codec-state-v030-release` 安装。原始记录见
+[release-install.log](release-install.log)。
+
+| 项目 | 结果 |
+| --- | --- |
+| 安装 | unit `active`、`enabled`，`/dev/video0`、`/dev/video1` 均在 |
+| HEVC 1080p 解码 | `PASS: 30/30 frame hashes match` |
+| H.264 1080p 解码 | `PASS: 300/300 frame hashes match` |
+| MPEG-2 90 帧 | 90 帧，tight md5 `f555b2b0373a7a052455c08d24c59391`，与上文相同 |
+| H.264 / JPEG 编码 | 两项 `PASS` |
+| HTTP 服务 | OpenList、SublinkPro、VoCat、Home Assistant 全部 200 |
+| 内核日志 | 回归窗口内无新增警告 |
+
+30 分钟负载没有在 Release 包上重跑：两者的驱动代码段逐字节相同（见上文
+模块对比），负载结论沿用本机构建的结果。

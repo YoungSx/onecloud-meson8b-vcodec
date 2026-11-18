@@ -1,0 +1,35 @@
+== 2026-11-17T23:27:22+08:00 remove 0a0542b
+Removed /etc/systemd/system/multi-user.target.wants/meson8b-vcodec.service.
+Modules removed, original firmware restored; state backup retained.
+Codec autoload removed, original firmware restored; backup: /root/venc-deploy/p6/codec-state-v030-install
+rc=0
+== 2026-11-17T23:27:31+08:00 install release abee6f6
+Package checksums, kernel, board and overlay providers match.
+Codec devices loaded. Roll back with: /root/venc-deploy/release/v0.3.0/scripts/runtime-device.py rollback /root/venc-deploy/p6/codec-state-v030-release
+Created symlink /etc/systemd/system/multi-user.target.wants/meson8b-vcodec.service → /etc/systemd/system/meson8b-vcodec.service.
+Autoload enabled; original files retained in /root/venc-deploy/p6/codec-state-v030-release
+rc=0
+
+== 2026-11-17T23:36:29+08:00 post-install regression
+== package abee6f6ccace185e058668b5069db014e23245a0
+manifest 53 OK
+unit active enabled
+== hevc 1080p
+PASS: 30/30 frame hashes match
+== h264 1080p
+PASS: 300/300 frame hashes match
+== mpeg2 90-picture
+EOS frames=98 resolutions=1
+90 frames, 10368000 bytes
+pictures=90 tight=f555b2b0373a7a052455c08d24c59391
+== encode
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+== services
+OpenList 200
+SublinkPro 200
+VoCat 200
+HA 200
+== kernel
+no new warnings
+REGRESS_DONE

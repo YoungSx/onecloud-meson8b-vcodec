@@ -35,7 +35,7 @@ module and every ARM DTB, but has not run on S805 hardware — and the
 [Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2) and are not submitted upstream.
 See [capabilities and limits](docs/validation.md).
 The encoder extensions and the MPEG/VC-1 drain fix were validated on
-2026-11-15 and are included in the `0a0542b` package now installed.
+2026-11-15 and are included in the v0.3.0 release package now installed.
 S805's documented encoder formats are H.264 and JPEG; HEVC is decode-only.
 [Encoding feasibility](docs/encoding-feasibility.md) records the hardware
 evidence and further H.264/JPEG development paths.
