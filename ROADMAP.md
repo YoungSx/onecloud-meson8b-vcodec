@@ -4,7 +4,7 @@
 配置下的 1080p 并发转码及可回滚自动加载已完成。实机验收和功能边界见
 [验证指南](docs/validation.md)，开发过程见[历史日志](docs/history/development-log.md)。
 
-P0–P6 已按[开发计划](docs/development-plan.md)全部完成（多分片不含逐片低延迟，
+P0–P6 已按[开发计划](docs/history/development-plan-v0.3.md)全部完成（多分片不含逐片低延迟，
 GE2D 不接入），v0.3.0 是当前正式版。以下为各阶段范围，供后续维护参照：
 
 1. P0：性能、码流质量、延迟与资源基线。
