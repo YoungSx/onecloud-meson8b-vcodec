@@ -439,6 +439,7 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	}
 
 	sess->should_stop = 0;
+	WRITE_ONCE(sess->stop_requested, false);
 	sess->keyframe_found = 0;
 	sess->last_offset = 0;
 	sess->wrap_count = 0;
@@ -911,7 +912,8 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 	if (cmd->cmd == V4L2_DEC_CMD_START) {
 		v4l2_m2m_clear_state(sess->m2m_ctx);
 		sess->should_stop = 0;
-			return 0;
+		WRITE_ONCE(sess->stop_requested, false);
+		return 0;
 	}
 
 	/* Should not happen */
@@ -919,6 +921,7 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 		return -EINVAL;
 
 	dev_dbg(dev, "Received V4L2_DEC_CMD_STOP\n");
+	WRITE_ONCE(sess->stop_requested, true);
 
 	/* Drain input still queued in the m2m OUTPUT queue into the
 	 * ESPARSER before marking the session stopped, or the EOS marker

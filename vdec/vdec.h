@@ -273,6 +273,8 @@ enum amvdec_status {
  * @sequence_cap: capture sequence counter
  * @should_stop: flag set if userspace signaled EOS via command
  *		 or empty buffer
+ * @stop_requested: DEC_CMD_STOP received and not yet followed by START,
+ *		    for every codec, including those that end in firmware
  * @keyframe_found: flag set once a keyframe has been parsed
  * @canvas_alloc: array of all the canvas IDs allocated
  * @canvas_num: number of canvas IDs allocated
@@ -317,6 +319,7 @@ struct amvdec_session {
 	unsigned int streamon_cap, streamon_out;
 	unsigned int sequence_cap, sequence_out;
 	unsigned int should_stop;
+	bool stop_requested;
 	unsigned int keyframe_found;
 	unsigned int num_dst_bufs;
 

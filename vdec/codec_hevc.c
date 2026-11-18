@@ -264,6 +264,8 @@ struct codec_hevc {
 	u32 dpb_size;
 	bool waiting_for_buffer;
 	bool eos_seen;
+	/* the last watchdog check found the client waiting on the decoder */
+	bool client_waited;
 	struct hevc_sps_geometry sps;
 	u32 prev_tid0_poc;
 	u32 slice_segment_addr;
@@ -544,26 +546,60 @@ codec_hevc_setup_workspace(struct amvdec_session *sess,
 	return 0;
 }
 
+/*
+ * The firmware reports no error for a bitstream it cannot parse; it just
+ * stops interrupting. That is a stall only while the client waits on the
+ * decoder, with input the VIFIFO cannot take or a drain in progress.
+ * Otherwise the firmware is waiting for more bitstream, which a slow source
+ * or a paused client may take any time to send. The client must have been
+ * waiting over a whole period without an interrupt, so a drain requested
+ * just before a check still gets its full period.
+ */
+#define HEVC_WATCHDOG_MS	5000
+
 static void codec_hevc_watchdog(struct work_struct *work)
 {
 	struct codec_hevc *hevc = container_of(to_delayed_work(work),
 						struct codec_hevc, watchdog);
 	struct amvdec_session *sess = hevc->sess;
-	bool stalled = false;
+	struct amvdec_core *core = sess->core;
+	u32 queued = v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx);
+	bool drain = READ_ONCE(sess->stop_requested);
+	bool stalled = false, waited;
+	u32 held, undelivered;
 
 	mutex_lock(&hevc->lock);
-	if (!hevc->eos_seen && !hevc->waiting_for_buffer &&
-	    sess->status != STATUS_NEEDS_RESUME &&
-	    atomic_read(&sess->esparser_queued_bufs) > 0) {
-		amvdec_write_dos(sess->core, HEVC_ASSIST_MBOX1_MASK, 0);
-		amvdec_write_dos(sess->core, HEVC_MPSR, 0);
+	waited = !hevc->eos_seen && !hevc->waiting_for_buffer &&
+		 sess->status != STATUS_NEEDS_RESUME &&
+		 atomic_read(&sess->esparser_queued_bufs) > 0 &&
+		 (queued || drain);
+	if (waited && hevc->client_waited) {
+		amvdec_write_dos(core, HEVC_ASSIST_MBOX1_MASK, 0);
+		amvdec_write_dos(core, HEVC_MPSR, 0);
 		stalled = true;
 	}
+	hevc->client_waited = waited;
 	mutex_unlock(&hevc->lock);
-	if (stalled) {
-		dev_warn(sess->core->dev, "HEVC bitstream stalled; ending session\n");
-		amvdec_abort(sess);
+
+	if (!stalled) {
+		/* Keep watching while pictures are still owed. */
+		if (atomic_read(&sess->esparser_queued_bufs) > 0)
+			mod_delayed_work(system_wq, &hevc->watchdog,
+					 msecs_to_jiffies(HEVC_WATCHDOG_MS));
+		return;
 	}
+
+	mutex_lock(&sess->pool.lock);
+	held = sess->pool.state.decoder;
+	undelivered = sess->pool.state.waiting;
+	mutex_unlock(&sess->pool.lock);
+	dev_warn(core->dev,
+		 "HEVC bitstream stalled; ending session (status %x, VIFIFO level %u, %d pictures owed, %u in DPB, slots held %06x undelivered %06x, %u input buffers queued, drain %d)\n",
+		 amvdec_read_dos(core, HEVC_DEC_STATUS_REG),
+		 amvdec_read_dos(core, HEVC_STREAM_LEVEL),
+		 atomic_read(&sess->esparser_queued_bufs), hevc->frames_num,
+		 held, undelivered, queued, drain);
+	amvdec_abort(sess);
 }
 
 static int codec_hevc_start(struct amvdec_session *sess)
@@ -1374,7 +1410,7 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 	struct codec_hevc *hevc = sess->priv;
 	const u8 *data = vb2_plane_vaddr(vb, 0);
 	u32 length = vb2_get_plane_payload(vb, 0), i;
-	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(5000));
+	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
 
 	for (i = 2; i + 2 < length; i++) {
 		u32 end;
@@ -1478,6 +1514,8 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 		return IRQ_HANDLED;
 
 	mutex_lock(&hevc->lock);
+	/* The firmware made progress: the watchdog starts over. */
+	hevc->client_waited = false;
 	if (dec_status == HEVC_NAL_SEARCH_DONE &&
 	    amvdec_read_dos(core, HEVC_ASSIST_SCRATCH_J) == 36) {
 		dev_dbg(core->dev, "HEVC firmware EOS: pending pictures %u\n", hevc->frames_num);
@@ -1526,7 +1564,7 @@ static irqreturn_t codec_hevc_isr(struct amvdec_session *sess)
 {
 	struct codec_hevc *hevc = sess->priv;
 	if (hevc)
-		mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(5000));
+		mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
 	amvdec_write_dos(sess->core, HEVC_ASSIST_MBOX1_CLR_REG, 1);
 	return IRQ_WAKE_THREAD;
 }
