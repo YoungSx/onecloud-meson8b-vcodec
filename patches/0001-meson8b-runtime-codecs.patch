@@ -7227,7 +7227,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,500 @@
+@@ -0,0 +1,509 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/kernel.h>
@@ -7710,13 +7710,22 @@
 +	mutex_unlock(&sess->pool.lock);
 +}
 +
-+/* STREAMOFF of the CAPTURE queue discards what was not delivered. */
-+void amvdec_pool_drop(struct amvdec_session *sess)
++/*
++ * STREAMOFF of the CAPTURE queue discards what was not delivered and hands
++ * back the queued CAPTURE buffers. A delivery takes its buffer off the
++ * queue and copies into it under the pool lock, so returning the rest under
++ * the same lock leaves no copy running into a buffer that vb2 frees next.
++ */
++void amvdec_pool_capture_stop(struct amvdec_session *sess)
 +{
++	struct vb2_v4l2_buffer *buf;
++
 +	cancel_work_sync(&sess->pool.work);
 +	mutex_lock(&sess->pool.lock);
 +	meson8b_pool_drop(&sess->pool.state);
 +	sess->pool.end = AMVDEC_POOL_RUNNING;
++	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
++		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 +	mutex_unlock(&sess->pool.lock);
 +}
 +
@@ -7956,7 +7965,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1390 @@
+@@ -0,0 +1,1391 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8546,9 +8555,10 @@
 +			codec_ops->drain(sess);
 +
 +		if (amvdec_has_pool(sess))
-+			amvdec_pool_drop(sess);
-+		while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
-+			v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
++			amvdec_pool_capture_stop(sess);
++		else
++			while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
++				v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 +
 +		sess->streamon_cap = 0;
 +	}
@@ -10870,7 +10880,7 @@
 +		      const struct amvdec_picture *pic);
 +void amvdec_pool_capture_queued(struct amvdec_session *sess);
 +void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end);
-+void amvdec_pool_drop(struct amvdec_session *sess);
++void amvdec_pool_capture_stop(struct amvdec_session *sess);
 +void amvdec_pool_free(struct amvdec_session *sess);
 +
 +/**

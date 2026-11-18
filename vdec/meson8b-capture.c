@@ -480,13 +480,22 @@ void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end)
 	mutex_unlock(&sess->pool.lock);
 }
 
-/* STREAMOFF of the CAPTURE queue discards what was not delivered. */
-void amvdec_pool_drop(struct amvdec_session *sess)
+/*
+ * STREAMOFF of the CAPTURE queue discards what was not delivered and hands
+ * back the queued CAPTURE buffers. A delivery takes its buffer off the
+ * queue and copies into it under the pool lock, so returning the rest under
+ * the same lock leaves no copy running into a buffer that vb2 frees next.
+ */
+void amvdec_pool_capture_stop(struct amvdec_session *sess)
 {
+	struct vb2_v4l2_buffer *buf;
+
 	cancel_work_sync(&sess->pool.work);
 	mutex_lock(&sess->pool.lock);
 	meson8b_pool_drop(&sess->pool.state);
 	sess->pool.end = AMVDEC_POOL_RUNNING;
+	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
+		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 	mutex_unlock(&sess->pool.lock);
 }
 

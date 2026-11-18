@@ -587,9 +587,10 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 			codec_ops->drain(sess);
 
 		if (amvdec_has_pool(sess))
-			amvdec_pool_drop(sess);
-		while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
-			v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
+			amvdec_pool_capture_stop(sess);
+		else
+			while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
+				v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 
 		sess->streamon_cap = 0;
 	}

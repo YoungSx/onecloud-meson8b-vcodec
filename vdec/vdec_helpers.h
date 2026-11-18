@@ -110,7 +110,7 @@ void amvdec_pool_push(struct amvdec_session *sess, u32 slot,
 		      const struct amvdec_picture *pic);
 void amvdec_pool_capture_queued(struct amvdec_session *sess);
 void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end);
-void amvdec_pool_drop(struct amvdec_session *sess);
+void amvdec_pool_capture_stop(struct amvdec_session *sess);
 void amvdec_pool_free(struct amvdec_session *sess);
 
 /**
