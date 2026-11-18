@@ -4,6 +4,10 @@
  * poll(POLLPRI) -> DQEVENT(SOURCE_CHANGE) -> STREAMOFF(CAPTURE)
  * -> G_FMT/S_FMT(CAPTURE) -> REQBUFS(CAPTURE) -> STREAMON(CAPTURE).
  * Prints one line per decoded frame; exits 0 on clean EOS.
+ * FRAME_DUMP=FILE appends every picture to FILE; FRAME_HASH=FILE writes one
+ * line per picture (index, bytes, FNV-1a 64 of the planes); CAPTURE_BUFFERS=N
+ * requests N CAPTURE buffers (default 8); STOP_DELAY_MS=N waits N ms after
+ * the last input before DEC_CMD_STOP, as a stalled or paused source would.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -32,18 +36,39 @@ struct buffer {
 static int fd;
 static struct buffer outbufs[N_OUT], capbufs[MAX_CAP];
 static int ncap;
+/* CAPTURE buffers to request; CAPTURE_BUFFERS overrides */
+static unsigned int capture_count = 8;
+/* pause between the last input and DEC_CMD_STOP; STOP_DELAY_MS overrides */
+static unsigned int stop_delay_ms;
+/* OUTPUT buffers queued and not yet dequeued */
+static int out_queued;
 /* when FRAME_DUMP is set, every decoded frame's planes are appended
  * there (Y then UV) so the output can be diffed against software
  * decode frame by frame */
 static FILE *dumpf;
+/* when FRAME_HASH is set, one line per non-empty picture goes there, so
+ * runs can be compared picture by picture without storing the pictures */
+static FILE *hashf;
+static unsigned long pictures;
 
 static void dump_frame(struct v4l2_buffer *b)
 {
-	if (!dumpf)
-		return;
-	for (int j = 0; j < capbufs[b->index].nplanes; j++)
-		fwrite(capbufs[b->index].planes[j].start, 1,
-		       b->m.planes[j].bytesused, dumpf);
+	unsigned long long hash = 0xcbf29ce484222325ULL;
+	size_t bytes = 0;
+
+	for (int j = 0; j < capbufs[b->index].nplanes; j++) {
+		const unsigned char *p = capbufs[b->index].planes[j].start;
+		size_t n = b->m.planes[j].bytesused;
+
+		if (dumpf)
+			fwrite(p, 1, n, dumpf);
+		if (hashf)
+			for (size_t i = 0; i < n; i++)
+				hash = (hash ^ p[i]) * 0x100000001b3ULL;
+		bytes += n;
+	}
+	if (hashf && bytes)
+		fprintf(hashf, "%lu %zu %016llx\n", pictures++, bytes, hash);
 }
 
 static void xioctl(int req, void *arg, const char *what)
@@ -106,7 +131,7 @@ static void setup_capture(void)
 	/* Wider than current sizeimage is fine, narrower is not */
 	xioctl(VIDIOC_S_FMT, &fmt, "S_FMT(CAPTURE)");
 
-	rb.count = fmt.fmt.pix_mp.num_planes ? 8 : 8;
+	rb.count = capture_count;
 	rb.type = fmt.type;
 	rb.memory = V4L2_MEMORY_MMAP;
 	xioctl(VIDIOC_REQBUFS, &rb, "REQBUFS(CAPTURE)");
@@ -193,11 +218,33 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	{
+		const char *n = getenv("CAPTURE_BUFFERS");
+
+		if (n) {
+			capture_count = strtoul(n, NULL, 10);
+			if (capture_count < 1 || capture_count > MAX_CAP) {
+				fprintf(stderr, "CAPTURE_BUFFERS must be 1..%d\n", MAX_CAP);
+				return 2;
+			}
+		}
+		n = getenv("STOP_DELAY_MS");
+		if (n)
+			stop_delay_ms = strtoul(n, NULL, 10);
+	}
+	{
 		const char *p = getenv("FRAME_DUMP");
 
 		if (p) {
 			dumpf = fopen(p, "wb");
 			if (!dumpf) {
+				perror(p);
+				return 1;
+			}
+		}
+		p = getenv("FRAME_HASH");
+		if (p) {
+			hashf = fopen(p, "w");
+			if (!hashf) {
 				perror(p);
 				return 1;
 			}
@@ -234,10 +281,12 @@ int main(int argc, char **argv)
 	}
 	fclose(es);
 
-	/* Aggregate into access units: a new AU starts at a
-	 * slice (nal 1/5) or SPS (7) start code; SEI/AUD/PPS are
-	 * folded into the AU they precede. Boundaries are 3- or
-	 * 4-byte start codes (00 00 01 / 00 00 00 01).
+	/* Aggregate into access units, one per OUTPUT buffer as the
+	 * driver expects. Once the current AU holds a slice, the next
+	 * AU starts at a parameter set, AUD or prefix SEI, or at a slice
+	 * that begins a picture (first_mb_in_slice 0 for H.264,
+	 * first_slice_segment_in_pic_flag for HEVC). Boundaries are 3-
+	 * or 4-byte start codes (00 00 01 / 00 00 00 01).
 	 * Motion-JPEG instead delimits frames with SOI (ff d8 ff),
 	 * so split there. */
 	chunks = malloc(sizeof(size_t) * (eslen + 2));
@@ -261,26 +310,32 @@ int main(int argc, char **argv)
 		while (pos < eslen) {
 			long next = eslen;
 			long scan;
+			int have_slice = 0;
 
-			for (scan = pos + 4; scan < eslen - 1; scan++) {
-				int sc3, nal;
+			for (scan = pos + 2; scan < eslen - 3; scan++) {
+				int slice, starts_au, nal;
 
 				if (esbuf[scan - 2] || esbuf[scan - 1] || esbuf[scan] != 1)
 					continue;
-				sc3 = 1;
-				if (scan >= 4 && esbuf[scan - 3] == 0)
-					sc3 = 0; /* 4-byte start code */
 				if (out_fourcc == V4L2_PIX_FMT_HEVC) {
 					nal = (esbuf[scan + 1] >> 1) & 0x3f;
-					if (nal > 31 && nal != 32)
-						continue;
+					slice = nal <= 31;
+					starts_au = slice ? esbuf[scan + 3] & 0x80 :
+						    (nal >= 32 && nal <= 35) || nal == 39;
 				} else {
 					nal = esbuf[scan + 1] & 0x1f;
-					if (nal != 1 && nal != 5 && nal != 7)
-						continue;
+					slice = nal == 1 || nal == 5;
+					starts_au = slice ? esbuf[scan + 2] & 0x80 :
+						    nal >= 6 && nal <= 9;
 				}
-				next = scan - (sc3 ? 2 : 3);
-				break;
+				if (have_slice && starts_au) {
+					/* 4-byte start codes keep their leading zero */
+					next = scan - 2;
+					if (next > pos && esbuf[next - 1] == 0)
+						next--;
+					break;
+				}
+				have_slice |= slice;
 			}
 			if (next > pos) {
 				chunks[nchunks++] = next - pos;
@@ -315,6 +370,7 @@ int main(int argc, char **argv)
 		b.m.planes = planes;
 		planes[0].bytesused = chunks[0];
 		xioctl(VIDIOC_QBUF, &b, "QBUF(OUTPUT)");
+		out_queued++;
 		chunk_idx = 1;
 		espos = chunks[0];
 	}
@@ -398,21 +454,16 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		/* All chunks queued AND all OUTPUT buffers completed:
-		 * the esparser has consumed the whole stream, so it is
-		 * safe to enter the drain sequence. */
 		/* All chunks queued: drain remaining OUTPUT completions so
 		 * the esparser queue is empty, then enter drain mode. */
 		if (chunk_idx >= nchunks && !eos) {
 			struct v4l2_decoder_cmd cmd = { .cmd = V4L2_DEC_CMD_STOP };
-			int out_pending = N_OUT;
 
-			/* At this point every OUTPUT buffer was queued; some
-			 * are still in flight. Non-blocking DQBUF(OUTPUT)
-			 * returns EAGAIN until more complete, so poll the fd
-			 * and keep draining both queues.
+			/* Non-blocking DQBUF(OUTPUT) returns EAGAIN until
+			 * more complete, so poll the fd and keep draining
+			 * both queues.
 			 */
-			while (out_pending > 0) {
+			while (out_queued > 0) {
 				struct pollfd dpfd = { .fd = fd,
 					.events = POLLOUT | POLLIN | POLLPRI };
 
@@ -425,7 +476,7 @@ int main(int argc, char **argv)
 					b.m.planes = planes;
 					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
 						break;
-					out_pending--;
+					out_queued--;
 				}
 				for (;;) {
 					b.type = cap_type;
@@ -439,6 +490,9 @@ int main(int argc, char **argv)
 					xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 				}
 			}
+			/* Idle meanwhile, like a client blocked on its source */
+			if (stop_delay_ms)
+				usleep(stop_delay_ms * 1000);
 			xioctl(VIDIOC_DECODER_CMD, &cmd, "DEC_CMD_STOP");
 			eos = 1;
 		}
