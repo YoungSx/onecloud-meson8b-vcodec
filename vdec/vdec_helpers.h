@@ -88,9 +88,40 @@ void amvdec_src_change(struct amvdec_session *sess, u32 width,
  */
 void amvdec_abort(struct amvdec_session *sess);
 void amvdec_flush_capture_buffers(struct amvdec_session *sess);
-void amvdec_meson8b_free_capture(struct amvdec_session *sess);
-int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
-			      struct vb2_buffer *vb, dma_addr_t addr[2]);
-int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
-			      struct vb2_buffer *vb);
+
+/* Hand firmware buffer @fw_idx back to the firmware (recycle thread). */
+void amvdec_recycle(struct amvdec_session *sess, u32 fw_idx);
+
+/*
+ * Meson8b frame pool (meson8b-capture.c): the decoder writes into pool
+ * slots, and finished pictures are converted into CAPTURE buffers as
+ * userspace queues them. See struct amvdec_frame_pool.
+ */
+bool amvdec_has_pool(const struct amvdec_session *sess);
+void amvdec_pool_init(struct amvdec_session *sess);
+int amvdec_pool_prepare(struct amvdec_session *sess, u32 count);
+void amvdec_pool_give_all(struct amvdec_session *sess);
+u32 amvdec_pool_count(struct amvdec_session *sess);
+const struct amvdec_shadow *amvdec_pool_slot(struct amvdec_session *sess,
+					     u32 slot);
+int amvdec_pool_take(struct amvdec_session *sess);
+void amvdec_pool_release(struct amvdec_session *sess, u32 slot);
+void amvdec_pool_push(struct amvdec_session *sess, u32 slot,
+		      const struct amvdec_picture *pic);
+void amvdec_pool_capture_queued(struct amvdec_session *sess);
+void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end);
+void amvdec_pool_drop(struct amvdec_session *sess);
+void amvdec_pool_free(struct amvdec_session *sess);
+
+/**
+ * amvdec_pool_picture_done() - The picture in a pool slot is finished
+ *
+ * @sess: current session
+ * @slot: pool slot holding the picture
+ * @offset: VIFIFO bitstream offset of the picture, or -1 for the oldest
+ *	    queued timestamp
+ * @field: V4L2 interlaced field
+ */
+void amvdec_pool_picture_done(struct amvdec_session *sess, u32 slot,
+			      u32 offset, u32 field);
 #endif

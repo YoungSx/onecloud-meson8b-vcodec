@@ -16,13 +16,15 @@
 #include <linux/soc/amlogic/meson-canvas.h>
 
 #include "vdec_platform.h"
+#include "meson8b-pool.h"
 
 /* 32 buffers in 3-plane YUV420 */
 #define MAX_CANVAS (32 * 3)
 
+/* A firmware buffer index to hand back to the firmware */
 struct amvdec_buffer {
 	struct list_head list;
-	struct vb2_buffer *vb;
+	u32 fw_idx;
 };
 
 /**
@@ -52,6 +54,48 @@ struct amvdec_shadow {
 	dma_addr_t paddr;
 	u32 size;
 	u32 luma;
+};
+
+/* What a finished picture carries until it reaches a CAPTURE buffer */
+struct amvdec_picture {
+	u64 timestamp;
+	struct v4l2_timecode timecode;
+	u32 flags;
+	u32 field;
+	bool eos;	/* raise V4L2_EVENT_EOS with this picture */
+	bool restart;	/* restart the CAPTURE sequence after this picture */
+};
+
+enum amvdec_pool_end {
+	AMVDEC_POOL_RUNNING,
+	/* return every queued CAPTURE buffer empty, the last one LAST + EOS */
+	AMVDEC_POOL_FLUSH,
+	/* return one empty CAPTURE buffer as LAST */
+	AMVDEC_POOL_LAST,
+};
+
+/**
+ * struct amvdec_frame_pool - Meson8b pictures in firmware byte order
+ *
+ * The canvases point at these slots, not at the CAPTURE buffers: a picture
+ * is converted into the next CAPTURE buffer userspace queues, so the CMA the
+ * decoder needs depends on the stream, not on how many buffers userspace
+ * allocates.
+ *
+ * @lock: protects the members below
+ * @state: slot ownership and delivery order
+ * @slot: one firmware-order picture block per slot
+ * @picture: metadata of the picture waiting in each slot
+ * @end: what to do with the CAPTURE queue once no picture waits
+ * @work: delivers waiting pictures after userspace queued a buffer
+ */
+struct amvdec_frame_pool {
+	struct mutex lock;
+	struct meson8b_pool state;
+	struct amvdec_shadow slot[MESON8B_POOL_MAX];
+	struct amvdec_picture picture[MESON8B_POOL_MAX];
+	enum amvdec_pool_end end;
+	struct work_struct work;
 };
 
 /**
@@ -103,6 +147,10 @@ struct amvdec_core {
 	/* Meson8b output conversion: frames per path and CPU time */
 	struct dentry *debugfs;
 	u64 converted_frames, cropped_frames, convert_ns;
+	/* Meson8b frame pool of the current session: slots and their bytes */
+	u32 pool_slots;
+	u64 pool_bytes;
+	u32 pool_waiting_peak;
 };
 
 /**
@@ -129,6 +177,10 @@ struct amvdec_ops {
  * @stop: mandatory call when the codec needs to stop
  * @load_extended_firmware: optional call to load additional firmware bits
  * @num_pending_bufs: optional call to get the number of dst buffers on hold
+ * @hold_capture_buf: optional call to keep a requeued buffer still used as a
+ *		      reference (not with a frame pool)
+ * @capture_queued: optional call after a CAPTURE buffer was queued, or with a
+ *		    frame pool after waiting pictures were delivered
  * @can_recycle: optional call to know if the codec is ready to recycle
  *		 a dst buffer
  * @recycle: optional call to tell the codec to recycle a dst buffer. Must go
@@ -286,7 +338,9 @@ struct amvdec_session {
 	u32 last_offset;
 	u32 wrap_count;
 	u32 fw_idx_to_vb2_idx[32];
-	struct amvdec_shadow shadow[32];
+	struct amvdec_frame_pool pool;
+	/* pictures the stream needs at once, as reported by the codec */
+	u32 dpb_size;
 	u32 reference_width, reference_height;
 	u32 crop_left, crop_top;
 

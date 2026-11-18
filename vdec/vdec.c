@@ -68,20 +68,10 @@ static int vdec_recycle_thread(void *data)
 	while (!kthread_should_stop()) {
 		mutex_lock(&sess->bufs_recycle_lock);
 		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
-			unsigned int fw_idx;
-
 			if (!codec_ops->can_recycle(core))
 				break;
 
-			for (fw_idx = 0; fw_idx < ARRAY_SIZE(sess->fw_idx_to_vb2_idx);
-			     fw_idx++)
-				if (sess->fw_idx_to_vb2_idx[fw_idx] == tmp->vb->index)
-					break;
-			if (fw_idx == ARRAY_SIZE(sess->fw_idx_to_vb2_idx)) {
-				amvdec_abort(sess);
-				break;
-			}
-			codec_ops->recycle(core, fw_idx);
+			codec_ops->recycle(core, tmp->fw_idx);
 			list_del(&tmp->list);
 			kfree(tmp);
 		}
@@ -148,19 +138,36 @@ static void vdec_poweroff(struct amvdec_session *sess)
 	clk_disable_unprepare(sess->core->dos_parser_clk);
 }
 
-static void
-vdec_queue_recycle(struct amvdec_session *sess, struct vb2_buffer *vb)
+void amvdec_recycle(struct amvdec_session *sess, u32 fw_idx)
 {
 	struct amvdec_buffer *new_buf;
 
 	new_buf = kmalloc(sizeof(*new_buf), GFP_KERNEL);
 	if (!new_buf)
 		return;
-	new_buf->vb = vb;
+	new_buf->fw_idx = fw_idx;
 
 	mutex_lock(&sess->bufs_recycle_lock);
 	list_add_tail(&new_buf->list, &sess->bufs_recycle);
 	mutex_unlock(&sess->bufs_recycle_lock);
+}
+
+/* Without a frame pool the firmware writes into the CAPTURE buffers, so a
+ * requeued buffer is a firmware buffer to recycle.
+ */
+static void
+vdec_queue_recycle(struct amvdec_session *sess, struct vb2_buffer *vb)
+{
+	unsigned int fw_idx;
+
+	for (fw_idx = 0; fw_idx < ARRAY_SIZE(sess->fw_idx_to_vb2_idx); fw_idx++)
+		if (sess->fw_idx_to_vb2_idx[fw_idx] == vb->index)
+			break;
+	if (fw_idx == ARRAY_SIZE(sess->fw_idx_to_vb2_idx)) {
+		amvdec_abort(sess);
+		return;
+	}
+	amvdec_recycle(sess, fw_idx);
 }
 
 static void vdec_m2m_device_run(void *priv)
@@ -191,6 +198,14 @@ static void process_num_buffers(struct vb2_queue *q,
 	unsigned int buffers_total = q->num_buffers + *num_buffers;
 	u32 min_buf_capture = v4l2_ctrl_g_ctrl(sess->ctrl_min_buf_capture);
 
+	/* The frame pool decouples the firmware from the CAPTURE buffers:
+	 * take as many as userspace asks for and start streaming with one.
+	 */
+	if (amvdec_has_pool(sess)) {
+		q->min_buffers_needed = 1;
+		return;
+	}
+
 	if (q->num_buffers + *num_buffers < min_buf_capture)
 		*num_buffers = min_buf_capture - q->num_buffers;
 	if (is_reqbufs && buffers_total < fmt_out->min_buffers)
@@ -220,7 +235,7 @@ static int vdec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
 			return -EINVAL;
 		*num_buffers = min(*num_buffers, 4 - q->num_buffers);
 	}
-	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
+	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE && !amvdec_has_pool(sess) &&
 	    v4l2_ctrl_g_ctrl(sess->ctrl_min_buf_capture) > sess->fmt_out->max_buffers)
 		return -EINVAL;
 
@@ -294,6 +309,12 @@ static void vdec_vb2_buf_queue(struct vb2_buffer *vb)
 	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
 	struct v4l2_m2m_ctx *m2m_ctx = sess->m2m_ctx;
 
+	if (V4L2_TYPE_IS_CAPTURE(vb->type) && amvdec_has_pool(sess)) {
+		v4l2_m2m_buf_queue(m2m_ctx, vbuf);
+		amvdec_pool_capture_queued(sess);
+		return;
+	}
+
 	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->fmt_out->codec_ops->hold_capture_buf &&
 	    sess->fmt_out->codec_ops->hold_capture_buf(sess, vbuf))
 		return;
@@ -315,7 +336,8 @@ static void vdec_vb2_buf_queue(struct vb2_buffer *vb)
 /*
  * Can the capture queue be used for the format announced by the last
  * resolution change? Every allocated buffer must fit the new frame size,
- * and the queue must hold at least as many buffers as the decoder needs.
+ * and without a frame pool the queue must hold at least as many buffers as
+ * the decoder needs.
  *
  * This deliberately checks the buffers themselves instead of a
  * "formats were re-negotiated" flag: userspace may allocate its capture
@@ -333,7 +355,7 @@ static bool vdec_capture_queue_fits(struct amvdec_session *sess,
 		sess->pixfmt_cap == V4L2_PIX_FMT_YUV420M ? 3 : 2;
 	unsigned int i, j;
 
-	if (q->num_buffers < min_bufs)
+	if (!amvdec_has_pool(sess) && q->num_buffers < min_bufs)
 		return false;
 
 	for (i = 0; i < q->num_buffers; i++) {
@@ -424,6 +446,7 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	sess->pixelaspect.denominator = 1;
 	atomic_set(&sess->esparser_queued_bufs, 0);
 	v4l2_ctrl_s_ctrl(sess->ctrl_min_buf_capture, 1);
+	sess->dpb_size = 0;
 
 	disable_irq(core->vdec_irq);
 	WRITE_ONCE(core->cur_sess, sess);
@@ -532,13 +555,17 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 	     (!sess->streamon_out || !sess->streamon_cap))) {
 		if (vdec_codec_needs_recycle(sess))
 			kthread_stop(sess->recycle_thread);
+		/* No delivery may run into the codec being stopped. */
+		if (amvdec_has_pool(sess))
+			cancel_work_sync(&sess->pool.work);
 
 		disable_irq(core->vdec_irq);
 		vdec_poweroff(sess);
 		WRITE_ONCE(core->cur_sess, NULL);
 		enable_irq(core->vdec_irq);
 		vdec_free_canvas(sess);
-		amvdec_meson8b_free_capture(sess);
+		if (amvdec_has_pool(sess))
+			amvdec_pool_free(sess);
 		dma_free_coherent(sess->core->dev, sess->vififo_size,
 				  sess->vififo_vaddr, sess->vififo_paddr);
 		vdec_reset_timestamps(sess);
@@ -558,6 +585,8 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 		if (sess->status >= STATUS_RUNNING && codec_ops->drain)
 			codec_ops->drain(sess);
 
+		if (amvdec_has_pool(sess))
+			amvdec_pool_drop(sess);
 		while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
 			v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 
@@ -882,7 +911,7 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 	if (cmd->cmd == V4L2_DEC_CMD_START) {
 		v4l2_m2m_clear_state(sess->m2m_ctx);
 		sess->should_stop = 0;
-		return 0;
+			return 0;
 	}
 
 	/* Should not happen */
@@ -1084,6 +1113,7 @@ static int vdec_open(struct file *file)
 	INIT_WORK(&sess->esparser_queue_work, esparser_queue_all_src);
 	mutex_init(&sess->lock);
 	mutex_init(&sess->bufs_recycle_lock);
+	amvdec_pool_init(sess);
 	spin_lock_init(&sess->ts_spinlock);
 
 	v4l2_fh_init(&sess->fh, core->vdev_dec);
@@ -1110,12 +1140,14 @@ static int vdec_close(struct file *file)
 	cancel_work_sync(&sess->esparser_queue_work);
 	v4l2_m2m_ctx_release(sess->m2m_ctx);
 	cancel_work_sync(&sess->esparser_queue_work);
+	cancel_work_sync(&sess->pool.work);
 	v4l2_m2m_release(sess->m2m_dev);
 	v4l2_fh_del(&sess->fh);
 	v4l2_fh_exit(&sess->fh);
 
 	mutex_destroy(&sess->lock);
 	mutex_destroy(&sess->bufs_recycle_lock);
+	mutex_destroy(&sess->pool.lock);
 
 	kfree(sess);
 
@@ -1310,6 +1342,12 @@ static int vdec_probe(struct platform_device *pdev)
 			   &core->cropped_frames);
 	debugfs_create_u64("convert_ns", 0444, core->debugfs,
 			   &core->convert_ns);
+	debugfs_create_u32("pool_slots", 0444, core->debugfs,
+			   &core->pool_slots);
+	debugfs_create_u64("pool_bytes", 0444, core->debugfs,
+			   &core->pool_bytes);
+	debugfs_create_u32("pool_waiting_peak", 0444, core->debugfs,
+			   &core->pool_waiting_peak);
 	dev_info(dev, "registered %s as /dev/video%d\n",
 		 vdev->name, vdev->num);
 	if (core->platform->revision == VDEC_REVISION_MESON8B)

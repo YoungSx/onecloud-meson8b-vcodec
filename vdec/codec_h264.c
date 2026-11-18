@@ -7,6 +7,7 @@
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-contig.h>
 #include <linux/iopoll.h>
+#include <linux/moduleparam.h>
 
 #include "vdec_helpers.h"
 #include "dos_regs.h"
@@ -38,6 +39,17 @@
 
 /* Size of Motion Vector per macroblock */
 #define MB_MV_SIZE	96
+
+/*
+ * Buffers the firmware gets beyond the stream's reference frames: room for
+ * the picture being decoded and the ones waiting for display order, and,
+ * when the firmware writes into the CAPTURE buffers, for the ones userspace
+ * still holds.
+ */
+static unsigned int h264_extra_buffers = 5;
+module_param(h264_extra_buffers, uint, 0644);
+MODULE_PARM_DESC(h264_extra_buffers,
+		 "H.264 decode buffers beyond the reference frames (default 5)");
 
 /* Frame status data */
 #define PIC_STRUCT_BIT	5
@@ -346,6 +358,9 @@ static void codec_h264_resume(struct amvdec_session *sess)
 	mb_height = ALIGN(h264->mb_height, 4);
 	mb_total = mb_width * mb_height;
 
+	if (h264->ref_vaddr)
+		dma_free_coherent(core->dev, h264->ref_size,
+				  h264->ref_vaddr, h264->ref_paddr);
 	h264->ref_size = mb_total * MB_MV_SIZE * h264->max_refs;
 	h264->ref_vaddr = dma_alloc_coherent(core->dev, h264->ref_size,
 					     &h264->ref_paddr, GFP_KERNEL);
@@ -371,7 +386,7 @@ static void codec_h264_src_change(struct amvdec_session *sess)
 {
 	struct amvdec_core *core = sess->core;
 	struct codec_h264 *h264 = sess->priv;
-	u32 parsed_info, mb_total;
+	u32 parsed_info, mb_total, dpb_size;
 	u32 crop_infor, crop_bottom, crop_right;
 	u32 frame_width, frame_height;
 
@@ -394,7 +409,8 @@ static void codec_h264_src_change(struct amvdec_session *sess)
 	h264->mb_height = mb_total / h264->mb_width;
 
 	h264->max_refs = ((parsed_info >> MAX_REF_BIT) & MAX_REF_MASK) + 1;
-	if (h264->max_refs + 5 > sess->fmt_out->max_buffers) {
+	dpb_size = h264->max_refs + READ_ONCE(h264_extra_buffers);
+	if (dpb_size > sess->fmt_out->max_buffers) {
 		dev_err(core->dev, "H.264 reference count exceeds capture capacity\n");
 		amvdec_abort(sess);
 		return;
@@ -416,7 +432,7 @@ static void codec_h264_src_change(struct amvdec_session *sess)
 		frame_width, frame_height, crop_right, crop_bottom);
 
 	codec_h264_set_par(sess);
-	amvdec_src_change(sess, frame_width, frame_height, h264->max_refs + 5);
+	amvdec_src_change(sess, frame_width, frame_height, dpb_size);
 }
 
 /*

@@ -211,13 +211,12 @@ enum slice_type {
 /* A frame being decoded */
 struct hevc_frame {
 	struct list_head list;
-	struct vb2_v4l2_buffer *vbuf;
+	u32 slot;	/* frame pool slot holding the picture */
 	u32 offset;
 	u32 poc;
 
 	int referenced;
 	int show;
-	bool requeued;
 	u32 num_reorder_pic;
 
 	u32 cur_slice_idx;
@@ -264,7 +263,6 @@ struct codec_hevc {
 
 	u32 dpb_size;
 	bool waiting_for_buffer;
-	bool eos_pending;
 	bool eos_seen;
 	struct hevc_sps_geometry sps;
 	u32 prev_tid0_poc;
@@ -461,10 +459,6 @@ static void codec_hevc_update_referenced(struct codec_hevc *hevc)
 		}
 
 		frame->referenced = is_referenced;
-		if (!is_referenced && frame->requeued) {
-			frame->requeued = false;
-			v4l2_m2m_buf_queue(hevc->sess->m2m_ctx, frame->vbuf);
-		}
 	}
 }
 
@@ -495,10 +489,10 @@ static void codec_hevc_show_frames(struct amvdec_session *sess)
 		   (hevc->frames_num <= tmp->num_reorder_pic))
 			break;
 
-		dev_dbg(sess->core->dev, "DONE frame poc %u; vbuf %u\n",
-			tmp->poc, tmp->vbuf->vb2_buf.index);
-		amvdec_dst_buf_done_offset(sess, tmp->vbuf, tmp->offset,
-					   V4L2_FIELD_NONE, false);
+		dev_dbg(sess->core->dev, "DONE frame poc %u; slot %u\n",
+			tmp->poc, tmp->slot);
+		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
+					 V4L2_FIELD_NONE);
 
 		tmp->show = 0;
 		hevc->frames_num--;
@@ -509,6 +503,7 @@ static void codec_hevc_show_frames(struct amvdec_session *sess)
 		if (tmp->referenced || tmp->show)
 			continue;
 
+		amvdec_pool_release(sess, tmp->slot);
 		list_del(&tmp->list);
 		kfree(tmp);
 	}
@@ -664,39 +659,31 @@ static void codec_hevc_flush_output(struct amvdec_session *sess)
 	struct hevc_frame *tmp, *n;
 
 	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
-		amvdec_dst_buf_done_offset(sess, tmp->vbuf, tmp->offset,
-					   V4L2_FIELD_NONE, false);
+		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
+					 V4L2_FIELD_NONE);
 		tmp->show = 0;
 		hevc->frames_num--;
 	}
 
 	list_for_each_entry_safe(tmp, n, &hevc->ref_frames_list, list) {
-		if (tmp->requeued)
-			v4l2_m2m_buf_queue(sess->m2m_ctx, tmp->vbuf);
+		amvdec_pool_release(sess, tmp->slot);
 		list_del(&tmp->list);
 		kfree(tmp);
 	}
 }
 
-static bool codec_hevc_hold_capture_buf(struct amvdec_session *sess,
-				       struct vb2_v4l2_buffer *vbuf)
+/* Pictures referencing slots of another geometry are gone with them. */
+static void codec_hevc_forget_frames(struct codec_hevc *hevc)
 {
-	struct codec_hevc *hevc = sess->priv;
-	struct hevc_frame *frame;
-	bool hold = false;
+	struct hevc_frame *tmp, *n;
 
-	if (!hevc)
-		return false;
-	mutex_lock(&hevc->lock);
-	list_for_each_entry(frame, &hevc->ref_frames_list, list) {
-		if (frame->vbuf == vbuf && frame->referenced) {
-			frame->requeued = true;
-			hold = true;
-			break;
-		}
+	list_for_each_entry_safe(tmp, n, &hevc->ref_frames_list, list) {
+		list_del(&tmp->list);
+		kfree(tmp);
 	}
-	mutex_unlock(&hevc->lock);
-	return hold;
+	hevc->frames_num = 0;
+	hevc->cur_frame = NULL;
+	hevc->col_frame = NULL;
 }
 
 static const u8 *codec_hevc_eos_sequence(u32 *length)
@@ -707,22 +694,10 @@ static const u8 *codec_hevc_eos_sequence(u32 *length)
 	return eos;
 }
 
+/* An empty LAST buffer follows the pictures still waiting for one. */
 static void codec_hevc_finish_eos(struct amvdec_session *sess)
 {
-	struct codec_hevc *hevc = sess->priv;
-	struct vb2_v4l2_buffer *vbuf;
-	unsigned int i;
-
-	vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
-	if (!vbuf) {
-		hevc->eos_pending = true;
-		return;
-	}
-	hevc->eos_pending = false;
-	sess->should_stop = 1;
-	for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
-		vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
-	v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
+	amvdec_pool_end(sess, AMVDEC_POOL_LAST);
 }
 
 static int codec_hevc_stop(struct amvdec_session *sess)
@@ -765,28 +740,28 @@ codec_hevc_prepare_new_frame(struct amvdec_session *sess)
 	struct amvdec_core *core = sess->core;
 	struct hevc_frame *new_frame = NULL;
 	struct codec_hevc *hevc = sess->priv;
-	struct vb2_v4l2_buffer *vbuf;
 	union rpm_param *params = &hevc->rpm_param;
+	int slot;
 
 	new_frame = kzalloc(sizeof(*new_frame), GFP_KERNEL);
 	if (!new_frame)
 		return NULL;
 
-	vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
-	if (!vbuf) {
+	/* Every slot busy: wait until a delivered picture frees one. */
+	slot = amvdec_pool_take(sess);
+	if (slot < 0) {
 		kfree(new_frame);
 		return NULL;
 	}
 
-	new_frame->vbuf = vbuf;
+	new_frame->slot = slot;
 	new_frame->referenced = 1;
 	new_frame->show = 1;
 	new_frame->poc = hevc->curr_poc;
 	new_frame->cur_slice_type = params->p.slice_type;
 	new_frame->num_reorder_pic = params->p.sps_num_reorder_pics_0;
-	dev_dbg(core->dev, "HEVC picture POC %d buffer %u queue %u reorder %u\n",
-		 (s32)hevc->curr_poc, vbuf->vb2_buf.index,
-		 v4l2_m2m_num_dst_bufs_ready(sess->m2m_ctx), new_frame->num_reorder_pic);
+	dev_dbg(core->dev, "HEVC picture POC %d slot %u reorder %u\n",
+		 (s32)hevc->curr_poc, slot, new_frame->num_reorder_pic);
 	new_frame->offset = amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT);
 
 	list_add_tail(&new_frame->list, &hevc->ref_frames_list);
@@ -800,7 +775,7 @@ codec_hevc_set_sao(struct amvdec_session *sess, struct hevc_frame *frame)
 {
 	struct amvdec_core *core = sess->core;
 	struct codec_hevc *hevc = sess->priv;
-	struct vb2_buffer *vb = &frame->vbuf->vb2_buf;
+	const struct amvdec_shadow *slot = amvdec_pool_slot(sess, frame->slot);
 	union rpm_param *param = &hevc->rpm_param;
 	u32 pic_height_cu =
 		(hevc->height + hevc->lcu_size - 1) / hevc->lcu_size;
@@ -822,17 +797,15 @@ codec_hevc_set_sao(struct amvdec_session *sess, struct hevc_frame *frame)
 	amvdec_write_dos(core, HEVC_SAO_PIC_SIZE_LCU,
 			 (hevc->lcu_x_num - 1) | (hevc->lcu_y_num - 1) << 16);
 
-	buf_y_paddr = sess->shadow[vb->index].paddr;
-	buf_u_v_paddr = buf_y_paddr + sess->shadow[vb->index].luma;
+	buf_y_paddr = slot->paddr;
+	buf_u_v_paddr = buf_y_paddr + slot->luma;
 	amvdec_write_dos(core, HEVC_SAO_Y_START_ADDR, buf_y_paddr);
 	amvdec_write_dos(core, HEVC_SAO_C_START_ADDR, buf_u_v_paddr);
 	amvdec_write_dos(core, HEVC_SAO_Y_WPTR, buf_y_paddr);
 	amvdec_write_dos(core, HEVC_SAO_C_WPTR, buf_u_v_paddr);
 
-	amvdec_write_dos(core, HEVC_SAO_Y_LENGTH,
-			 sess->shadow[vb->index].luma);
-	amvdec_write_dos(core, HEVC_SAO_C_LENGTH,
-			 sess->shadow[vb->index].luma / 2);
+	amvdec_write_dos(core, HEVC_SAO_Y_LENGTH, slot->luma);
+	amvdec_write_dos(core, HEVC_SAO_C_LENGTH, slot->luma / 2);
 
 	if (frame->cur_slice_idx == 0) {
 
@@ -925,7 +898,7 @@ static dma_addr_t codec_hevc_get_frame_mv_paddr(struct codec_hevc *hevc,
 						struct hevc_frame *frame)
 {
 	return hevc->workspace_paddr + MPRED_MV_OFFSET +
-		(frame->vbuf->vb2_buf.index * MPRED_MV_BUF_SIZE);
+		(frame->slot * MPRED_MV_BUF_SIZE);
 }
 
 static void
@@ -1136,7 +1109,7 @@ static void codec_hevc_set_ref_list(struct amvdec_session *sess,
 			continue;
 		}
 
-		buf_id_y = ref_frame->vbuf->vb2_buf.index * 2;
+		buf_id_y = ref_frame->slot * 2;
 		buf_id_uv = buf_id_y + 1;
 
 		amvdec_write_dos(core, HEVCD_MPP_ANC_CANVAS_DATA_ADDR,
@@ -1434,11 +1407,6 @@ static void codec_hevc_capture_queued(struct amvdec_session *sess)
 	if (!hevc)
 		return;
 	mutex_lock(&hevc->lock);
-	if (hevc->eos_pending) {
-		codec_hevc_finish_eos(sess);
-		mutex_unlock(&hevc->lock);
-		return;
-	}
 	if (hevc->waiting_for_buffer) {
 		ret = codec_hevc_process_segment(sess);
 		if (!ret)
@@ -1453,27 +1421,32 @@ static void codec_hevc_resume(struct amvdec_session *sess)
 {
 	struct codec_hevc *hevc = sess->priv;
 	struct amvdec_core *core = sess->core;
-	struct v4l2_m2m_buffer *buffer;
+	const struct amvdec_format *fmt_out = sess->fmt_out;
+	u32 count = clamp(sess->dpb_size, fmt_out->min_buffers,
+			  fmt_out->max_buffers);
 	dma_addr_t address[2] = {};
-	unsigned int count = 0, i;
+	unsigned int i;
+	int ret;
 
-	amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CONF_ADDR, 0);
-	v4l2_m2m_for_each_dst_buf(sess->m2m_ctx, buffer) {
-		struct vb2_buffer *vb = &buffer->vb.vb2_buf;
-
-		if (amvdec_meson8b_capture_addr(sess, vb, address)) {
-			amvdec_abort(sess);
-			return;
-		}
-		amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR,
-				 address[0] | (vb->index * 2 << 8) | 1);
-		amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR,
-				 address[1] | ((vb->index * 2 + 1) << 8) | 1);
-		count++;
-	}
-	if (!count) {
+	/* The DPB lives in frame pool slots; slot n uses canvases 2n, 2n+1. */
+	ret = amvdec_pool_prepare(sess, count);
+	if (ret < 0) {
 		amvdec_abort(sess);
 		return;
+	}
+	if (ret)
+		codec_hevc_forget_frames(hevc);
+
+	amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CONF_ADDR, 0);
+	for (i = 0; i < count; i++) {
+		const struct amvdec_shadow *slot = amvdec_pool_slot(sess, i);
+
+		address[0] = slot->paddr;
+		address[1] = slot->paddr + slot->luma;
+		amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR,
+				 address[0] | (i * 2 << 8) | 1);
+		amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR,
+				 address[1] | ((i * 2 + 1) << 8) | 1);
 	}
 	for (i = count; i < 24; i++) {
 		amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR,
@@ -1566,7 +1539,6 @@ struct amvdec_codec_ops codec_hevc_ops = {
 	.num_pending_bufs = codec_hevc_num_pending_bufs,
 	.eos_sequence = codec_hevc_eos_sequence,
 	.firmware_eos = true,
-	.hold_capture_buf = codec_hevc_hold_capture_buf,
 	.capture_queued = codec_hevc_capture_queued,
 	.inspect_input = codec_hevc_inspect_input,
 	.resume = codec_hevc_resume,

@@ -5,6 +5,8 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <media/v4l2-event.h>
+#include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-core.h>
 
 #include <asm/neon.h>
@@ -79,43 +81,6 @@ static int amvdec_shadow_alloc(struct amvdec_session *sess,
 	return 0;
 }
 
-void amvdec_meson8b_free_capture(struct amvdec_session *sess)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(sess->shadow); i++) {
-		if (sess->shadow[i].vaddr)
-			amvdec_shadow_free(sess, &sess->shadow[i]);
-	}
-}
-
-int amvdec_meson8b_capture_addr(struct amvdec_session *sess,
-				struct vb2_buffer *vb, dma_addr_t addr[2])
-{
-	struct amvdec_shadow *shadow;
-	u32 luma = amvdec_get_output_size(sess);
-	if (sess->reference_width && sess->reference_height)
-		luma = ALIGN(ALIGN(sess->reference_width, 64) *
-			     ALIGN(sess->reference_height, 64), SZ_64K);
-
-	if (vb->index >= ARRAY_SIZE(sess->shadow) ||
-	    sess->pixfmt_cap != V4L2_PIX_FMT_NV12M)
-		return -EINVAL;
-	shadow = &sess->shadow[vb->index];
-	if (shadow->vaddr && shadow->luma != luma) {
-		/* Resolution changed mid-session: the shadow canvas is
-		 * sized for the old format. Reallocate for the new one
-		 * rather than failing the resume.
-		 */
-		amvdec_shadow_free(sess, shadow);
-	}
-	if (!shadow->vaddr && amvdec_shadow_alloc(sess, shadow, luma))
-		return -ENOMEM;
-	addr[0] = shadow->paddr;
-	addr[1] = addr[0] + luma;
-	return 0;
-}
-
 typedef void (*amvdec_swap64_t)(void *, const void *, unsigned long);
 
 /* Reverse the bytes of every 64-bit word while copying; @size % 8 == 0. */
@@ -164,10 +129,10 @@ static int amvdec_copy_window(struct amvdec_session *sess,
 }
 
 static int amvdec_meson8b_convert(struct amvdec_session *sess,
+				  const struct amvdec_shadow *shadow,
 				  struct vb2_buffer *vb)
 {
 	bool mjpeg = sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG;
-	struct amvdec_shadow *shadow;
 	bool crop, simd;
 	u8 *src;
 	void *dst[2];
@@ -175,10 +140,7 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 	unsigned int i;
 	int ret = 0;
 
-	if (vb->index >= ARRAY_SIZE(sess->shadow) || vb->num_planes != 2)
-		return -EINVAL;
-	shadow = &sess->shadow[vb->index];
-	if (!shadow->vaddr)
+	if (vb->num_planes != 2 || !shadow->vaddr)
 		return -EINVAL;
 	/* Multiples of 64 KiB, so the word copy needs no tail handling. */
 	size[0] = amvdec_get_output_size(sess);
@@ -239,15 +201,300 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 }
 
 /* Convert one decoded picture into @vb, accounting the CPU time. */
-int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
-				struct vb2_buffer *vb)
+static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
+				       const struct amvdec_shadow *shadow,
+				       struct vb2_buffer *vb)
 {
 	ktime_t start = ktime_get();
-	int ret = amvdec_meson8b_convert(sess, vb);
+	int ret = amvdec_meson8b_convert(sess, shadow, vb);
 
 	if (!ret) {
 		sess->core->converted_frames++;
 		sess->core->convert_ns += ktime_to_ns(ktime_sub(ktime_get(), start));
 	}
 	return ret;
+}
+
+bool amvdec_has_pool(const struct amvdec_session *sess)
+{
+	return sess->core->platform->revision == VDEC_REVISION_MESON8B;
+}
+
+/* Bytes of one luma plane in a slot; the chroma plane follows at half that. */
+static u32 amvdec_pool_luma(struct amvdec_session *sess)
+{
+	if (sess->reference_width && sess->reference_height)
+		return ALIGN(ALIGN(sess->reference_width, 64) *
+			     ALIGN(sess->reference_height, 64), SZ_64K);
+	return amvdec_get_output_size(sess);
+}
+
+static void amvdec_pool_free_slots(struct amvdec_session *sess)
+{
+	struct amvdec_frame_pool *pool = &sess->pool;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(pool->slot); i++)
+		if (pool->slot[i].vaddr)
+			amvdec_shadow_free(sess, &pool->slot[i]);
+	meson8b_pool_reset(&pool->state, 0);
+	sess->core->pool_slots = 0;
+	sess->core->pool_bytes = 0;
+}
+
+static void amvdec_pool_work(struct work_struct *work);
+
+void amvdec_pool_init(struct amvdec_session *sess)
+{
+	mutex_init(&sess->pool.lock);
+	INIT_WORK(&sess->pool.work, amvdec_pool_work);
+}
+
+/*
+ * Make @count slots for the current geometry available. Slots of the same
+ * geometry are kept with whatever they hold; a new geometry replaces all of
+ * them. Returns 1 when every slot is new, 0 when the existing ones were kept.
+ */
+int amvdec_pool_prepare(struct amvdec_session *sess, u32 count)
+{
+	struct amvdec_frame_pool *pool = &sess->pool;
+	u32 luma = amvdec_pool_luma(sess);
+	bool fresh;
+	u32 i;
+	int ret = 0;
+
+	if (!count || count > MESON8B_POOL_MAX)
+		return -EINVAL;
+
+	mutex_lock(&pool->lock);
+	fresh = !pool->state.count || pool->slot[0].luma != luma;
+	if (fresh) {
+		amvdec_pool_free_slots(sess);
+		pool->end = AMVDEC_POOL_RUNNING;
+	} else if (count <= pool->state.count) {
+		goto unlock;
+	}
+
+	for (i = fresh ? 0 : pool->state.count; i < count; i++) {
+		ret = amvdec_shadow_alloc(sess, &pool->slot[i], luma);
+		if (ret) {
+			dev_err(sess->core->dev,
+				"frame pool of %u slots needs %u bytes of CMA each; got %u slots\n",
+				count, luma + luma / 2, i);
+			amvdec_pool_free_slots(sess);
+			goto unlock;
+		}
+		sess->core->pool_bytes += pool->slot[i].size;
+	}
+
+	/* New slots start free; the ones kept hold what they held. */
+	pool->state.count = count;
+	sess->core->pool_slots = count;
+	ret = fresh;
+unlock:
+	mutex_unlock(&pool->lock);
+	return ret;
+}
+
+/* For codecs whose firmware owns every slot from the buffer table on. */
+void amvdec_pool_give_all(struct amvdec_session *sess)
+{
+	struct amvdec_frame_pool *pool = &sess->pool;
+
+	mutex_lock(&pool->lock);
+	if (pool->state.len) {
+		/* A table reset lets the firmware overwrite any slot. */
+		dev_warn(sess->core->dev,
+			 "dropping %u undelivered pictures at a parameter change\n",
+			 pool->state.len);
+		meson8b_pool_drop(&pool->state);
+	}
+	meson8b_pool_give_all(&pool->state);
+	mutex_unlock(&pool->lock);
+}
+
+u32 amvdec_pool_count(struct amvdec_session *sess)
+{
+	return READ_ONCE(sess->pool.state.count);
+}
+
+const struct amvdec_shadow *amvdec_pool_slot(struct amvdec_session *sess,
+					     u32 slot)
+{
+	return &sess->pool.slot[slot];
+}
+
+/* A free slot for a picture the driver tracks itself (HEVC), or -EAGAIN. */
+int amvdec_pool_take(struct amvdec_session *sess)
+{
+	int slot;
+
+	mutex_lock(&sess->pool.lock);
+	slot = meson8b_pool_take(&sess->pool.state);
+	mutex_unlock(&sess->pool.lock);
+	return slot < 0 ? -EAGAIN : slot;
+}
+
+void amvdec_pool_release(struct amvdec_session *sess, u32 slot)
+{
+	mutex_lock(&sess->pool.lock);
+	if (meson8b_pool_release(&sess->pool.state, slot))
+		dev_warn(sess->core->dev, "released unheld pool slot %u\n", slot);
+	mutex_unlock(&sess->pool.lock);
+}
+
+static void amvdec_pool_end_locked(struct amvdec_session *sess)
+{
+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+	struct amvdec_frame_pool *pool = &sess->pool;
+	struct vb2_v4l2_buffer *vbuf, *last = NULL;
+	unsigned int i;
+
+	switch (pool->end) {
+	case AMVDEC_POOL_RUNNING:
+		return;
+	case AMVDEC_POOL_FLUSH:
+		while ((vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx))) {
+			for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
+				vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
+			vbuf->field = V4L2_FIELD_NONE;
+			if (last)
+				v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+			last = vbuf;
+		}
+		if (!last)
+			return;
+		last->flags = V4L2_BUF_FLAG_LAST;
+		v4l2_event_queue_fh(&sess->fh, &eos);
+		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+		break;
+	case AMVDEC_POOL_LAST:
+		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
+		if (!vbuf)
+			return;
+		sess->should_stop = 1;
+		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
+			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
+		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
+		break;
+	}
+	pool->end = AMVDEC_POOL_RUNNING;
+}
+
+/* Convert waiting pictures into queued CAPTURE buffers, oldest first. */
+static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
+{
+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+	struct amvdec_frame_pool *pool = &sess->pool;
+	u32 luma = amvdec_get_output_size(sess);
+	int slot;
+
+	while ((slot = meson8b_pool_peek(&pool->state)) >= 0) {
+		struct amvdec_picture *pic = &pool->picture[slot];
+		struct vb2_v4l2_buffer *vbuf;
+		int ret;
+
+		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
+		if (!vbuf)
+			return;
+
+		ret = amvdec_meson8b_copy_capture(sess, &pool->slot[slot],
+						  &vbuf->vb2_buf);
+		meson8b_pool_pop(&pool->state);
+		/* The picture is out of the slot; the firmware may reuse it. */
+		if (codec_ops->recycle)
+			amvdec_recycle(sess, slot);
+		if (ret) {
+			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+			amvdec_abort(sess);
+			continue;
+		}
+
+		vb2_set_plane_payload(&vbuf->vb2_buf, 0, luma);
+		vb2_set_plane_payload(&vbuf->vb2_buf, 1, luma / 2);
+		vbuf->vb2_buf.timestamp = pic->timestamp;
+		vbuf->sequence = sess->sequence_cap++;
+		vbuf->flags = pic->flags;
+		vbuf->timecode = pic->timecode;
+		vbuf->field = pic->field;
+		if (pic->restart)
+			sess->sequence_cap = 0;
+		if (pic->eos)
+			v4l2_event_queue_fh(&sess->fh, &eos);
+		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
+	}
+
+	amvdec_pool_end_locked(sess);
+}
+
+/* The picture in @slot is finished; deliver it now or when a buffer comes. */
+void amvdec_pool_push(struct amvdec_session *sess, u32 slot,
+		      const struct amvdec_picture *pic)
+{
+	struct amvdec_frame_pool *pool = &sess->pool;
+
+	mutex_lock(&pool->lock);
+	if (meson8b_pool_push(&pool->state, slot)) {
+		mutex_unlock(&pool->lock);
+		dev_err(sess->core->dev, "picture in unheld pool slot %u\n", slot);
+		amvdec_abort(sess);
+		return;
+	}
+	pool->picture[slot] = *pic;
+	sess->core->pool_waiting_peak = max(sess->core->pool_waiting_peak,
+					    pool->state.len);
+	amvdec_pool_deliver_locked(sess);
+	mutex_unlock(&pool->lock);
+}
+
+static void amvdec_pool_work(struct work_struct *work)
+{
+	struct amvdec_session *sess =
+		container_of(work, struct amvdec_session, pool.work);
+	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+
+	mutex_lock(&sess->pool.lock);
+	amvdec_pool_deliver_locked(sess);
+	mutex_unlock(&sess->pool.lock);
+
+	/* Slots may be free again: let a codec waiting for one continue. */
+	if (codec_ops->capture_queued)
+		codec_ops->capture_queued(sess);
+}
+
+/* Userspace queued a CAPTURE buffer. Copying takes milliseconds, so it runs
+ * outside the ioctl, which holds the lock of both queues.
+ */
+void amvdec_pool_capture_queued(struct amvdec_session *sess)
+{
+	schedule_work(&sess->pool.work);
+}
+
+/* End the CAPTURE stream as @end describes, after every waiting picture. */
+void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end)
+{
+	mutex_lock(&sess->pool.lock);
+	sess->pool.end = end;
+	amvdec_pool_deliver_locked(sess);
+	mutex_unlock(&sess->pool.lock);
+}
+
+/* STREAMOFF of the CAPTURE queue discards what was not delivered. */
+void amvdec_pool_drop(struct amvdec_session *sess)
+{
+	cancel_work_sync(&sess->pool.work);
+	mutex_lock(&sess->pool.lock);
+	meson8b_pool_drop(&sess->pool.state);
+	sess->pool.end = AMVDEC_POOL_RUNNING;
+	mutex_unlock(&sess->pool.lock);
+}
+
+void amvdec_pool_free(struct amvdec_session *sess)
+{
+	cancel_work_sync(&sess->pool.work);
+	mutex_lock(&sess->pool.lock);
+	amvdec_pool_free_slots(sess);
+	sess->pool.end = AMVDEC_POOL_RUNNING;
+	mutex_unlock(&sess->pool.lock);
 }

@@ -7,7 +7,7 @@ python3 scripts/extract-firmware.py --fetch
 python3 -m unittest discover -s tests -v
 python3 -I scripts/m4v-frame-compare.py --self-test
 shellcheck scripts/*.sh
-for test in copy window capture jpeg esparser_padding hevc_sps rate_control h264_sps; do
+for test in copy window capture pool jpeg esparser_padding hevc_sps rate_control h264_sps; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
       -fno-pie -no-pie "tests/test_$test.c" -o "build/host-tests/$test" -lm
     if [[ "$test" == hevc_sps ]]; then
