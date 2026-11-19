@@ -18,7 +18,9 @@ say() { echo "$(date -Iseconds) $*" >> "$LOG"; }
 keep_failure() {
     cp /tmp/soak-hevc.md5 "$D/soak-fail-hevc.md5" 2>/dev/null || true
     cp /tmp/soak-h264.md5 "$D/soak-fail-h264.md5" 2>/dev/null || true
-    LC_ALL=C grep "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
+    # -a: the log holds NUL bytes, and grep would then print only
+    # "Binary file matches" and lose the timeline.
+    LC_ALL=C grep -a "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
         | tail -200 > "$D/soak-fail-kern.log" || true
     # ffmpeg reports why it gave up on stderr; without it the log says only
     # that the decode failed, and a zero-frame output cannot be attributed.
