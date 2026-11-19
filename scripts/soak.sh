@@ -20,6 +20,15 @@ keep_failure() {
     cp /tmp/soak-h264.md5 "$D/soak-fail-h264.md5" 2>/dev/null || true
     LC_ALL=C grep "$(LC_ALL=C date +'%b %e %H')" /var/log/kern.log 2>/dev/null \
         | tail -200 > "$D/soak-fail-kern.log" || true
+    # ffmpeg reports why it gave up on stderr; without it the log says only
+    # that the decode failed, and a zero-frame output cannot be attributed.
+    cp /tmp/soak-hevc.log "$D/soak-fail-hevc.log" 2>/dev/null || true
+    cp /tmp/soak-h264.log "$D/soak-fail-h264.log" 2>/dev/null || true
+    for f in pool_slots pool_bytes pool_waiting_peak; do
+        printf '%s=%s ' "$f" "$(cat "/sys/kernel/debug/meson-vdec/$f" 2>/dev/null)" \
+            >> "$D/soak-fail-kern.log"
+    done
+    echo >> "$D/soak-fail-kern.log"
 }
 
 say "== soak start minutes=$MINUTES"
@@ -30,8 +39,8 @@ while [ "$(date +%s)" -lt "$end" ]; do
     iter=$((iter + 1))
     rm -f /tmp/soak-hevc.md5 /tmp/soak-h264.md5
     if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v hevc_v4l2m2m \
-        -num_capture_buffers 8 -i "$D/1080p.mp4" -pix_fmt nv12 \
-        -f framemd5 -y /tmp/soak-hevc.md5; then
+        -i "$D/1080p.mp4" -pix_fmt nv12 \
+        -f framemd5 -y /tmp/soak-hevc.md5 > /tmp/soak-hevc.log 2>&1; then
         say "iter=$iter FAIL hevc decode"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     if ! python3 "$D/p5/verify-hashes.py" "$D/p5/software-1080.md5" \
@@ -40,8 +49,9 @@ while [ "$(date +%s)" -lt "$end" ]; do
     fi
     if [ $((iter % 5)) -eq 0 ]; then
         if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v h264_v4l2m2m \
-            -num_capture_buffers 10 -i "$D/p5/h264-1080p-baseline.mp4" \
-            -pix_fmt nv12 -f framemd5 -y /tmp/soak-h264.md5; then
+            -i "$D/p5/h264-1080p-baseline.mp4" \
+            -pix_fmt nv12 -f framemd5 -y /tmp/soak-h264.md5 \
+            > /tmp/soak-h264.log 2>&1; then
             say "iter=$iter FAIL h264 decode"; FAILS=$((FAILS + 1)); keep_failure; break
         fi
         if ! python3 "$D/p5/verify-hashes.py" \
