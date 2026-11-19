@@ -57,8 +57,25 @@ LAST/EOS 结束。H.264 130 幅、HEVC 50 幅全部 PASS
 
 ## 未完成
 
-- 30 分钟持续负载在余量 2 下第 330 轮出现一次 H.264 零帧失败（详见下节）。
-- VIFIFO 2 MiB 的对照模块已构建，尚未在实机跑完整回归。
+- VIFIFO 2 MiB 的对照模块已构建（md5 `4498cb25…`），尚未在实机跑完整回归。
+
+## 余量 2 的 30 分钟负载
+
+更新后的 `soak.sh`（默认 CAPTURE 数、保留 ffmpeg stderr 与帧池状态）与
+`service-coexist.sh` 在候选模块上连跑 30 分钟，五项业务服务每 15 s 探测：
+
+```
+2026-11-20T06:28:25+08:00 SOAK_DONE iter=439 FAILS=0 elapsed=1802s
+2026-11-20T06:28:36+08:00 COEXIST_DONE samples=107 fails=0 soak_rc=0 final: openlist=200 sublink=200 vocat=200 ha=200 arcane_hits=2897
+```
+
+- 439 轮、0 失败；87 次 H.264 1080p 解码全部 300/300，439 次 HEVC 全部
+  30/30，逐帧哈希与软件参考一致。
+- CmaFree 25–44 MB、MemAvailable 465–524 MB，无单调下降；温度 52–68 °C。
+- 107 次服务采样全部 200，Arcane 日志行持续推进。
+
+原始日志：[soak-30min-extra2.log](soak-30min-extra2.log)（7552 行）、
+[service-coexist-30min.log](service-coexist-30min.log)。
 
 ## 余量 2 的零帧失败
 
@@ -66,6 +83,7 @@ LAST/EOS 结束。H.264 130 幅、HEVC 50 幅全部 PASS
 `FAIL h264 decode`：framemd5 为 0 字节（[soak-fail-h264.md5](soak-fail-h264.md5)），
 内核窗口内除例行 `loaded firmware` 外没有任何 vdec/venc 警告或错误，CmaFree
 36 MB，`video0`/`video1` 均在。同一晚余量 5 的 468 轮运行没有失败。
+当时的 `soak.sh` 不保存 ffmpeg stderr，所以失败原因没有留下。
 
 复现脚本 `pool-headroom-repro.sh` 按 soak 的顺序（HEVC 解码 → H.264 解码 →
 H.264/JPEG 编码）重复 300 轮，每轮与参考比对，结果在
@@ -80,10 +98,10 @@ H.264/JPEG 编码）重复 300 轮，每轮与参考比对，结果在
 没有一次零帧或短输出，期间 0 条 `FAIL`/`HASHMISMATCH`。因此这次失败
 **没有**按槽数复现：余量 2 与余量 5 在 300 轮同负载下都干净。
 
-累计计数：余量 2 的 H.264 1080p 解码 = soak 66 次（含 1 次失败）+ 复现
-300 次 = 366 次里 1 次；余量 5 的 soak 468 轮里 H.264 解码 93 次全过。
-两者与 v0.3.0 上那次 1/1700 的短输出是同一量级——500–2000 次一遇，
-单次样本无法区分"余量 2 引入的缺陷"与"既有的稀有短输出"。判断为后者，
-但记录保留：复现脚本和新 soak.sh 在失败时会留下 ffmpeg stderr 与
-`pool_slots`/`pool_bytes`/`pool_waiting_peak`，下一次出现即可定位。
+累计计数：余量 2 的 H.264 1080p 解码 = 失败那次 soak 66 次 + 复现 300 次
++ 之后的 30 分钟负载 87 次 = 453 次里 1 次；余量 5 的 soak 468 轮里
+H.264 解码 93 次全过。两者与 v0.3.0 上那次 1/1700 的短输出是同一量级——
+数百到两千次一遇，单次样本无法区分"余量 2 引入的缺陷"与"既有的稀有短输出"。
+判断为后者，但记录保留：复现脚本和新 `soak.sh` 在失败时会留下 ffmpeg
+stderr 与 `pool_slots`/`pool_bytes`/`pool_waiting_peak`，下一次出现即可定位。
 
