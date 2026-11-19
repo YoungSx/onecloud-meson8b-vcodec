@@ -173,10 +173,44 @@ static void setup_capture(void)
 	}
 }
 
+/* Dequeue the pictures the old resolution still owes, up to the LAST one. */
+static void drain_capture(enum v4l2_buf_type type)
+{
+	for (;;) {
+		struct pollfd pfd = { .fd = fd, .events = POLLIN };
+		struct v4l2_buffer b = {0};
+		struct v4l2_plane planes[VIDEO_MAX_PLANES] = {0};
+
+		if (poll(&pfd, 1, 5000) < 1) {
+			fprintf(stderr, "drain: no picture within 5s\n");
+			return;
+		}
+		b.type = type;
+		b.memory = V4L2_MEMORY_MMAP;
+		b.length = VIDEO_MAX_PLANES;
+		b.m.planes = planes;
+		/* POLLIN also reports a finished OUTPUT buffer, which makes
+		 * this return EAGAIN; anything else ends the drain. */
+		if (ioctl(fd, VIDIOC_DQBUF, &b) < 0) {
+			if (errno == EAGAIN)
+				continue;
+			fprintf(stderr, "drain DQBUF: %s\n", strerror(errno));
+			return;
+		}
+		pictures++;
+		dump_frame(&b);
+		if (b.flags & V4L2_BUF_FLAG_LAST)
+			return;
+		xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
+	}
+}
+
 static void reinit_capture(void)
 {
 	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
+	/* STREAMOFF discards undelivered pictures, so take them first. */
+	drain_capture(type);
 	xioctl(VIDIOC_STREAMOFF, &type, "STREAMOFF(CAPTURE)");
 	for (int i = 0; i < ncap; i++)
 		for (int j = 0; j < capbufs[i].nplanes; j++)

@@ -1,0 +1,38 @@
+--- a/libavcodec/v4l2_m2m_enc.c
++++ b/libavcodec/v4l2_m2m_enc.c
+@@ -290,6 +290,7 @@
+     V4L2Context *const capture = &s->capture;
+     V4L2Context *const output = &s->output;
+     AVFrame *frame = s->frame;
++    AVBufferRef *buf;
+     int ret;
+ 
+     if (s->draining)
+@@ -328,7 +329,26 @@
+     }
+ 
+ dequeue:
+-    return ff_v4l2_context_dequeue_packet(capture, avpkt);
++    ret = ff_v4l2_context_dequeue_packet(capture, avpkt);
++    if (ret < 0)
++        return ret;
++
++    /* The packet references its capture buffer until it is freed. A muxer
++     * that holds packets for interleaving (a sparse subtitle stream, HLS)
++     * can hold every one of them, which stops this encoder and, through the
++     * frames it no longer takes, the decoder feeding it. Copy the bitstream
++     * so the buffer goes back to the driver now. */
++    buf = av_buffer_alloc(avpkt->size + AV_INPUT_BUFFER_PADDING_SIZE);
++    if (!buf) {
++        av_packet_unref(avpkt);
++        return AVERROR(ENOMEM);
++    }
++    memcpy(buf->data, avpkt->data, avpkt->size);
++    memset(buf->data + avpkt->size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
++    av_buffer_unref(&avpkt->buf);
++    avpkt->buf = buf;
++    avpkt->data = buf->data;
++    return 0;
+ }
+ 
+ static av_cold int v4l2_encode_init(AVCodecContext *avctx)
