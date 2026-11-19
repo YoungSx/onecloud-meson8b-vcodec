@@ -55,9 +55,16 @@ LAST/EOS 结束。H.264 130 幅、HEVC 50 幅全部 PASS
 1080p 每槽 3 MiB，因此较原先的 5 每路会话省 9 MiB CMA。记录在
 [开发计划](../../docs/development-plan.md)。
 
-## 未完成
+## VIFIFO 2 MiB 对照
 
-- VIFIFO 2 MiB 的对照模块已构建（md5 `4498cb25…`），尚未在实机跑完整回归。
+`SZ_4M` 改 `SZ_2M` 的对照模块（md5 `4498cb25…`）在实机上跑了完整的
+分辨率切换矩阵，CAPTURE 1、2、4、8、20、32 全过：H.264 130 幅、HEVC 50 幅，
+逐帧与分段单跑一致并以 EOS 结束（[vififo2m-res-switch.log](vififo2m-res-switch.log)）。
+未做逐帧一致性与 30 分钟负载的全格式回归，因此**不采用**：VIFIFO 不拆包，
+2 MiB 每路只省 2 MiB，而实测最大包 59468 B，收益不足以承担大包边界的风险；
+保持 4 MiB。跑完即用 `dev/dev-swap.sh release` 恢复了安装模块
+（`c60842e8…`，`meson8b-vcodec.service` active，两节点就绪，五项容器与
+两 systemd 服务在运行）。
 
 ## 余量 2 的 30 分钟负载
 
