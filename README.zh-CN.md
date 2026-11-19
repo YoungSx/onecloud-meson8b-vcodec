@@ -55,11 +55,11 @@ sudo bash /opt/meson8b-vcodec/current/scripts/remove-autoload.sh
 
 ## 使用示例
 
-原生产 FFmpeg 支持 H.264 M2M。已验证的四参考帧 1080p B 帧输入使用
-10 个 CAPTURE 缓冲：
+原生产 FFmpeg 支持 H.264 M2M。解码器自己持有帧池，应用申请的 CAPTURE
+数不再决定硬件内存，默认参数即可：
 
 ```sh
-ffmpeg -nostdin -c:v h264_v4l2m2m -num_capture_buffers 10 -i input.mp4 \
+ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
   -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
 ```
 

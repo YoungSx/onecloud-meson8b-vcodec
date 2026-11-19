@@ -63,11 +63,12 @@ sudo bash /opt/meson8b-vcodec/current/scripts/remove-autoload.sh
 
 ## Use
 
-The original production FFmpeg supports H.264 M2M. For the verified 1080p
-B-frame input with four references, use ten capture buffers:
+The original production FFmpeg supports H.264 M2M. The decoder holds its own
+frame pool, so the number of CAPTURE buffers the application asks for no
+longer changes hardware memory; the default works:
 
 ```sh
-ffmpeg -nostdin -c:v h264_v4l2m2m -num_capture_buffers 10 -i input.mp4 \
+ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
   -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
 ```
 

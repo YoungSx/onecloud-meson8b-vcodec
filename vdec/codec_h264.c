@@ -42,11 +42,12 @@
 
 /*
  * Buffers the firmware gets beyond the stream's reference frames: room for
- * the picture being decoded and the ones waiting for display order, and,
- * when the firmware writes into the CAPTURE buffers, for the ones userspace
- * still holds.
+ * the picture being decoded and the ones waiting for display order. Two is
+ * what four-reference B-frame streams need once userspace holds no decode
+ * buffer; at 1080p every slot is 3 MiB, so the earlier five cost 9 MiB a
+ * session for nothing.
  */
-static unsigned int h264_extra_buffers = 5;
+static unsigned int h264_extra_buffers = 2;
 module_param(h264_extra_buffers, uint, 0644);
 MODULE_PARM_DESC(h264_extra_buffers,
 		 "H.264 decode buffers beyond the reference frames (default 5)");

@@ -8,7 +8,7 @@
 | 没有 video 节点 | `systemctl status meson8b-vcodec.service` 与 `journalctl -u meson8b-vcodec.service`；检查 probe 和固件哈希 |
 | kernel/phandle mismatch | 包不匹配当前运行树或 ABI；重新生成 Overlay/构建包，不能强制加载 |
 | `Invalid module format` / 未解析符号 | 使用匹配原配置完整内核输出，检查 vermagic、Module.symvers 与导出依赖 |
-| CMA 分配失败 | 检查 `/proc/meminfo` 的 CmaFree，关闭其他 codec 会话；CAPTURE 数量不能低于实际 DPB 要求 |
+| CMA 分配失败 | 检查 `/proc/meminfo` 的 CmaFree，关闭其他 codec 会话；帧池按码流申请，与应用 CAPTURE 数无关 |
 | 成功退出但空文件/少帧 | 检查帧数及哈希、LAST/EOS；生产 FFmpeg 未包含独立 drain 修复；损坏/不支持的流可产生部分输出 |
 | HEVC 停滞 | watchdog 约五秒结束当前队列；保留 bitstream 日志，结束客户端后试有效流验证恢复 |
 | unload busy | 退出所有持有设备的客户端，再停止 unit；不强制 rmmod |

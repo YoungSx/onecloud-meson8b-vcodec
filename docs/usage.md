@@ -16,17 +16,17 @@ v4l2m2m 列表也仅证明包装器存在。
 
 ## H.264 硬解到硬编
 
-使用目标原生产 FFmpeg。已验收的 Baseline 单参考帧样片用 7 个 CAPTURE
-缓冲；四参考帧、bframes=2 的 1080p 输入使用 10 个：
+使用目标原生产 FFmpeg。解码器自己持有帧池，应用申请的 CAPTURE 数不影响
+硬件解码内存，默认参数即可：
 
 ```sh
-ffmpeg -nostdin -c:v h264_v4l2m2m -num_capture_buffers 10 -i input.mp4 \
+ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
   -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
 ```
 
 `-i` 前选 decoder，后选 encoder。`-b:v 0` 使用固定 QP 26；非零 bitrate
-启用码率控制（见下节）。缓冲数量必须至少为实际流的 `MIN_BUFFERS_FOR_CAPTURE`，
-10 也不是任意流的通用常量。原 64 MiB CMA 下十轮 60 帧 B 帧输入完整输出，
+启用码率控制（见下节）。CAPTURE 缓冲仍由应用按需申请（1–32，FFmpeg
+默认 20），只占普通内存。原 64 MiB CMA 下十轮 60 帧 B 帧输入完整输出，
 逐帧 PSNR 最低 45.03 dB、平均 45.82 dB，见[验收](validation.md)。
 
 每次一个 decoder 和一个 encoder，应用侧排队。`-vf scale=640:-2` 可缩图，
@@ -80,7 +80,7 @@ OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映�
 
 ```sh
 /opt/meson8b-vcodec/current/tools/ffmpeg -nostdin \
-  -c:v hevc_v4l2m2m -num_capture_buffers 8 -i input.mp4 -f null -
+  -c:v hevc_v4l2m2m -i input.mp4 -f null -
 ```
 
 该工具只启用文件协议和验收所需功能；不能替代完整生产 FFmpeg。
