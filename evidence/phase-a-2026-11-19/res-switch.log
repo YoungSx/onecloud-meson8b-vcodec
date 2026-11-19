@@ -1,0 +1,16 @@
+== H264 320x240 -> 1600x900 -> 320x240  counts=1 2 4 8 20 32
+PASS H264 count=1 pictures=130 EOS frames=120 resolutions=3
+PASS H264 count=2 pictures=130 EOS frames=120 resolutions=3
+PASS H264 count=4 pictures=130 EOS frames=121 resolutions=3
+PASS H264 count=8 pictures=130 EOS frames=120 resolutions=3
+PASS H264 count=20 pictures=130 EOS frames=121 resolutions=3
+PASS H264 count=32 pictures=130 EOS frames=110 resolutions=3
+rc=0
+== HEVC 320x240 -> 1080p -> 320x240  counts=1 2 4 8 20 32
+PASS HEVC count=1 pictures=50 EOS frames=36 resolutions=3
+PASS HEVC count=2 pictures=50 EOS frames=35 resolutions=3
+PASS HEVC count=4 pictures=50 EOS frames=33 resolutions=3
+PASS HEVC count=8 pictures=50 EOS frames=38 resolutions=3
+PASS HEVC count=20 pictures=50 EOS frames=38 resolutions=3
+PASS HEVC count=32 pictures=50 EOS frames=36 resolutions=3
+rc=0

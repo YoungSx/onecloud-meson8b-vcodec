@@ -1,0 +1,12 @@
+== HEVC 1080p decode + H.264 1080p encode
+hevc-1080p decode rc=0 cma_free_min=8 now=23284 encode=0
+PASS: 30/30 frame hashes match
+hevc-1080p: encoded stream software-decodes
+== H.264 1080p 1-reference decode + H.264 1080p encode
+h264-1080p decode rc=0 cma_free_min=3512 now=18836 encode=0
+PASS: 300/300 frame hashes match
+h264-1080p: encoded stream software-decodes
+== H.264 1080p 4-reference B-frame decode + H.264 1080p encode
+h264-4ref decode rc=0 cma_free_min=636 now=26372 encode=0
+PASS: 120/120 frame hashes match
+h264-4ref: encoded stream software-decodes

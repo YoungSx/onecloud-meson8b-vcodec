@@ -39,6 +39,7 @@
 | HEVC 完整帧哈希 | [Content check](hevc-2026-11-14/verified-content-check.log) |
 | 构建和源码复现 | [Clean kernel build](hevc-2026-11-14/reproduced-kernel-build.log) |
 | 主线 v7.3.4 编译级移植（模块、DTB、binding 检查） | [Mainline port](mainline-2026-11-16/PORT.md) |
+| A 阶段帧池：逐帧一致、CAPTURE 1–32、分辨率切换、并发 CMA、余量 2 的 300 轮复现 | [Phase A](phase-a-2026-11-19/README.md) |
 
 `hevc-2026-11-14/verified-deployment.log` 与 `verified-*.md5` 对应最终
 `bd1cb79` 包；`final-install.log` 和 `installed-hevc.md5` 属于已被替换的

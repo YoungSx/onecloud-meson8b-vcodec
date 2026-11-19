@@ -1,0 +1,70 @@
+PASS h264-1080p count=default 0,          0,          0,        1,  3110400, 2
+PASS h264-1360x768 count=default 0,          0,          0,        1,  1566720, 0
+PASS h264-1600x900 count=default 0,          0,          0,        1,  2160000, f
+PASS h264-bframes count=default 0,          0,          0,        1,  3110400, 6
+PASS hevc-1080p count=default 0,          0,          0,        1,  3110400, 7
+PASS hevc-crop count=default 0,          0,          0,        1,   614880, 2
+PASS hevc-left6 count=default 0,          0,          0,        1,  3094938, f
+PASS hevc-left64 count=default 0,          0,          0,        1,  2917632, 9
+PASS rst-h264 count=default 0 1671168 1f6523b3d01cf428
+PASS mpeg2 count=default 0 196608 e5a8e9f22be07806
+PASS mpeg2-bframes count=default 0 196608 e5a8e9f22be07806
+PASS mpeg4 count=default 0 196608 70684da4865a00d4
+PASS vc1 count=default 
+FAIL vc1-small count=default lines=0/1 
+PASS h264-1080p count=2 0,          0,          0,        1,  3110400, 2
+PASS h264-1360x768 count=2 0,          0,          0,        1,  1566720, 0
+PASS h264-1600x900 count=2 0,          0,          0,        1,  2160000, f
+PASS h264-bframes count=2 0,          0,          0,        1,  3110400, 6
+PASS hevc-1080p count=2 0,          0,          0,        1,  3110400, 7
+PASS hevc-crop count=2 0,          0,          0,        1,   614880, 2
+PASS hevc-left6 count=2 0,          0,          0,        1,  3094938, f
+PASS hevc-left64 count=2 0,          0,          0,        1,  2917632, 9
+PASS rst-h264 count=2 0 1671168 1f6523b3d01cf428
+PASS mpeg2 count=2 0 196608 e5a8e9f22be07806
+PASS mpeg2-bframes count=2 0 196608 e5a8e9f22be07806
+PASS mpeg4 count=2 0 196608 70684da4865a00d4
+PASS vc1 count=2 
+FAIL vc1-small count=2 lines=0/1 
+PASS h264-1080p count=4 0,          0,          0,        1,  3110400, 2
+PASS h264-1360x768 count=4 0,          0,          0,        1,  1566720, 0
+PASS h264-1600x900 count=4 0,          0,          0,        1,  2160000, f
+PASS h264-bframes count=4 0,          0,          0,        1,  3110400, 6
+PASS hevc-1080p count=4 0,          0,          0,        1,  3110400, 7
+PASS hevc-crop count=4 0,          0,          0,        1,   614880, 2
+PASS hevc-left6 count=4 0,          0,          0,        1,  3094938, f
+PASS hevc-left64 count=4 0,          0,          0,        1,  2917632, 9
+PASS rst-h264 count=4 0 1671168 1f6523b3d01cf428
+PASS mpeg2 count=4 0 196608 e5a8e9f22be07806
+PASS mpeg2-bframes count=4 0 196608 e5a8e9f22be07806
+FAIL mpeg4 count=4 lines=2/2 0 196608 361e0a1e131afb1d
+PASS vc1 count=4 
+FAIL vc1-small count=4 lines=0/1 
+PASS h264-1080p count=20 0,          0,          0,        1,  3110400, 2
+PASS h264-1360x768 count=20 0,          0,          0,        1,  1566720, 0
+PASS h264-1600x900 count=20 0,          0,          0,        1,  2160000, f
+PASS h264-bframes count=20 0,          0,          0,        1,  3110400, 6
+PASS hevc-1080p count=20 0,          0,          0,        1,  3110400, 7
+PASS hevc-crop count=20 0,          0,          0,        1,   614880, 2
+PASS hevc-left6 count=20 0,          0,          0,        1,  3094938, f
+PASS hevc-left64 count=20 0,          0,          0,        1,  2917632, 9
+PASS rst-h264 count=20 0 1671168 1f6523b3d01cf428
+PASS mpeg2 count=20 0 196608 e5a8e9f22be07806
+PASS mpeg2-bframes count=20 0 196608 e5a8e9f22be07806
+PASS mpeg4 count=20 0 196608 70684da4865a00d4
+FAIL vc1 count=20 lines=1/0 0 196608 fc6949c2dcee40d1
+FAIL vc1-small count=20 lines=0/1 
+PASS h264-1080p count=32 0,          0,          0,        1,  3110400, 2
+PASS h264-1360x768 count=32 0,          0,          0,        1,  1566720, 0
+PASS h264-1600x900 count=32 0,          0,          0,        1,  2160000, f
+PASS h264-bframes count=32 0,          0,          0,        1,  3110400, 6
+PASS hevc-1080p count=32 0,          0,          0,        1,  3110400, 7
+PASS hevc-crop count=32 0,          0,          0,        1,   614880, 2
+PASS hevc-left6 count=32 0,          0,          0,        1,  3094938, f
+PASS hevc-left64 count=32 0,          0,          0,        1,  2917632, 9
+PASS rst-h264 count=32 0 1671168 1f6523b3d01cf428
+PASS mpeg2 count=32 0 196608 e5a8e9f22be07806
+PASS mpeg2-bframes count=32 0 196608 e5a8e9f22be07806
+PASS mpeg4 count=32 0 196608 70684da4865a00d4
+FAIL vc1 count=32 lines=1/0 0 196608 fc6949c2dcee40d1
+FAIL vc1-small count=32 lines=0/1 

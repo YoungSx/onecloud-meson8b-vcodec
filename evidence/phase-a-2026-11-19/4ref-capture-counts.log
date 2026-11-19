@@ -1,0 +1,10 @@
+4ref cap=default rc=0 PASS: 120/120 frame hashes match
+4ref cap=2 rc=0 PASS: 120/120 frame hashes match
+4ref cap=4 rc=0 PASS: 120/120 frame hashes match
+4ref cap=20 rc=0 PASS: 120/120 frame hashes match
+4ref cap=32 rc=0 PASS: 120/120 frame hashes match
+== HEVC 1080p crops
+1080p PASS: 30/30 frame hashes match
+crop PASS: 10/10 frame hashes match
+hevc-left6 PASS: 30/30 frame hashes match
+hevc-left64 PASS: 30/30 frame hashes match
