@@ -56,12 +56,22 @@ struct amvdec_shadow {
 	u32 luma;
 };
 
-/* What a finished picture carries until it reaches a CAPTURE buffer */
+/* What a picture was decoded at; a resolution switch changes the session's. */
+struct amvdec_geometry {
+	u32 width;
+	u32 height;
+	u32 reference_width;
+	u32 reference_height;
+	u32 crop_left;
+	u32 crop_top;
+};
+
 struct amvdec_picture {
 	u64 timestamp;
 	struct v4l2_timecode timecode;
 	u32 flags;
 	u32 field;
+	struct amvdec_geometry geo;
 	bool eos;	/* raise V4L2_EVENT_EOS with this picture */
 	bool restart;	/* restart the CAPTURE sequence after this picture */
 };
@@ -352,5 +362,6 @@ struct amvdec_session {
 };
 
 u32 amvdec_get_output_size(struct amvdec_session *sess);
+u32 amvdec_get_output_size_wh(u32 width, u32 height);
 
 #endif

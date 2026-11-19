@@ -214,6 +214,8 @@ struct hevc_frame {
 	u32 slot;	/* frame pool slot holding the picture */
 	u32 offset;
 	u32 poc;
+	/* What it was decoded at: the reorder buffer hands it out later. */
+	struct amvdec_geometry geo;
 
 	int referenced;
 	int show;
@@ -266,7 +268,10 @@ struct codec_hevc {
 	bool eos_seen;
 	/* the last watchdog check found the client waiting on the decoder */
 	bool client_waited;
+	/* Last SPS parsed out of the queued input, not necessarily this picture's. */
 	struct hevc_sps_geometry sps;
+	/* SPS that resolved the current coded size (see codec_hevc_process_rpm). */
+	struct hevc_sps_geometry applied;
 	u32 prev_tid0_poc;
 	u32 slice_segment_addr;
 	u32 slice_addr;
@@ -480,6 +485,9 @@ codec_hevc_get_next_ready_frame(struct codec_hevc *hevc)
 	return ret;
 }
 
+static void codec_hevc_deliver_frame(struct amvdec_session *sess,
+				     struct hevc_frame *frame);
+
 /* Try to output as many frames as possible */
 static void codec_hevc_show_frames(struct amvdec_session *sess)
 {
@@ -493,8 +501,7 @@ static void codec_hevc_show_frames(struct amvdec_session *sess)
 
 		dev_dbg(sess->core->dev, "DONE frame poc %u; slot %u\n",
 			tmp->poc, tmp->slot);
-		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
-					 V4L2_FIELD_NONE);
+		codec_hevc_deliver_frame(sess, tmp);
 
 		tmp->show = 0;
 		hevc->frames_num--;
@@ -689,17 +696,67 @@ free_hevc:
 	return ret;
 }
 
+/*
+ * Hand a reorder-buffer picture to the frame pool. The pool copies it with
+ * the session's geometry, which by then may be the next segment's, so put
+ * the one the picture was decoded at back in place: a resolution change
+ * must not turn an old tail frame into a copy at the new size.
+ */
+static void codec_hevc_deliver_frame(struct amvdec_session *sess,
+				     struct hevc_frame *frame)
+{
+	struct amvdec_geometry geo;
+
+	geo.width = sess->width;
+	geo.height = sess->height;
+	geo.reference_width = sess->reference_width;
+	geo.reference_height = sess->reference_height;
+	geo.crop_left = sess->crop_left;
+	geo.crop_top = sess->crop_top;
+
+	sess->width = frame->geo.width;
+	sess->height = frame->geo.height;
+	sess->reference_width = frame->geo.reference_width;
+	sess->reference_height = frame->geo.reference_height;
+	sess->crop_left = frame->geo.crop_left;
+	sess->crop_top = frame->geo.crop_top;
+	amvdec_pool_picture_done(sess, frame->slot, frame->offset,
+				 V4L2_FIELD_NONE);
+	sess->width = geo.width;
+	sess->height = geo.height;
+	sess->reference_width = geo.reference_width;
+	sess->reference_height = geo.reference_height;
+	sess->crop_left = geo.crop_left;
+	sess->crop_top = geo.crop_top;
+}
+
+/* Hand every picture userspace is still owed to the frame pool. With
+ * @hold_last the final one is returned undelivered, so the caller can mark
+ * it as the end of the old stream by changing the session status first.
+ */
+static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *sess,
+						  bool hold_last)
+{
+	struct codec_hevc *hevc = sess->priv;
+	struct hevc_frame *tmp, *next;
+
+	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
+		tmp->show = 0;
+		next = codec_hevc_get_next_ready_frame(hevc);
+		if (hold_last && !next)
+			return tmp;
+		codec_hevc_deliver_frame(sess, tmp);
+		hevc->frames_num--;
+	}
+	return NULL;
+}
+
 static void codec_hevc_flush_output(struct amvdec_session *sess)
 {
 	struct codec_hevc *hevc = sess->priv;
 	struct hevc_frame *tmp, *n;
 
-	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
-		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
-					 V4L2_FIELD_NONE);
-		tmp->show = 0;
-		hevc->frames_num--;
-	}
+	codec_hevc_show_pending(sess, false);
 
 	list_for_each_entry_safe(tmp, n, &hevc->ref_frames_list, list) {
 		amvdec_pool_release(sess, tmp->slot);
@@ -796,6 +853,12 @@ codec_hevc_prepare_new_frame(struct amvdec_session *sess)
 	new_frame->poc = hevc->curr_poc;
 	new_frame->cur_slice_type = params->p.slice_type;
 	new_frame->num_reorder_pic = params->p.sps_num_reorder_pics_0;
+	new_frame->geo.width = sess->width;
+	new_frame->geo.height = sess->height;
+	new_frame->geo.reference_width = sess->reference_width;
+	new_frame->geo.reference_height = sess->reference_height;
+	new_frame->geo.crop_left = sess->crop_left;
+	new_frame->geo.crop_top = sess->crop_top;
 	dev_dbg(core->dev, "HEVC picture POC %d slot %u reorder %u\n",
 		 (s32)hevc->curr_poc, slot, new_frame->num_reorder_pic);
 	new_frame->offset = amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT);
@@ -1348,13 +1411,28 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	dst_height = hevc->height;
 	sess->crop_left = 0;
 	sess->crop_top = 0;
-	/* The conformance window only applies to the SPS this picture uses. */
-	if (hevc->sps.coded_width == hevc->width &&
-	    hevc->sps.coded_height == hevc->height) {
-		dst_width = hevc->sps.width;
-		dst_height = hevc->sps.height;
-		sess->crop_left = hevc->sps.left;
-		sess->crop_top = hevc->sps.top;
+	/*
+	 * The conformance window only applies to the SPS this picture uses.
+	 * Input inspection runs ahead of the decoder, so hevc->sps can already
+	 * be the next segment's; once a coded size is resolved, keep its window
+	 * instead of reporting the uncropped size as a source change.
+	 */
+	if (hevc->applied.coded_width == hevc->width &&
+	    hevc->applied.coded_height == hevc->height) {
+		dst_width = hevc->applied.width;
+		dst_height = hevc->applied.height;
+		sess->crop_left = hevc->applied.left;
+		sess->crop_top = hevc->applied.top;
+	} else if (hevc->sps.coded_width == hevc->width &&
+		   hevc->sps.coded_height == hevc->height) {
+		hevc->applied = hevc->sps;
+		dst_width = hevc->applied.width;
+		dst_height = hevc->applied.height;
+		sess->crop_left = hevc->applied.left;
+		sess->crop_top = hevc->applied.top;
+	} else {
+		/* New coded size: no window resolved for it yet. */
+		memset(&hevc->applied, 0, sizeof(hevc->applied));
 	}
 	sess->reference_width = hevc->width;
 	sess->reference_height = hevc->height;
@@ -1540,6 +1618,18 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 			goto unlock;
 		}
 		if (ret > 0) {
+			/* The old segment's pictures are still owed to
+			 * userspace, and only its geometry can copy them.
+			 * Deliver them now; the last one ends that stream,
+			 * which the client drains before it renegotiates. */
+			struct hevc_frame *last = codec_hevc_show_pending(sess, true);
+			enum amvdec_status status = sess->status;
+
+			sess->status = STATUS_NEEDS_RESUME;
+			if (last)
+				codec_hevc_deliver_frame(sess, last);
+			sess->status = status;
+			codec_hevc_forget_frames(hevc);
 			amvdec_src_change(sess, hevc->dst_width, hevc->dst_height,
 					 hevc->dpb_size);
 			goto unlock;

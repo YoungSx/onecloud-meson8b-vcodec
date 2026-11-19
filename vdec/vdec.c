@@ -40,14 +40,15 @@ struct dummy_buf {
  * full macroblock rows at the 32-byte aligned stride, so width * height alone
  * underruns for sizes such as 1360x768 or 1600x900.
  */
-static u32 get_output_size(u32 width, u32 height)
+u32 amvdec_get_output_size_wh(u32 width, u32 height)
 {
 	return ALIGN(ALIGN(width, 32) * ALIGN(height, 32), SZ_64K);
 }
+EXPORT_SYMBOL_GPL(amvdec_get_output_size_wh);
 
 u32 amvdec_get_output_size(struct amvdec_session *sess)
 {
-	return get_output_size(sess->width, sess->height);
+	return amvdec_get_output_size_wh(sess->width, sess->height);
 }
 EXPORT_SYMBOL_GPL(amvdec_get_output_size);
 
@@ -694,7 +695,7 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 
 	pixmp->width  = clamp(pixmp->width,  (u32)256, fmt_out->max_width);
 	pixmp->height = clamp(pixmp->height, (u32)144, fmt_out->max_height);
-	output_size = get_output_size(pixmp->width, pixmp->height);
+	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		if (!pfmt[0].sizeimage)

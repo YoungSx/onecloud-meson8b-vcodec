@@ -410,6 +410,14 @@ static void amvdec_mark_picture(struct amvdec_session *sess,
 {
 	struct device *dev = sess->core->dev_dec;
 
+	/* Delivery may come after a source change; keep what it decoded at. */
+	pic->geo.width = sess->width;
+	pic->geo.height = sess->height;
+	pic->geo.reference_width = sess->reference_width;
+	pic->geo.reference_height = sess->reference_height;
+	pic->geo.crop_left = sess->crop_left;
+	pic->geo.crop_top = sess->crop_top;
+
 	if (sess->should_stop &&
 	    atomic_read(&sess->esparser_queued_bufs) <= 1) {
 		dev_dbg(dev, "Signaling EOS\n");

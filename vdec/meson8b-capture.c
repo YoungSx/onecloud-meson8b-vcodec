@@ -100,21 +100,22 @@ static void amvdec_swap64_neon(void *dst, const void *src, unsigned long size)
  * offsets go byte by byte. Bytes outside the window are zeroed.
  */
 static int amvdec_copy_window(struct amvdec_session *sess,
+			      const struct amvdec_geometry *geo,
 			      const struct amvdec_shadow *shadow,
 			      void *dst[2], const u32 size[2], bool simd)
 {
 	amvdec_swap64_t copy = simd ? amvdec_swap64_neon : amvdec_swap64;
-	u32 src_stride = ALIGN(sess->reference_width, 32);
-	u32 dst_stride = ALIGN(sess->width, 32);
-	u32 left = sess->crop_left, width = sess->width;
+	u32 src_stride = ALIGN(geo->reference_width, 32);
+	u32 dst_stride = ALIGN(geo->width, 32);
+	u32 left = geo->crop_left, width = geo->width;
 	u32 plane;
 
-	if (left + width > sess->reference_width ||
-	    sess->crop_top + sess->height > sess->reference_height)
+	if (left + width > geo->reference_width ||
+	    geo->crop_top + geo->height > geo->reference_height)
 		return -EINVAL;
 	for (plane = 0; plane < 2; plane++) {
-		u32 rows = plane ? sess->height / 2 : sess->height;
-		u32 top = plane ? sess->crop_top / 2 : sess->crop_top;
+		u32 rows = plane ? geo->height / 2 : geo->height;
+		u32 top = plane ? geo->crop_top / 2 : geo->crop_top;
 		const u8 *src = (const u8 *)shadow->cached +
 				(plane ? shadow->luma : 0) + top * src_stride;
 
@@ -129,6 +130,7 @@ static int amvdec_copy_window(struct amvdec_session *sess,
 }
 
 static int amvdec_meson8b_convert(struct amvdec_session *sess,
+				  const struct amvdec_geometry *geo,
 				  const struct amvdec_shadow *shadow,
 				  struct vb2_buffer *vb)
 {
@@ -143,7 +145,7 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 	if (vb->num_planes != 2 || !shadow->vaddr)
 		return -EINVAL;
 	/* Multiples of 64 KiB, so the word copy needs no tail handling. */
-	size[0] = amvdec_get_output_size(sess);
+	size[0] = amvdec_get_output_size_wh(geo->width, geo->height);
 	size[1] = size[0] / 2;
 	for (i = 0; i < 2; i++) {
 		dst[i] = vb2_plane_vaddr(vb, i);
@@ -154,9 +156,9 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 	dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
 				DMA_FROM_DEVICE);
 	src = shadow->cached;
-	crop = sess->reference_width &&
-	       (sess->crop_left || sess->crop_top ||
-		ALIGN(sess->reference_width, 32) != ALIGN(sess->width, 32));
+	crop = geo->reference_width &&
+	       (geo->crop_left || geo->crop_top ||
+		ALIGN(geo->reference_width, 32) != ALIGN(geo->width, 32));
 
 	/*
 	 * NEON halves the copy (about 15 ms per 1080p picture with the scalar
@@ -167,7 +169,7 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 	if (simd)
 		kernel_neon_begin();
 	if (crop) {
-		ret = amvdec_copy_window(sess, shadow, dst, size, simd);
+		ret = amvdec_copy_window(sess, geo, shadow, dst, size, simd);
 	} else {
 		amvdec_swap64_t copy = simd ? amvdec_swap64_neon : amvdec_swap64;
 
@@ -202,11 +204,12 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 
 /* Convert one decoded picture into @vb, accounting the CPU time. */
 static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
+				       const struct amvdec_geometry *geo,
 				       const struct amvdec_shadow *shadow,
 				       struct vb2_buffer *vb)
 {
 	ktime_t start = ktime_get();
-	int ret = amvdec_meson8b_convert(sess, shadow, vb);
+	int ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
 
 	if (!ret) {
 		sess->core->converted_frames++;
@@ -387,27 +390,31 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 	struct amvdec_frame_pool *pool = &sess->pool;
-	u32 luma = amvdec_get_output_size(sess);
 	int slot;
 
 	while ((slot = meson8b_pool_peek(&pool->state)) >= 0) {
 		struct amvdec_picture *pic = &pool->picture[slot];
 		struct vb2_v4l2_buffer *vbuf;
+		u32 luma = amvdec_get_output_size_wh(pic->geo.width, pic->geo.height);
 		int ret;
 
 		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
 		if (!vbuf)
 			return;
 
-		ret = amvdec_meson8b_copy_capture(sess, &pool->slot[slot],
+		ret = amvdec_meson8b_copy_capture(sess, &pic->geo, &pool->slot[slot],
 						  &vbuf->vb2_buf);
 		meson8b_pool_pop(&pool->state);
 		/* The picture is out of the slot; the firmware may reuse it. */
 		if (codec_ops->recycle)
 			amvdec_recycle(sess, slot);
 		if (ret) {
+			/* One picture that does not fit its buffer is no reason
+			 * to end a session that is otherwise decoding. */
+			dev_warn(sess->core->dev,
+				 "dropping %ux%u picture: %d\n",
+				 pic->geo.width, pic->geo.height, ret);
 			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-			amvdec_abort(sess);
 			continue;
 		}
 
