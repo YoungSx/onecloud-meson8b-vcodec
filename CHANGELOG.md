@@ -5,6 +5,63 @@ recorded OneCloud kernel and device-tree ABI. A patch release may ship the
 same modules as its predecessor when only documentation, evidence or tooling
 changed.
 
+## v0.4.0 — 2026-11-20
+
+The decoder no longer sizes its hardware memory by the CAPTURE count. Each
+CAPTURE buffer used to carry its own CMA shadow in firmware byte order, so
+FFmpeg's default of 20 buffers (clamped to 12) needed 36 MiB of CMA at
+1080p, and decode plus encode could not both start on the 64 MiB device.
+The decoder now holds a frame pool sized by the stream, the decoded picture
+is converted into whichever CAPTURE buffer the application queued, and
+applications no longer pass `-num_capture_buffers`. `meson-vdec.ko` differs
+from v0.3.0; the other two modules do not. `ffmpeg` and the device tree are
+unchanged.
+
+- Decode into a driver-owned frame pool: H.264 gets the reference count plus
+  two spare slots (`h264_extra_buffers` 5 → 2), HEVC the DPB size, MPEG-1/2
+  eight and MPEG-4/VC-1/MJPEG four. A 1080p session now holds 9 MiB (one
+  reference) to 18 MiB (four references) instead of 36 MiB, and CAPTURE
+  buffers are ordinary vmalloc memory for any count from 1 to 32. Finished
+  pictures wait in firmware order and are copied into the next queued
+  buffer; EOS and SOURCE_CHANGE are signalled only after they are delivered.
+- Deliver HEVC pictures at the geometry they were decoded at, not the
+  session's current size, so a resolution switch cannot re-copy an old tail
+  picture at the new size; pending pictures are delivered before the session
+  adopts the new size and the last one ends the old stream.
+- Return CAPTURE buffers under the frame pool lock at STREAMOFF. The v0.3.0
+  shadow path dropped the waiting pictures, released the lock and only then
+  handed the buffers back, so a conversion could write into a buffer vb2 had
+  already freed — the "stop_streaming operation is leaving buf in active
+  state" warning before its source-change oops.
+- Stop feeding the ESPARSER once the session has ended, so OUTPUT buffers
+  queued after a STREAMOFF cannot be written into the freed VIFIFO.
+- Keep HEVC sessions alive while the client stops feeding: the stall
+  watchdog now needs the client to be blocked on the decoder with input
+  queued that the VIFIFO cannot take, or a drain requested, for a whole
+  period.
+- Observe the pool in debugfs: `pool_slots`, `pool_bytes`,
+  `pool_waiting_peak`, `converted_frames`, `cropped_frames`, `convert_ns`.
+- Accept the v0.4.0 candidate on hardware: per-frame hashes against the
+  software reference for H.264 (1080p, 1360x768, 1600x900, four-reference
+  B frames), HEVC, MPEG-2/4, VC-1 and MJPEG at CAPTURE 1, 2, 4, 20, 32 and
+  at FFmpeg's default, resolution switches both codecs at 1–32, 1080p decode
+  together with 1080p encode under the same CMA, 300 mixed-load rounds, and
+  a 30-minute soak with the five production services probed throughout
+  (439 iterations, 107 samples, 0 failures). See
+  [Phase A](evidence/phase-a-2026-11-19/README.md).
+- Evaluate a 2 MiB VIFIFO (4 → 2 MiB): it passed the resolution-switch
+  matrix but is not adopted. VIFIFO does not split packets, the largest
+  packet in the test streams is 59468 B, and 2 MiB per session does not
+  justify the reduced headroom.
+- Leave the transcode performance work and the OpenList end-to-end
+  integration to a later release: one 60 s 1080p chunk is still slower than
+  real time on this board, and OpenList's hardware transcoding waits for the
+  v4l2m2m PR to be merged upstream.
+- Record the H.264 1080p short output seen once in 453 runs at the reduced
+  pool: it matches the existing one-in-1700 behaviour of v0.3.0, 300
+  targeted rounds and the 30-minute soak did not reproduce it, and a failing
+  run now keeps ffmpeg's stderr and the pool state.
+
 ## v0.3.0 — 2026-11-17
 
 First payload change since v0.2.1: `esparser_queue_eos()` now reports a drain
