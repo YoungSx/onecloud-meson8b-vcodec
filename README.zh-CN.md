@@ -29,7 +29,9 @@ HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧
 运行；[上游 linux-media 结论](docs/linux-media-rfc.md)记录在
 [Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2)，不向上游提交。
 详见[能力与边界](docs/validation.md)。上表的编码扩展与 MPEG/VC-1 drain
-修复于 2026-11-15 实机验证，已包含在在役机安装的 v0.3.0 发布包中。
+修复于 2026-11-15 实机验证，在役机当前安装的 v0.4.0 发布包继续包含这些功能。
+v0.4.0 帧池已通过默认缓冲参数回归、30 分钟负载及五项服务并存检查，见
+[部署记录](evidence/p6-2026-11-20/v040-deploy.md)。
 S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
 [编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
 

@@ -102,7 +102,8 @@ MB，MemAvailable 467.5 → 511.9 MB），未见句柄或 CMA 泄漏。负载结
 
 ## 五项服务并存
 
-15:40:40 至 16:09:49，每 15 s 采样一次：
+探测脚本从 15:39:42 启动至 16:09:49 收尾，配置间隔为 15 s（探针
+执行本身也耗时，实际采样间距更长）：
 `COEXIST_DONE samples=106 fails=0 soak_rc=0 final: openlist=200
 sublink=200 vocat=200 ha=200 arcane_hits=3284`。四项 HTTP 探针全程 200，
 Arcane agent 的健康检查日志计数在窗口内持续推进（3197 → 3284），说明其
@@ -124,3 +125,17 @@ Arcane agent 的健康检查日志计数在窗口内持续推进（3197 → 3284
   dump 与软件参考 `sw-m2v.nv12` 做 `cmp`，两条解码路径本就不逐字节相同，
   改为比对记录值 `f555b2b0…`；编码用例原先把 `/dev/video0` 当编码器并传错
   质量参数，改为 `/dev/video1`、质量 90。修正后按上表重跑，两个用例都通过。
+
+## 发布后的只读复核
+
+2026-11-20 再次检查正式安装，无编解码测试进程在运行：
+
+- 54 个包内文件 SHA-256 全部通过，三个模块 MD5 与上表一致。
+- unit active/enabled，`ExecMainStatus=0`，两个设备节点均在。
+- 四个 HTTP 入口均返回 200，OpenList、Arcane、Home Assistant 容器运行。
+  Arcane 累计 RestartCount 为 1，其 StartedAt 早于本次安装，不能把累计值
+  当作本次热更新或负载造成的重启。
+- 空闲 `pool_slots=0`、`pool_bytes=0`，累计转换 40470 帧。
+
+原始输出见 [final-live-check.log](final-live-check.log)。这是当时的只读状态
+快照，不增加长时负载或 OpenList 端到端验证的覆盖范围。

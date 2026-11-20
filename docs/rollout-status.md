@@ -1,7 +1,32 @@
-# Deployment and acceptance status, 2026-11-16
+# Deployment and acceptance status, 2026-11-20
 
-Final driver is runtime-only on original 5.15.79-meson, with no reboot or
-/boot writes. JPEG/HEVC and concurrent B-frame input are validated on
+Current installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
+runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
+state /root/venc-deploy/p6/codec-state-v040-install. Module hashes meson-vdec
+15d5c77d25225e8b, meson-venc 2507c7cc69fb1b00, meson8b-runtime
+af61f4dea7b68e06; the vdec module is the frame-pool build, the other two are
+byte-identical to v0.3.0, and the firmware files are unchanged. The codec
+devices were down 21 s during the upgrade; the regression set passed, a
+30-minute load ran 441 iterations with 0 failures, and five service probes
+sampled 106 times with no failure. See evidence/p6-2026-11-20/v040-deploy.md.
+The v0.3.0 package and its state remain on the box for rollback.
+
+Final read-only recheck on 2026-11-20: all 54 installed payload files pass
+SHA256SUMS, module fingerprints match the release package, the unit is
+active/enabled, both video devices are present, and all four HTTP entry
+points return 200. OpenList, Arcane and Home Assistant containers are
+running. The idle decoder pool has zero allocated slots and bytes.
+See evidence/p6-2026-11-20/final-live-check.log.
+
+Transcode performance work remains deferred. OpenList hardware integration
+waits for the official PR merge and release, as requested; the driver
+deployment is not an OpenList end-to-end acceptance.
+
+## Earlier acceptance and package history
+
+The driver runs as external modules on original 5.15.79-meson. The v0.4.0
+upgrade changed no boot files and required no reboot. Earlier cold-start and
+service-restart checks are recorded separately. JPEG/HEVC and concurrent B-frame input are validated on
 OneCloud. The systemd loader is reversible and its start/stop, failure
 cleanup and removal were tested. The final installation leaves codecs
 available, with installation-time originals retained in its state backup.
@@ -37,17 +62,6 @@ Independent tools and all scripts are covered by the manifest.
 
 Installed at /opt/meson8b-vcodec/current. The enabled and active
 meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
-
-Current installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
-runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
-state /root/venc-deploy/p6/codec-state-v040-install. Module hashes meson-vdec
-15d5c77d25225e8b, meson-venc 2507c7cc69fb1b00, meson8b-runtime
-af61f4dea7b68e06; the vdec module is the frame-pool build, the other two are
-byte-identical to v0.3.0, and the firmware files are unchanged. The codec
-devices were down 21 s during the upgrade; the regression set passed, a
-30-minute load ran 441 iterations with 0 failures, and five service probes
-sampled 106 times with no failure. See evidence/p6-2026-11-20/v040-deploy.md.
-The v0.3.0 package and its state remain on the box for rollback.
 
 Previous installation (2026-11-17 23:27): the GitHub release v0.3.0 runtime
 package, built by CI from abee6f6, kernel release 5.15.79-meson, state
