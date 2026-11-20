@@ -60,6 +60,9 @@ bash scripts/package-release.sh v0.1.0 build/release-v0.1.0
 在役机 2026-11-15 起安装 `c20a473` 运行包（v0.2.0），2026-11-17 起安装
 v0.3.0：先装本机构建的 `0a0542b` 完成回归与 30 分钟负载，当晚换成 GitHub
 Release 包（CI 从 `abee6f6` 构建，驱动代码相同）并重新回归，见
-[v0.3.0 deploy](../evidence/p6-2026-11-17/v030-deploy.md)；`bd1cb79` 是
+[v0.3.0 deploy](../evidence/p6-2026-11-17/v030-deploy.md)。2026-11-20 起
+安装 v0.4.0 正式 Release 包（CI 从 `89dd558` 构建）：编解码设备中断 21 s，
+随后回归与 30 分钟负载 441 轮 0 失败、五项服务并存 106 次采样 0 失败，见
+[v0.4.0 deploy](../evidence/p6-2026-11-20/v040-deploy.md)。`bd1cb79` 是
 2026-11-14 完整硬件验收对应的版本。后续 CI/Release 产物不自动部署，新版本
 需要按安装指南明确升级，生产原内核和原 FFmpeg 保留。

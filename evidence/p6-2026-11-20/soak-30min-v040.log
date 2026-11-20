@@ -1,0 +1,1854 @@
+2026-11-20T15:39:42+08:00 == soak start minutes=30
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:39:45+08:00 iter=1 temp=53C MemFree:=164 MemAvailable:=445 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:39:48+08:00 iter=2 temp=51C MemFree:=189 MemAvailable:=456 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:39:50+08:00 iter=3 temp=50C MemFree:=189 MemAvailable:=449 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:39:53+08:00 iter=4 temp=51C MemFree:=205 MemAvailable:=449 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:07+08:00 iter=5 temp=55C MemFree:=167 MemAvailable:=445 CmaTotal:=64 CmaFree:=28 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:09+08:00 iter=6 temp=53C MemFree:=181 MemAvailable:=434 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:12+08:00 iter=7 temp=53C MemFree:=187 MemAvailable:=475 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:14+08:00 iter=8 temp=53C MemFree:=170 MemAvailable:=462 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:16+08:00 iter=9 temp=53C MemFree:=174 MemAvailable:=467 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:29+08:00 iter=10 temp=55C MemFree:=163 MemAvailable:=452 CmaTotal:=64 CmaFree:=31 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:31+08:00 iter=11 temp=55C MemFree:=165 MemAvailable:=457 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:34+08:00 iter=12 temp=54C MemFree:=174 MemAvailable:=484 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:36+08:00 iter=13 temp=53C MemFree:=170 MemAvailable:=475 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:38+08:00 iter=14 temp=56C MemFree:=173 MemAvailable:=462 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:50+08:00 iter=15 temp=56C MemFree:=186 MemAvailable:=485 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:52+08:00 iter=16 temp=54C MemFree:=196 MemAvailable:=491 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:55+08:00 iter=17 temp=53C MemFree:=187 MemAvailable:=467 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:57+08:00 iter=18 temp=57C MemFree:=187 MemAvailable:=471 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:40:59+08:00 iter=19 temp=55C MemFree:=192 MemAvailable:=475 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:10+08:00 iter=20 temp=55C MemFree:=176 MemAvailable:=475 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:13+08:00 iter=21 temp=59C MemFree:=165 MemAvailable:=461 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:15+08:00 iter=22 temp=57C MemFree:=172 MemAvailable:=452 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:18+08:00 iter=23 temp=56C MemFree:=174 MemAvailable:=455 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:20+08:00 iter=24 temp=55C MemFree:=177 MemAvailable:=457 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:32+08:00 iter=25 temp=58C MemFree:=180 MemAvailable:=456 CmaTotal:=64 CmaFree:=33 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:34+08:00 iter=26 temp=56C MemFree:=191 MemAvailable:=461 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:37+08:00 iter=27 temp=56C MemFree:=177 MemAvailable:=451 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:39+08:00 iter=28 temp=58C MemFree:=181 MemAvailable:=457 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:41+08:00 iter=29 temp=54C MemFree:=187 MemAvailable:=494 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:52+08:00 iter=30 temp=55C MemFree:=181 MemAvailable:=476 CmaTotal:=64 CmaFree:=33 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:55+08:00 iter=31 temp=56C MemFree:=176 MemAvailable:=467 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:57+08:00 iter=32 temp=55C MemFree:=180 MemAvailable:=472 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:41:59+08:00 iter=33 temp=54C MemFree:=184 MemAvailable:=477 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:01+08:00 iter=34 temp=54C MemFree:=170 MemAvailable:=467 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:19+08:00 iter=35 temp=58C MemFree:=176 MemAvailable:=461 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:21+08:00 iter=36 temp=54C MemFree:=168 MemAvailable:=484 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:23+08:00 iter=37 temp=56C MemFree:=170 MemAvailable:=485 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:26+08:00 iter=38 temp=55C MemFree:=189 MemAvailable:=492 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:28+08:00 iter=39 temp=59C MemFree:=187 MemAvailable:=492 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:41+08:00 iter=40 temp=56C MemFree:=189 MemAvailable:=482 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:43+08:00 iter=41 temp=55C MemFree:=182 MemAvailable:=474 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:45+08:00 iter=42 temp=59C MemFree:=184 MemAvailable:=476 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:48+08:00 iter=43 temp=55C MemFree:=194 MemAvailable:=486 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:42:50+08:00 iter=44 temp=54C MemFree:=184 MemAvailable:=476 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:01+08:00 iter=45 temp=61C MemFree:=175 MemAvailable:=469 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:03+08:00 iter=46 temp=59C MemFree:=180 MemAvailable:=474 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:06+08:00 iter=47 temp=56C MemFree:=183 MemAvailable:=462 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:08+08:00 iter=48 temp=55C MemFree:=183 MemAvailable:=463 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:10+08:00 iter=49 temp=55C MemFree:=180 MemAvailable:=459 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:21+08:00 iter=50 temp=59C MemFree:=180 MemAvailable:=463 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:23+08:00 iter=51 temp=56C MemFree:=187 MemAvailable:=501 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:26+08:00 iter=52 temp=58C MemFree:=185 MemAvailable:=492 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:28+08:00 iter=53 temp=55C MemFree:=191 MemAvailable:=498 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:30+08:00 iter=54 temp=54C MemFree:=185 MemAvailable:=492 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:42+08:00 iter=55 temp=56C MemFree:=185 MemAvailable:=482 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:44+08:00 iter=56 temp=56C MemFree:=179 MemAvailable:=474 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:46+08:00 iter=57 temp=55C MemFree:=182 MemAvailable:=478 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:48+08:00 iter=58 temp=55C MemFree:=186 MemAvailable:=483 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:43:51+08:00 iter=59 temp=59C MemFree:=172 MemAvailable:=468 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:01+08:00 iter=60 temp=57C MemFree:=177 MemAvailable:=476 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:03+08:00 iter=61 temp=57C MemFree:=182 MemAvailable:=480 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:06+08:00 iter=62 temp=56C MemFree:=186 MemAvailable:=484 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:08+08:00 iter=63 temp=59C MemFree:=177 MemAvailable:=476 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:11+08:00 iter=64 temp=58C MemFree:=180 MemAvailable:=478 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:21+08:00 iter=65 temp=61C MemFree:=176 MemAvailable:=477 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:24+08:00 iter=66 temp=59C MemFree:=180 MemAvailable:=482 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:26+08:00 iter=67 temp=56C MemFree:=175 MemAvailable:=491 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:28+08:00 iter=68 temp=60C MemFree:=178 MemAvailable:=496 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:31+08:00 iter=69 temp=55C MemFree:=184 MemAvailable:=501 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:41+08:00 iter=70 temp=61C MemFree:=178 MemAvailable:=481 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:44+08:00 iter=71 temp=56C MemFree:=176 MemAvailable:=478 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:46+08:00 iter=72 temp=59C MemFree:=180 MemAvailable:=483 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:48+08:00 iter=73 temp=57C MemFree:=181 MemAvailable:=485 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:44:50+08:00 iter=74 temp=55C MemFree:=171 MemAvailable:=476 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:02+08:00 iter=75 temp=60C MemFree:=157 MemAvailable:=487 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:04+08:00 iter=76 temp=60C MemFree:=162 MemAvailable:=490 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:07+08:00 iter=77 temp=56C MemFree:=184 MemAvailable:=485 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:09+08:00 iter=78 temp=55C MemFree:=178 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:12+08:00 iter=79 temp=59C MemFree:=179 MemAvailable:=481 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:23+08:00 iter=80 temp=59C MemFree:=173 MemAvailable:=463 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:25+08:00 iter=81 temp=57C MemFree:=176 MemAvailable:=466 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:28+08:00 iter=82 temp=54C MemFree:=182 MemAvailable:=502 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:30+08:00 iter=83 temp=58C MemFree:=173 MemAvailable:=477 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:32+08:00 iter=84 temp=60C MemFree:=173 MemAvailable:=479 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:43+08:00 iter=85 temp=59C MemFree:=178 MemAvailable:=485 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:46+08:00 iter=86 temp=56C MemFree:=181 MemAvailable:=494 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:48+08:00 iter=87 temp=59C MemFree:=198 MemAvailable:=497 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:51+08:00 iter=88 temp=61C MemFree:=197 MemAvailable:=499 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:45:53+08:00 iter=89 temp=55C MemFree:=195 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:04+08:00 iter=90 temp=57C MemFree:=201 MemAvailable:=487 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:06+08:00 iter=91 temp=56C MemFree:=192 MemAvailable:=478 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:08+08:00 iter=92 temp=60C MemFree:=197 MemAvailable:=483 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:10+08:00 iter=93 temp=58C MemFree:=201 MemAvailable:=487 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:13+08:00 iter=94 temp=56C MemFree:=192 MemAvailable:=479 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:23+08:00 iter=95 temp=61C MemFree:=191 MemAvailable:=478 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:26+08:00 iter=96 temp=58C MemFree:=200 MemAvailable:=471 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:28+08:00 iter=97 temp=56C MemFree:=192 MemAvailable:=464 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:30+08:00 iter=98 temp=58C MemFree:=198 MemAvailable:=470 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:32+08:00 iter=99 temp=54C MemFree:=202 MemAvailable:=474 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:44+08:00 iter=100 temp=58C MemFree:=198 MemAvailable:=471 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:46+08:00 iter=101 temp=56C MemFree:=188 MemAvailable:=461 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:48+08:00 iter=102 temp=56C MemFree:=193 MemAvailable:=466 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:50+08:00 iter=103 temp=55C MemFree:=197 MemAvailable:=471 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:46:52+08:00 iter=104 temp=55C MemFree:=188 MemAvailable:=462 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:04+08:00 iter=105 temp=58C MemFree:=195 MemAvailable:=471 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:06+08:00 iter=106 temp=56C MemFree:=188 MemAvailable:=463 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:08+08:00 iter=107 temp=56C MemFree:=194 MemAvailable:=469 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:10+08:00 iter=108 temp=54C MemFree:=198 MemAvailable:=473 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:12+08:00 iter=109 temp=55C MemFree:=189 MemAvailable:=464 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:24+08:00 iter=110 temp=59C MemFree:=185 MemAvailable:=462 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:26+08:00 iter=111 temp=56C MemFree:=191 MemAvailable:=467 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:28+08:00 iter=112 temp=56C MemFree:=195 MemAvailable:=471 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:30+08:00 iter=113 temp=57C MemFree:=185 MemAvailable:=461 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:33+08:00 iter=114 temp=59C MemFree:=189 MemAvailable:=466 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:43+08:00 iter=115 temp=59C MemFree:=194 MemAvailable:=473 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:45+08:00 iter=116 temp=56C MemFree:=185 MemAvailable:=463 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:48+08:00 iter=117 temp=61C MemFree:=186 MemAvailable:=465 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:50+08:00 iter=118 temp=57C MemFree:=192 MemAvailable:=470 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:47:52+08:00 iter=119 temp=56C MemFree:=195 MemAvailable:=474 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:03+08:00 iter=120 temp=59C MemFree:=189 MemAvailable:=468 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:06+08:00 iter=121 temp=60C MemFree:=189 MemAvailable:=468 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:08+08:00 iter=122 temp=58C MemFree:=193 MemAvailable:=472 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:10+08:00 iter=123 temp=59C MemFree:=184 MemAvailable:=464 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:12+08:00 iter=124 temp=56C MemFree:=188 MemAvailable:=468 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:23+08:00 iter=125 temp=60C MemFree:=185 MemAvailable:=467 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:26+08:00 iter=126 temp=56C MemFree:=193 MemAvailable:=474 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:28+08:00 iter=127 temp=57C MemFree:=188 MemAvailable:=470 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:30+08:00 iter=128 temp=59C MemFree:=191 MemAvailable:=472 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:32+08:00 iter=129 temp=55C MemFree:=196 MemAvailable:=478 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:44+08:00 iter=130 temp=60C MemFree:=191 MemAvailable:=473 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:46+08:00 iter=131 temp=55C MemFree:=198 MemAvailable:=480 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:48+08:00 iter=132 temp=55C MemFree:=189 MemAvailable:=470 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:50+08:00 iter=133 temp=56C MemFree:=192 MemAvailable:=474 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:48:52+08:00 iter=134 temp=56C MemFree:=197 MemAvailable:=479 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:04+08:00 iter=135 temp=55C MemFree:=196 MemAvailable:=481 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:06+08:00 iter=136 temp=59C MemFree:=186 MemAvailable:=470 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:08+08:00 iter=137 temp=58C MemFree:=191 MemAvailable:=475 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:10+08:00 iter=138 temp=55C MemFree:=196 MemAvailable:=480 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:13+08:00 iter=139 temp=59C MemFree:=197 MemAvailable:=480 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:24+08:00 iter=140 temp=58C MemFree:=196 MemAvailable:=480 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:26+08:00 iter=141 temp=56C MemFree:=187 MemAvailable:=471 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:28+08:00 iter=142 temp=59C MemFree:=192 MemAvailable:=476 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:31+08:00 iter=143 temp=56C MemFree:=186 MemAvailable:=471 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:33+08:00 iter=144 temp=59C MemFree:=190 MemAvailable:=474 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:44+08:00 iter=145 temp=56C MemFree:=194 MemAvailable:=479 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:46+08:00 iter=146 temp=62C MemFree:=182 MemAvailable:=467 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:49+08:00 iter=147 temp=59C MemFree:=192 MemAvailable:=477 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:51+08:00 iter=148 temp=57C MemFree:=184 MemAvailable:=468 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:49:53+08:00 iter=149 temp=57C MemFree:=187 MemAvailable:=471 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:05+08:00 iter=150 temp=62C MemFree:=181 MemAvailable:=471 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:07+08:00 iter=151 temp=60C MemFree:=185 MemAvailable:=474 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:10+08:00 iter=152 temp=59C MemFree:=179 MemAvailable:=468 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:12+08:00 iter=153 temp=56C MemFree:=186 MemAvailable:=476 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:14+08:00 iter=154 temp=56C MemFree:=178 MemAvailable:=468 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:25+08:00 iter=155 temp=58C MemFree:=182 MemAvailable:=473 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:27+08:00 iter=156 temp=60C MemFree:=174 MemAvailable:=464 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:30+08:00 iter=157 temp=58C MemFree:=180 MemAvailable:=470 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:32+08:00 iter=158 temp=55C MemFree:=176 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:34+08:00 iter=159 temp=60C MemFree:=177 MemAvailable:=498 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:46+08:00 iter=160 temp=59C MemFree:=181 MemAvailable:=487 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:48+08:00 iter=161 temp=56C MemFree:=186 MemAvailable:=491 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:50+08:00 iter=162 temp=59C MemFree:=177 MemAvailable:=483 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:52+08:00 iter=163 temp=55C MemFree:=183 MemAvailable:=489 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:50:55+08:00 iter=164 temp=62C MemFree:=178 MemAvailable:=484 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:05+08:00 iter=165 temp=60C MemFree:=182 MemAvailable:=489 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:08+08:00 iter=166 temp=60C MemFree:=176 MemAvailable:=482 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:10+08:00 iter=167 temp=54C MemFree:=183 MemAvailable:=489 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:12+08:00 iter=168 temp=56C MemFree:=173 MemAvailable:=480 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:15+08:00 iter=169 temp=56C MemFree:=178 MemAvailable:=484 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:25+08:00 iter=170 temp=59C MemFree:=179 MemAvailable:=487 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:28+08:00 iter=171 temp=61C MemFree:=178 MemAvailable:=485 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:30+08:00 iter=172 temp=56C MemFree:=174 MemAvailable:=482 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:32+08:00 iter=173 temp=57C MemFree:=177 MemAvailable:=484 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:34+08:00 iter=174 temp=55C MemFree:=180 MemAvailable:=488 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:46+08:00 iter=175 temp=60C MemFree:=175 MemAvailable:=484 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:48+08:00 iter=176 temp=58C MemFree:=180 MemAvailable:=489 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:50+08:00 iter=177 temp=56C MemFree:=171 MemAvailable:=480 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:52+08:00 iter=178 temp=55C MemFree:=178 MemAvailable:=487 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:51:54+08:00 iter=179 temp=55C MemFree:=171 MemAvailable:=480 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:06+08:00 iter=180 temp=56C MemFree:=179 MemAvailable:=489 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:08+08:00 iter=181 temp=59C MemFree:=172 MemAvailable:=481 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:10+08:00 iter=182 temp=57C MemFree:=178 MemAvailable:=487 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:12+08:00 iter=183 temp=56C MemFree:=169 MemAvailable:=479 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:14+08:00 iter=184 temp=56C MemFree:=173 MemAvailable:=483 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:26+08:00 iter=185 temp=60C MemFree:=169 MemAvailable:=479 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:28+08:00 iter=186 temp=59C MemFree:=177 MemAvailable:=487 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:30+08:00 iter=187 temp=56C MemFree:=168 MemAvailable:=478 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:32+08:00 iter=188 temp=58C MemFree:=172 MemAvailable:=482 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:35+08:00 iter=189 temp=58C MemFree:=181 MemAvailable:=506 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:46+08:00 iter=190 temp=58C MemFree:=184 MemAvailable:=495 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:48+08:00 iter=191 temp=59C MemFree:=176 MemAvailable:=486 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:50+08:00 iter=192 temp=58C MemFree:=181 MemAvailable:=491 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:52+08:00 iter=193 temp=60C MemFree:=180 MemAvailable:=490 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:52:55+08:00 iter=194 temp=58C MemFree:=153 MemAvailable:=504 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:08+08:00 iter=195 temp=63C MemFree:=133 MemAvailable:=508 CmaTotal:=64 CmaFree:=27 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:12+08:00 iter=196 temp=63C MemFree:=181 MemAvailable:=505 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:14+08:00 iter=197 temp=58C MemFree:=216 MemAvailable:=529 CmaTotal:=64 CmaFree:=44 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:17+08:00 iter=198 temp=60C MemFree:=216 MemAvailable:=519 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:19+08:00 iter=199 temp=59C MemFree:=232 MemAvailable:=524 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:31+08:00 iter=200 temp=60C MemFree:=210 MemAvailable:=501 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:33+08:00 iter=201 temp=60C MemFree:=223 MemAvailable:=507 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:35+08:00 iter=202 temp=56C MemFree:=225 MemAvailable:=511 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:38+08:00 iter=203 temp=56C MemFree:=216 MemAvailable:=502 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:40+08:00 iter=204 temp=58C MemFree:=214 MemAvailable:=505 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:51+08:00 iter=205 temp=60C MemFree:=208 MemAvailable:=505 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:53+08:00 iter=206 temp=58C MemFree:=215 MemAvailable:=512 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:56+08:00 iter=207 temp=59C MemFree:=205 MemAvailable:=503 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:53:58+08:00 iter=208 temp=59C MemFree:=208 MemAvailable:=507 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:00+08:00 iter=209 temp=55C MemFree:=212 MemAvailable:=511 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:11+08:00 iter=210 temp=60C MemFree:=203 MemAvailable:=506 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:13+08:00 iter=211 temp=58C MemFree:=209 MemAvailable:=511 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:15+08:00 iter=212 temp=59C MemFree:=201 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:18+08:00 iter=213 temp=61C MemFree:=195 MemAvailable:=502 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:20+08:00 iter=214 temp=57C MemFree:=195 MemAvailable:=502 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:31+08:00 iter=215 temp=59C MemFree:=190 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:33+08:00 iter=216 temp=59C MemFree:=194 MemAvailable:=508 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:36+08:00 iter=217 temp=60C MemFree:=197 MemAvailable:=513 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:38+08:00 iter=218 temp=59C MemFree:=189 MemAvailable:=504 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:40+08:00 iter=219 temp=57C MemFree:=194 MemAvailable:=509 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:50+08:00 iter=220 temp=61C MemFree:=187 MemAvailable:=506 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:53+08:00 iter=221 temp=60C MemFree:=192 MemAvailable:=509 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:55+08:00 iter=222 temp=57C MemFree:=187 MemAvailable:=505 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:57+08:00 iter=223 temp=59C MemFree:=189 MemAvailable:=507 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:54:59+08:00 iter=224 temp=56C MemFree:=194 MemAvailable:=512 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:11+08:00 iter=225 temp=60C MemFree:=173 MemAvailable:=502 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:13+08:00 iter=226 temp=59C MemFree:=179 MemAvailable:=507 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:15+08:00 iter=227 temp=56C MemFree:=182 MemAvailable:=510 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:17+08:00 iter=228 temp=58C MemFree:=172 MemAvailable:=500 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:19+08:00 iter=229 temp=59C MemFree:=176 MemAvailable:=504 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:31+08:00 iter=230 temp=60C MemFree:=180 MemAvailable:=509 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:33+08:00 iter=231 temp=60C MemFree:=170 MemAvailable:=502 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:35+08:00 iter=232 temp=55C MemFree:=188 MemAvailable:=530 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:37+08:00 iter=233 temp=56C MemFree:=185 MemAvailable:=521 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:39+08:00 iter=234 temp=57C MemFree:=197 MemAvailable:=525 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:50+08:00 iter=235 temp=60C MemFree:=199 MemAvailable:=513 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:52+08:00 iter=236 temp=56C MemFree:=201 MemAvailable:=514 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:55+08:00 iter=237 temp=59C MemFree:=192 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:57+08:00 iter=238 temp=59C MemFree:=192 MemAvailable:=510 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:55:59+08:00 iter=239 temp=60C MemFree:=194 MemAvailable:=512 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:10+08:00 iter=240 temp=60C MemFree:=190 MemAvailable:=510 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:12+08:00 iter=241 temp=60C MemFree:=182 MemAvailable:=513 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:16+08:00 iter=242 temp=63C MemFree:=156 MemAvailable:=513 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:18+08:00 iter=243 temp=63C MemFree:=166 MemAvailable:=523 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:21+08:00 iter=244 temp=60C MemFree:=171 MemAvailable:=528 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:33+08:00 iter=245 temp=62C MemFree:=233 MemAvailable:=525 CmaTotal:=64 CmaFree:=33 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:36+08:00 iter=246 temp=64C MemFree:=236 MemAvailable:=522 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:38+08:00 iter=247 temp=60C MemFree:=244 MemAvailable:=513 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:40+08:00 iter=248 temp=57C MemFree:=230 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:42+08:00 iter=249 temp=59C MemFree:=234 MemAvailable:=507 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:53+08:00 iter=250 temp=63C MemFree:=222 MemAvailable:=506 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:56+08:00 iter=251 temp=59C MemFree:=231 MemAvailable:=514 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:56:58+08:00 iter=252 temp=59C MemFree:=223 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:01+08:00 iter=253 temp=58C MemFree:=218 MemAvailable:=504 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:03+08:00 iter=254 temp=58C MemFree:=220 MemAvailable:=494 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:14+08:00 iter=255 temp=60C MemFree:=210 MemAvailable:=487 CmaTotal:=64 CmaFree:=32 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:16+08:00 iter=256 temp=59C MemFree:=217 MemAvailable:=492 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:18+08:00 iter=257 temp=56C MemFree:=211 MemAvailable:=486 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:20+08:00 iter=258 temp=60C MemFree:=211 MemAvailable:=487 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:23+08:00 iter=259 temp=56C MemFree:=218 MemAvailable:=494 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:33+08:00 iter=260 temp=60C MemFree:=219 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:36+08:00 iter=261 temp=59C MemFree:=210 MemAvailable:=488 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:38+08:00 iter=262 temp=59C MemFree:=214 MemAvailable:=492 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:40+08:00 iter=263 temp=56C MemFree:=218 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:43+08:00 iter=264 temp=59C MemFree:=209 MemAvailable:=486 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:54+08:00 iter=265 temp=60C MemFree:=205 MemAvailable:=487 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:56+08:00 iter=266 temp=60C MemFree:=211 MemAvailable:=492 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:57:58+08:00 iter=267 temp=60C MemFree:=210 MemAvailable:=491 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:00+08:00 iter=268 temp=60C MemFree:=203 MemAvailable:=486 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:03+08:00 iter=269 temp=59C MemFree:=207 MemAvailable:=491 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:13+08:00 iter=270 temp=59C MemFree:=212 MemAvailable:=498 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:15+08:00 iter=271 temp=61C MemFree:=202 MemAvailable:=488 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:18+08:00 iter=272 temp=60C MemFree:=205 MemAvailable:=490 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:20+08:00 iter=273 temp=57C MemFree:=209 MemAvailable:=495 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:22+08:00 iter=274 temp=55C MemFree:=201 MemAvailable:=487 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:34+08:00 iter=275 temp=59C MemFree:=207 MemAvailable:=495 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:36+08:00 iter=276 temp=59C MemFree:=200 MemAvailable:=488 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:38+08:00 iter=277 temp=54C MemFree:=208 MemAvailable:=496 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:40+08:00 iter=278 temp=56C MemFree:=198 MemAvailable:=486 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:42+08:00 iter=279 temp=58C MemFree:=202 MemAvailable:=491 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:53+08:00 iter=280 temp=60C MemFree:=200 MemAvailable:=490 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:56+08:00 iter=281 temp=56C MemFree:=207 MemAvailable:=496 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:58:58+08:00 iter=282 temp=58C MemFree:=197 MemAvailable:=486 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:00+08:00 iter=283 temp=59C MemFree:=200 MemAvailable:=490 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:02+08:00 iter=284 temp=54C MemFree:=204 MemAvailable:=495 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:14+08:00 iter=285 temp=60C MemFree:=198 MemAvailable:=490 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:16+08:00 iter=286 temp=58C MemFree:=202 MemAvailable:=494 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:18+08:00 iter=287 temp=58C MemFree:=195 MemAvailable:=488 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:20+08:00 iter=288 temp=55C MemFree:=202 MemAvailable:=494 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:23+08:00 iter=289 temp=60C MemFree:=202 MemAvailable:=495 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:33+08:00 iter=290 temp=58C MemFree:=192 MemAvailable:=487 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:35+08:00 iter=291 temp=60C MemFree:=195 MemAvailable:=489 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:38+08:00 iter=292 temp=56C MemFree:=201 MemAvailable:=494 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:40+08:00 iter=293 temp=59C MemFree:=191 MemAvailable:=485 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:43+08:00 iter=294 temp=58C MemFree:=197 MemAvailable:=491 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:53+08:00 iter=295 temp=59C MemFree:=197 MemAvailable:=491 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:55+08:00 iter=296 temp=61C MemFree:=196 MemAvailable:=490 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T15:59:58+08:00 iter=297 temp=61C MemFree:=192 MemAvailable:=486 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:00+08:00 iter=298 temp=60C MemFree:=198 MemAvailable:=494 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:03+08:00 iter=299 temp=63C MemFree:=170 MemAvailable:=477 CmaTotal:=64 CmaFree:=31 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:16+08:00 iter=300 temp=61C MemFree:=179 MemAvailable:=499 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:18+08:00 iter=301 temp=59C MemFree:=170 MemAvailable:=492 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:20+08:00 iter=302 temp=60C MemFree:=173 MemAvailable:=494 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:22+08:00 iter=303 temp=55C MemFree:=181 MemAvailable:=502 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:24+08:00 iter=304 temp=55C MemFree:=171 MemAvailable:=493 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:36+08:00 iter=305 temp=62C MemFree:=177 MemAvailable:=506 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:38+08:00 iter=306 temp=58C MemFree:=182 MemAvailable:=509 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:40+08:00 iter=307 temp=57C MemFree:=174 MemAvailable:=501 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:42+08:00 iter=308 temp=59C MemFree:=178 MemAvailable:=505 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:45+08:00 iter=309 temp=55C MemFree:=183 MemAvailable:=510 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:56+08:00 iter=310 temp=56C MemFree:=177 MemAvailable:=506 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:00:58+08:00 iter=311 temp=57C MemFree:=172 MemAvailable:=497 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:00+08:00 iter=312 temp=59C MemFree:=176 MemAvailable:=501 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:03+08:00 iter=313 temp=55C MemFree:=181 MemAvailable:=506 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:05+08:00 iter=314 temp=57C MemFree:=171 MemAvailable:=497 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:16+08:00 iter=315 temp=56C MemFree:=182 MemAvailable:=509 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:18+08:00 iter=316 temp=60C MemFree:=172 MemAvailable:=498 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:21+08:00 iter=317 temp=63C MemFree:=172 MemAvailable:=499 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:23+08:00 iter=318 temp=59C MemFree:=179 MemAvailable:=506 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:26+08:00 iter=319 temp=59C MemFree:=170 MemAvailable:=497 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:36+08:00 iter=320 temp=62C MemFree:=170 MemAvailable:=499 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:39+08:00 iter=321 temp=60C MemFree:=186 MemAvailable:=521 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:41+08:00 iter=322 temp=60C MemFree:=190 MemAvailable:=525 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:43+08:00 iter=323 temp=59C MemFree:=184 MemAvailable:=502 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:46+08:00 iter=324 temp=55C MemFree:=191 MemAvailable:=509 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:57+08:00 iter=325 temp=59C MemFree:=192 MemAvailable:=512 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:01:59+08:00 iter=326 temp=58C MemFree:=183 MemAvailable:=503 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:01+08:00 iter=327 temp=59C MemFree:=186 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:03+08:00 iter=328 temp=58C MemFree:=190 MemAvailable:=510 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:06+08:00 iter=329 temp=56C MemFree:=181 MemAvailable:=501 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:17+08:00 iter=330 temp=59C MemFree:=188 MemAvailable:=510 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:20+08:00 iter=331 temp=55C MemFree:=188 MemAvailable:=510 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:22+08:00 iter=332 temp=59C MemFree:=179 MemAvailable:=501 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:24+08:00 iter=333 temp=56C MemFree:=186 MemAvailable:=507 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:26+08:00 iter=334 temp=55C MemFree:=181 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:38+08:00 iter=335 temp=59C MemFree:=186 MemAvailable:=510 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:40+08:00 iter=336 temp=59C MemFree:=179 MemAvailable:=502 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:42+08:00 iter=337 temp=56C MemFree:=185 MemAvailable:=509 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:44+08:00 iter=338 temp=55C MemFree:=177 MemAvailable:=500 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:47+08:00 iter=339 temp=61C MemFree:=179 MemAvailable:=502 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:02:58+08:00 iter=340 temp=61C MemFree:=178 MemAvailable:=503 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:00+08:00 iter=341 temp=56C MemFree:=183 MemAvailable:=507 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:02+08:00 iter=342 temp=61C MemFree:=170 MemAvailable:=494 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:05+08:00 iter=343 temp=59C MemFree:=181 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:07+08:00 iter=344 temp=59C MemFree:=181 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:18+08:00 iter=345 temp=59C MemFree:=177 MemAvailable:=504 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:21+08:00 iter=346 temp=60C MemFree:=181 MemAvailable:=513 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:23+08:00 iter=347 temp=59C MemFree:=210 MemAvailable:=519 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:25+08:00 iter=348 temp=59C MemFree:=210 MemAvailable:=513 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:27+08:00 iter=349 temp=59C MemFree:=236 MemAvailable:=517 CmaTotal:=64 CmaFree:=43 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:39+08:00 iter=350 temp=63C MemFree:=231 MemAvailable:=501 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:41+08:00 iter=351 temp=60C MemFree:=240 MemAvailable:=508 CmaTotal:=64 CmaFree:=42 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:44+08:00 iter=352 temp=59C MemFree:=227 MemAvailable:=498 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:46+08:00 iter=353 temp=56C MemFree:=231 MemAvailable:=503 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:03:48+08:00 iter=354 temp=56C MemFree:=234 MemAvailable:=507 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:00+08:00 iter=355 temp=60C MemFree:=222 MemAvailable:=501 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:02+08:00 iter=356 temp=59C MemFree:=218 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:04+08:00 iter=357 temp=58C MemFree:=208 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:06+08:00 iter=358 temp=56C MemFree:=212 MemAvailable:=501 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:08+08:00 iter=359 temp=57C MemFree:=216 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:20+08:00 iter=360 temp=59C MemFree:=215 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:22+08:00 iter=361 temp=60C MemFree:=209 MemAvailable:=499 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:24+08:00 iter=362 temp=55C MemFree:=215 MemAvailable:=506 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:26+08:00 iter=363 temp=56C MemFree:=214 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:29+08:00 iter=364 temp=57C MemFree:=205 MemAvailable:=496 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:40+08:00 iter=365 temp=58C MemFree:=201 MemAvailable:=497 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:42+08:00 iter=366 temp=59C MemFree:=202 MemAvailable:=498 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:44+08:00 iter=367 temp=59C MemFree:=203 MemAvailable:=500 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:47+08:00 iter=368 temp=56C MemFree:=199 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:49+08:00 iter=369 temp=59C MemFree:=204 MemAvailable:=501 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:04:59+08:00 iter=370 temp=59C MemFree:=205 MemAvailable:=503 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:02+08:00 iter=371 temp=60C MemFree:=200 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:05+08:00 iter=372 temp=59C MemFree:=189 MemAvailable:=494 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:07+08:00 iter=373 temp=59C MemFree:=194 MemAvailable:=499 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:09+08:00 iter=374 temp=56C MemFree:=197 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:20+08:00 iter=375 temp=60C MemFree:=192 MemAvailable:=499 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:23+08:00 iter=376 temp=56C MemFree:=197 MemAvailable:=503 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:25+08:00 iter=377 temp=59C MemFree:=187 MemAvailable:=494 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:27+08:00 iter=378 temp=55C MemFree:=195 MemAvailable:=502 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:29+08:00 iter=379 temp=55C MemFree:=188 MemAvailable:=495 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:41+08:00 iter=380 temp=60C MemFree:=189 MemAvailable:=500 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:43+08:00 iter=381 temp=59C MemFree:=194 MemAvailable:=504 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:45+08:00 iter=382 temp=59C MemFree:=185 MemAvailable:=495 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:47+08:00 iter=383 temp=56C MemFree:=190 MemAvailable:=501 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:05:49+08:00 iter=384 temp=56C MemFree:=186 MemAvailable:=496 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:01+08:00 iter=385 temp=56C MemFree:=194 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:03+08:00 iter=386 temp=60C MemFree:=188 MemAvailable:=498 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:05+08:00 iter=387 temp=55C MemFree:=194 MemAvailable:=504 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:07+08:00 iter=388 temp=55C MemFree:=187 MemAvailable:=497 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:10+08:00 iter=389 temp=62C MemFree:=183 MemAvailable:=493 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:21+08:00 iter=390 temp=61C MemFree:=186 MemAvailable:=497 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:23+08:00 iter=391 temp=59C MemFree:=192 MemAvailable:=503 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:26+08:00 iter=392 temp=58C MemFree:=179 MemAvailable:=489 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:28+08:00 iter=393 temp=60C MemFree:=186 MemAvailable:=496 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:30+08:00 iter=394 temp=58C MemFree:=192 MemAvailable:=502 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:41+08:00 iter=395 temp=56C MemFree:=190 MemAvailable:=504 CmaTotal:=64 CmaFree:=31 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:43+08:00 iter=396 temp=62C MemFree:=184 MemAvailable:=491 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:46+08:00 iter=397 temp=59C MemFree:=191 MemAvailable:=499 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:48+08:00 iter=398 temp=55C MemFree:=198 MemAvailable:=505 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:06:50+08:00 iter=399 temp=55C MemFree:=189 MemAvailable:=497 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:01+08:00 iter=400 temp=60C MemFree:=184 MemAvailable:=493 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:03+08:00 iter=401 temp=60C MemFree:=189 MemAvailable:=498 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:05+08:00 iter=402 temp=56C MemFree:=211 MemAvailable:=519 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:08+08:00 iter=403 temp=56C MemFree:=201 MemAvailable:=510 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:10+08:00 iter=404 temp=59C MemFree:=206 MemAvailable:=516 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:21+08:00 iter=405 temp=60C MemFree:=206 MemAvailable:=517 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:23+08:00 iter=406 temp=59C MemFree:=201 MemAvailable:=512 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:25+08:00 iter=407 temp=58C MemFree:=204 MemAvailable:=514 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:27+08:00 iter=408 temp=55C MemFree:=211 MemAvailable:=521 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:30+08:00 iter=409 temp=59C MemFree:=208 MemAvailable:=519 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:41+08:00 iter=410 temp=59C MemFree:=197 MemAvailable:=518 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:44+08:00 iter=411 temp=59C MemFree:=188 MemAvailable:=508 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:46+08:00 iter=412 temp=58C MemFree:=194 MemAvailable:=514 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:48+08:00 iter=413 temp=58C MemFree:=198 MemAvailable:=518 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:07:50+08:00 iter=414 temp=59C MemFree:=190 MemAvailable:=511 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:01+08:00 iter=415 temp=60C MemFree:=192 MemAvailable:=513 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:03+08:00 iter=416 temp=59C MemFree:=194 MemAvailable:=515 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:05+08:00 iter=417 temp=56C MemFree:=202 MemAvailable:=523 CmaTotal:=64 CmaFree:=42 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:08+08:00 iter=418 temp=63C MemFree:=190 MemAvailable:=511 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:10+08:00 iter=419 temp=59C MemFree:=192 MemAvailable:=513 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:21+08:00 iter=420 temp=60C MemFree:=189 MemAvailable:=511 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:23+08:00 iter=421 temp=60C MemFree:=194 MemAvailable:=516 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:25+08:00 iter=422 temp=59C MemFree:=199 MemAvailable:=520 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:27+08:00 iter=423 temp=59C MemFree:=190 MemAvailable:=512 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:30+08:00 iter=424 temp=59C MemFree:=197 MemAvailable:=519 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:41+08:00 iter=425 temp=62C MemFree:=191 MemAvailable:=513 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:43+08:00 iter=426 temp=56C MemFree:=200 MemAvailable:=523 CmaTotal:=64 CmaFree:=41 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:46+08:00 iter=427 temp=59C MemFree:=189 MemAvailable:=512 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:48+08:00 iter=428 temp=56C MemFree:=197 MemAvailable:=519 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:08:50+08:00 iter=429 temp=55C MemFree:=189 MemAvailable:=512 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:01+08:00 iter=430 temp=60C MemFree:=187 MemAvailable:=520 CmaTotal:=64 CmaFree:=34 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:03+08:00 iter=431 temp=59C MemFree:=184 MemAvailable:=512 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:06+08:00 iter=432 temp=59C MemFree:=189 MemAvailable:=517 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:08+08:00 iter=433 temp=59C MemFree:=193 MemAvailable:=521 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:10+08:00 iter=434 temp=57C MemFree:=185 MemAvailable:=513 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:21+08:00 iter=435 temp=59C MemFree:=194 MemAvailable:=522 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:24+08:00 iter=436 temp=61C MemFree:=184 MemAvailable:=512 CmaTotal:=64 CmaFree:=37 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:26+08:00 iter=437 temp=57C MemFree:=190 MemAvailable:=519 CmaTotal:=64 CmaFree:=38 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:28+08:00 iter=438 temp=60C MemFree:=191 MemAvailable:=520 CmaTotal:=64 CmaFree:=39 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:31+08:00 iter=439 temp=60C MemFree:=180 MemAvailable:=509 CmaTotal:=64 CmaFree:=35 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 300/300 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:41+08:00 iter=440 temp=61C MemFree:=181 MemAvailable:=511 CmaTotal:=64 CmaFree:=36 video0=up video1=up
+PASS: 30/30 frame hashes match
+PASS: 10 frames, ownership, busy format, timestamps, EOS
+PASS: 3 frames, ownership, busy format, timestamps, EOS
+2026-11-20T16:09:44+08:00 iter=441 temp=57C MemFree:=188 MemAvailable:=518 CmaTotal:=64 CmaFree:=40 video0=up video1=up
+2026-11-20T16:09:44+08:00 SOAK_DONE iter=441 FAILS=0 elapsed=1802s

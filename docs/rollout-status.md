@@ -38,7 +38,18 @@ Independent tools and all scripts are covered by the manifest.
 Installed at /opt/meson8b-vcodec/current. The enabled and active
 meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
 
-Current installation (2026-11-17 23:27): the GitHub release v0.3.0 runtime
+Current installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
+runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
+state /root/venc-deploy/p6/codec-state-v040-install. Module hashes meson-vdec
+15d5c77d25225e8b, meson-venc 2507c7cc69fb1b00, meson8b-runtime
+af61f4dea7b68e06; the vdec module is the frame-pool build, the other two are
+byte-identical to v0.3.0, and the firmware files are unchanged. The codec
+devices were down 21 s during the upgrade; the regression set passed, a
+30-minute load ran 441 iterations with 0 failures, and five service probes
+sampled 106 times with no failure. See evidence/p6-2026-11-20/v040-deploy.md.
+The v0.3.0 package and its state remain on the box for rollback.
+
+Previous installation (2026-11-17 23:27): the GitHub release v0.3.0 runtime
 package, built by CI from abee6f6, kernel release 5.15.79-meson, state
 /root/venc-deploy/p6/codec-state-v030-release. Module hashes meson-vdec
 c60842e8ffc02a1c, meson-venc 2507c7cc69fb1b00, meson8b-runtime
