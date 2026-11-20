@@ -216,7 +216,7 @@
 +CFLAGS_meson8b-swap-neon.o += -ffreestanding -march=armv7-a -mfloat-abi=softfp -mfpu=neon
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_h264.c
-@@ -0,0 +1,609 @@
+@@ -0,0 +1,610 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2019 BayLibre, SAS
@@ -261,11 +261,12 @@
 +
 +/*
 + * Buffers the firmware gets beyond the stream's reference frames: room for
-+ * the picture being decoded and the ones waiting for display order, and,
-+ * when the firmware writes into the CAPTURE buffers, for the ones userspace
-+ * still holds.
++ * the picture being decoded and the ones waiting for display order. Two is
++ * what four-reference B-frame streams need once userspace holds no decode
++ * buffer; at 1080p every slot is 3 MiB, so the earlier five cost 9 MiB a
++ * session for nothing.
 + */
-+static unsigned int h264_extra_buffers = 5;
++static unsigned int h264_extra_buffers = 2;
 +module_param(h264_extra_buffers, uint, 0644);
 +MODULE_PARM_DESC(h264_extra_buffers,
 +		 "H.264 decode buffers beyond the reference frames (default 5)");
@@ -845,7 +846,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1583 @@
+@@ -0,0 +1,1673 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -1062,6 +1063,8 @@
 +	u32 slot;	/* frame pool slot holding the picture */
 +	u32 offset;
 +	u32 poc;
++	/* What it was decoded at: the reorder buffer hands it out later. */
++	struct amvdec_geometry geo;
 +
 +	int referenced;
 +	int show;
@@ -1114,7 +1117,10 @@
 +	bool eos_seen;
 +	/* the last watchdog check found the client waiting on the decoder */
 +	bool client_waited;
++	/* Last SPS parsed out of the queued input, not necessarily this picture's. */
 +	struct hevc_sps_geometry sps;
++	/* SPS that resolved the current coded size (see codec_hevc_process_rpm). */
++	struct hevc_sps_geometry applied;
 +	u32 prev_tid0_poc;
 +	u32 slice_segment_addr;
 +	u32 slice_addr;
@@ -1328,6 +1334,9 @@
 +	return ret;
 +}
 +
++static void codec_hevc_deliver_frame(struct amvdec_session *sess,
++				     struct hevc_frame *frame);
++
 +/* Try to output as many frames as possible */
 +static void codec_hevc_show_frames(struct amvdec_session *sess)
 +{
@@ -1341,8 +1350,7 @@
 +
 +		dev_dbg(sess->core->dev, "DONE frame poc %u; slot %u\n",
 +			tmp->poc, tmp->slot);
-+		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
-+					 V4L2_FIELD_NONE);
++		codec_hevc_deliver_frame(sess, tmp);
 +
 +		tmp->show = 0;
 +		hevc->frames_num--;
@@ -1537,17 +1545,67 @@
 +	return ret;
 +}
 +
++/*
++ * Hand a reorder-buffer picture to the frame pool. The pool copies it with
++ * the session's geometry, which by then may be the next segment's, so put
++ * the one the picture was decoded at back in place: a resolution change
++ * must not turn an old tail frame into a copy at the new size.
++ */
++static void codec_hevc_deliver_frame(struct amvdec_session *sess,
++				     struct hevc_frame *frame)
++{
++	struct amvdec_geometry geo;
++
++	geo.width = sess->width;
++	geo.height = sess->height;
++	geo.reference_width = sess->reference_width;
++	geo.reference_height = sess->reference_height;
++	geo.crop_left = sess->crop_left;
++	geo.crop_top = sess->crop_top;
++
++	sess->width = frame->geo.width;
++	sess->height = frame->geo.height;
++	sess->reference_width = frame->geo.reference_width;
++	sess->reference_height = frame->geo.reference_height;
++	sess->crop_left = frame->geo.crop_left;
++	sess->crop_top = frame->geo.crop_top;
++	amvdec_pool_picture_done(sess, frame->slot, frame->offset,
++				 V4L2_FIELD_NONE);
++	sess->width = geo.width;
++	sess->height = geo.height;
++	sess->reference_width = geo.reference_width;
++	sess->reference_height = geo.reference_height;
++	sess->crop_left = geo.crop_left;
++	sess->crop_top = geo.crop_top;
++}
++
++/* Hand every picture userspace is still owed to the frame pool. With
++ * @hold_last the final one is returned undelivered, so the caller can mark
++ * it as the end of the old stream by changing the session status first.
++ */
++static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *sess,
++						  bool hold_last)
++{
++	struct codec_hevc *hevc = sess->priv;
++	struct hevc_frame *tmp, *next;
++
++	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
++		tmp->show = 0;
++		next = codec_hevc_get_next_ready_frame(hevc);
++		if (hold_last && !next)
++			return tmp;
++		codec_hevc_deliver_frame(sess, tmp);
++		hevc->frames_num--;
++	}
++	return NULL;
++}
++
 +static void codec_hevc_flush_output(struct amvdec_session *sess)
 +{
 +	struct codec_hevc *hevc = sess->priv;
 +	struct hevc_frame *tmp, *n;
 +
-+	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
-+		amvdec_pool_picture_done(sess, tmp->slot, tmp->offset,
-+					 V4L2_FIELD_NONE);
-+		tmp->show = 0;
-+		hevc->frames_num--;
-+	}
++	codec_hevc_show_pending(sess, false);
 +
 +	list_for_each_entry_safe(tmp, n, &hevc->ref_frames_list, list) {
 +		amvdec_pool_release(sess, tmp->slot);
@@ -1644,6 +1702,12 @@
 +	new_frame->poc = hevc->curr_poc;
 +	new_frame->cur_slice_type = params->p.slice_type;
 +	new_frame->num_reorder_pic = params->p.sps_num_reorder_pics_0;
++	new_frame->geo.width = sess->width;
++	new_frame->geo.height = sess->height;
++	new_frame->geo.reference_width = sess->reference_width;
++	new_frame->geo.reference_height = sess->reference_height;
++	new_frame->geo.crop_left = sess->crop_left;
++	new_frame->geo.crop_top = sess->crop_top;
 +	dev_dbg(core->dev, "HEVC picture POC %d slot %u reorder %u\n",
 +		 (s32)hevc->curr_poc, slot, new_frame->num_reorder_pic);
 +	new_frame->offset = amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT);
@@ -2196,13 +2260,28 @@
 +	dst_height = hevc->height;
 +	sess->crop_left = 0;
 +	sess->crop_top = 0;
-+	/* The conformance window only applies to the SPS this picture uses. */
-+	if (hevc->sps.coded_width == hevc->width &&
-+	    hevc->sps.coded_height == hevc->height) {
-+		dst_width = hevc->sps.width;
-+		dst_height = hevc->sps.height;
-+		sess->crop_left = hevc->sps.left;
-+		sess->crop_top = hevc->sps.top;
++	/*
++	 * The conformance window only applies to the SPS this picture uses.
++	 * Input inspection runs ahead of the decoder, so hevc->sps can already
++	 * be the next segment's; once a coded size is resolved, keep its window
++	 * instead of reporting the uncropped size as a source change.
++	 */
++	if (hevc->applied.coded_width == hevc->width &&
++	    hevc->applied.coded_height == hevc->height) {
++		dst_width = hevc->applied.width;
++		dst_height = hevc->applied.height;
++		sess->crop_left = hevc->applied.left;
++		sess->crop_top = hevc->applied.top;
++	} else if (hevc->sps.coded_width == hevc->width &&
++		   hevc->sps.coded_height == hevc->height) {
++		hevc->applied = hevc->sps;
++		dst_width = hevc->applied.width;
++		dst_height = hevc->applied.height;
++		sess->crop_left = hevc->applied.left;
++		sess->crop_top = hevc->applied.top;
++	} else {
++		/* New coded size: no window resolved for it yet. */
++		memset(&hevc->applied, 0, sizeof(hevc->applied));
 +	}
 +	sess->reference_width = hevc->width;
 +	sess->reference_height = hevc->height;
@@ -2388,6 +2467,18 @@
 +			goto unlock;
 +		}
 +		if (ret > 0) {
++			/* The old segment's pictures are still owed to
++			 * userspace, and only its geometry can copy them.
++			 * Deliver them now; the last one ends that stream,
++			 * which the client drains before it renegotiates. */
++			struct hevc_frame *last = codec_hevc_show_pending(sess, true);
++			enum amvdec_status status = sess->status;
++
++			sess->status = STATUS_NEEDS_RESUME;
++			if (last)
++				codec_hevc_deliver_frame(sess, last);
++			sess->status = status;
++			codec_hevc_forget_frames(hevc);
 +			amvdec_src_change(sess, hevc->dst_width, hevc->dst_height,
 +					 hevc->dpb_size);
 +			goto unlock;
@@ -7227,7 +7318,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,509 @@
+@@ -0,0 +1,516 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/kernel.h>
@@ -7330,21 +7421,22 @@
 + * offsets go byte by byte. Bytes outside the window are zeroed.
 + */
 +static int amvdec_copy_window(struct amvdec_session *sess,
++			      const struct amvdec_geometry *geo,
 +			      const struct amvdec_shadow *shadow,
 +			      void *dst[2], const u32 size[2], bool simd)
 +{
 +	amvdec_swap64_t copy = simd ? amvdec_swap64_neon : amvdec_swap64;
-+	u32 src_stride = ALIGN(sess->reference_width, 32);
-+	u32 dst_stride = ALIGN(sess->width, 32);
-+	u32 left = sess->crop_left, width = sess->width;
++	u32 src_stride = ALIGN(geo->reference_width, 32);
++	u32 dst_stride = ALIGN(geo->width, 32);
++	u32 left = geo->crop_left, width = geo->width;
 +	u32 plane;
 +
-+	if (left + width > sess->reference_width ||
-+	    sess->crop_top + sess->height > sess->reference_height)
++	if (left + width > geo->reference_width ||
++	    geo->crop_top + geo->height > geo->reference_height)
 +		return -EINVAL;
 +	for (plane = 0; plane < 2; plane++) {
-+		u32 rows = plane ? sess->height / 2 : sess->height;
-+		u32 top = plane ? sess->crop_top / 2 : sess->crop_top;
++		u32 rows = plane ? geo->height / 2 : geo->height;
++		u32 top = plane ? geo->crop_top / 2 : geo->crop_top;
 +		const u8 *src = (const u8 *)shadow->cached +
 +				(plane ? shadow->luma : 0) + top * src_stride;
 +
@@ -7359,6 +7451,7 @@
 +}
 +
 +static int amvdec_meson8b_convert(struct amvdec_session *sess,
++				  const struct amvdec_geometry *geo,
 +				  const struct amvdec_shadow *shadow,
 +				  struct vb2_buffer *vb)
 +{
@@ -7373,7 +7466,7 @@
 +	if (vb->num_planes != 2 || !shadow->vaddr)
 +		return -EINVAL;
 +	/* Multiples of 64 KiB, so the word copy needs no tail handling. */
-+	size[0] = amvdec_get_output_size(sess);
++	size[0] = amvdec_get_output_size_wh(geo->width, geo->height);
 +	size[1] = size[0] / 2;
 +	for (i = 0; i < 2; i++) {
 +		dst[i] = vb2_plane_vaddr(vb, i);
@@ -7384,9 +7477,9 @@
 +	dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
 +				DMA_FROM_DEVICE);
 +	src = shadow->cached;
-+	crop = sess->reference_width &&
-+	       (sess->crop_left || sess->crop_top ||
-+		ALIGN(sess->reference_width, 32) != ALIGN(sess->width, 32));
++	crop = geo->reference_width &&
++	       (geo->crop_left || geo->crop_top ||
++		ALIGN(geo->reference_width, 32) != ALIGN(geo->width, 32));
 +
 +	/*
 +	 * NEON halves the copy (about 15 ms per 1080p picture with the scalar
@@ -7397,7 +7490,7 @@
 +	if (simd)
 +		kernel_neon_begin();
 +	if (crop) {
-+		ret = amvdec_copy_window(sess, shadow, dst, size, simd);
++		ret = amvdec_copy_window(sess, geo, shadow, dst, size, simd);
 +	} else {
 +		amvdec_swap64_t copy = simd ? amvdec_swap64_neon : amvdec_swap64;
 +
@@ -7432,11 +7525,12 @@
 +
 +/* Convert one decoded picture into @vb, accounting the CPU time. */
 +static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
++				       const struct amvdec_geometry *geo,
 +				       const struct amvdec_shadow *shadow,
 +				       struct vb2_buffer *vb)
 +{
 +	ktime_t start = ktime_get();
-+	int ret = amvdec_meson8b_convert(sess, shadow, vb);
++	int ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
 +
 +	if (!ret) {
 +		sess->core->converted_frames++;
@@ -7617,27 +7711,31 @@
 +	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 +	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 +	struct amvdec_frame_pool *pool = &sess->pool;
-+	u32 luma = amvdec_get_output_size(sess);
 +	int slot;
 +
 +	while ((slot = meson8b_pool_peek(&pool->state)) >= 0) {
 +		struct amvdec_picture *pic = &pool->picture[slot];
 +		struct vb2_v4l2_buffer *vbuf;
++		u32 luma = amvdec_get_output_size_wh(pic->geo.width, pic->geo.height);
 +		int ret;
 +
 +		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
 +		if (!vbuf)
 +			return;
 +
-+		ret = amvdec_meson8b_copy_capture(sess, &pool->slot[slot],
++		ret = amvdec_meson8b_copy_capture(sess, &pic->geo, &pool->slot[slot],
 +						  &vbuf->vb2_buf);
 +		meson8b_pool_pop(&pool->state);
 +		/* The picture is out of the slot; the firmware may reuse it. */
 +		if (codec_ops->recycle)
 +			amvdec_recycle(sess, slot);
 +		if (ret) {
++			/* One picture that does not fit its buffer is no reason
++			 * to end a session that is otherwise decoding. */
++			dev_warn(sess->core->dev,
++				 "dropping %ux%u picture: %d\n",
++				 pic->geo.width, pic->geo.height, ret);
 +			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-+			amvdec_abort(sess);
 +			continue;
 +		}
 +
@@ -7965,7 +8063,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1391 @@
+@@ -0,0 +1,1392 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8008,14 +8106,15 @@
 + * full macroblock rows at the 32-byte aligned stride, so width * height alone
 + * underruns for sizes such as 1360x768 or 1600x900.
 + */
-+static u32 get_output_size(u32 width, u32 height)
++u32 amvdec_get_output_size_wh(u32 width, u32 height)
 +{
 +	return ALIGN(ALIGN(width, 32) * ALIGN(height, 32), SZ_64K);
 +}
++EXPORT_SYMBOL_GPL(amvdec_get_output_size_wh);
 +
 +u32 amvdec_get_output_size(struct amvdec_session *sess)
 +{
-+	return get_output_size(sess->width, sess->height);
++	return amvdec_get_output_size_wh(sess->width, sess->height);
 +}
 +EXPORT_SYMBOL_GPL(amvdec_get_output_size);
 +
@@ -8662,7 +8761,7 @@
 +
 +	pixmp->width  = clamp(pixmp->width,  (u32)256, fmt_out->max_width);
 +	pixmp->height = clamp(pixmp->height, (u32)144, fmt_out->max_height);
-+	output_size = get_output_size(pixmp->width, pixmp->height);
++	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 +
 +	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 +		if (!pfmt[0].sizeimage)
@@ -9359,7 +9458,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,356 @@
+@@ -0,0 +1,367 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9418,12 +9517,22 @@
 +	u32 luma;
 +};
 +
-+/* What a finished picture carries until it reaches a CAPTURE buffer */
++/* What a picture was decoded at; a resolution switch changes the session's. */
++struct amvdec_geometry {
++	u32 width;
++	u32 height;
++	u32 reference_width;
++	u32 reference_height;
++	u32 crop_left;
++	u32 crop_top;
++};
++
 +struct amvdec_picture {
 +	u64 timestamp;
 +	struct v4l2_timecode timecode;
 +	u32 flags;
 +	u32 field;
++	struct amvdec_geometry geo;
 +	bool eos;	/* raise V4L2_EVENT_EOS with this picture */
 +	bool restart;	/* restart the CAPTURE sequence after this picture */
 +};
@@ -9714,6 +9823,7 @@
 +};
 +
 +u32 amvdec_get_output_size(struct amvdec_session *sess);
++u32 amvdec_get_output_size_wh(u32 width, u32 height);
 +
 +#endif
 --- /dev/null
@@ -10030,7 +10140,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.c
-@@ -0,0 +1,734 @@
+@@ -0,0 +1,742 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10442,6 +10552,14 @@
 +				struct amvdec_picture *pic)
 +{
 +	struct device *dev = sess->core->dev_dec;
++
++	/* Delivery may come after a source change; keep what it decoded at. */
++	pic->geo.width = sess->width;
++	pic->geo.height = sess->height;
++	pic->geo.reference_width = sess->reference_width;
++	pic->geo.reference_height = sess->reference_height;
++	pic->geo.crop_left = sess->crop_left;
++	pic->geo.crop_top = sess->crop_top;
 +
 +	if (sess->should_stop &&
 +	    atomic_read(&sess->esparser_queued_bufs) <= 1) {
