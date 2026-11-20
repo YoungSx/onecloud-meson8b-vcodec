@@ -41,6 +41,8 @@ load with all five services present; see the [deployment record](evidence/p6-202
 S805's documented encoder formats are H.264 and JPEG; HEVC is decode-only.
 [Encoding feasibility](docs/encoding-feasibility.md) records the hardware
 evidence and further H.264/JPEG development paths.
+The [portability note](docs/portability.md) separates the verified runtime
+stack from the older research port and the OpenList integration.
 
 ## Start here
 

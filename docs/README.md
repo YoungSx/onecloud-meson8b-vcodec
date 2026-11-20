@@ -10,6 +10,7 @@
 | FFmpeg、JPEG、设备枚举、缓冲数量 | [Usage](usage.md) |
 | 外部交叉构建、配置、源码补丁 | [Build](build.md) |
 | 模块职责、共享资源、输出数据路径 | [Architecture](architecture.md) |
+| 平台通用性、应用边界与研究线帧池差异 | [Portability](portability.md) |
 | 复现微码、上游源码与许可证 | [Firmware](firmware.md) |
 | 实机能力、帧数、性能、已知限制 | [Validation](validation.md) |
 | HEVC 硬编可行性与 H.264/JPEG 编码扩展 | [Encoding feasibility](encoding-feasibility.md) |
@@ -25,4 +26,4 @@
 2026-11-14 `bd1cb79` 验收版本，并非新版本的安装指令。[验收索引](../evidence/README.md)指向原始证据。
 [历史索引](history/README.md)保留研究阻断、开发日志和 HEVC 来源核查；
 [linux-media 结论](linux-media-rfc.md)记录在 Discussions，本项目不向上游提交；[共享 DOS 所有权设计](power-domain-design.md)
-只是方案，未实现也未上机验证。
+已有研究补丁的编译级实现，尚未上机验证。

@@ -34,6 +34,7 @@ v0.4.0 帧池已通过默认缓冲参数回归、30 分钟负载及五项服务�
 [部署记录](evidence/p6-2026-11-20/v040-deploy.md)。
 S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
 [编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
+[通用性说明](docs/portability.md)区分已验证运行包、较旧的研究移植与 OpenList 接入边界。
 
 ## 开始使用
 

@@ -18,9 +18,12 @@ points return 200. OpenList, Arcane and Home Assistant containers are
 running. The idle decoder pool has zero allocated slots and bytes.
 See evidence/p6-2026-11-20/final-live-check.log.
 
-Transcode performance work remains deferred. OpenList hardware integration
-waits for the official PR merge and release, as requested; the driver
-deployment is not an OpenList end-to-end acceptance.
+Transcode performance work remains deferred. The user subsequently chose the
+OpenList fork, deployed on 2026-11-20. The existing v0.4 driver passed bounded
+HTTP HLS checks at 320×240 and 1080p, including audio and forward/backward
+segment requests. Follow-up candidates use disposable data; production still
+uses the deployed image. Browser and sustained-playback acceptance remain
+open. See [portability](portability.md).
 
 ## Earlier acceptance and package history
 

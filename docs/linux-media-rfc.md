@@ -17,6 +17,9 @@ v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
 [port record](../evidence/mainline-2026-11-16/PORT.md). Nothing here ran on
 S805 hardware. The series no longer refuses to stream — `0013` implements
 the capture conversion — but the path is unproven on the silicon.
+It still uses one shadow per CAPTURE buffer and has not received the v0.4
+frame pool. Port that lifetime/memory design before hardware or upstream
+acceptance; see [portability](portability.md).
 
 Patches 0004–0008 add the Meson8b VDEC power domain: the AO sleep and
 isolation bits move to genpd, the decoder takes a runtime reference instead of
