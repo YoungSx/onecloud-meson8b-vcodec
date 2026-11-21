@@ -1,5 +1,12 @@
 # 码率修复实机回归 / Rate-control silicon regression
 
+后续[预算兑现验收](../rate-delivery-2026-11-21/README.md)定位并修复了下文的
+FFmpeg raw NV12 崩溃，增加峰值/CPB 控件与错误传播验证；本页保留原候选结果。
+
+The later [budget acceptance](../rate-delivery-2026-11-21/README.md) fixes the
+raw NV12 crash described below and adds peak/CPB and error-path checks.
+This page retains the original candidate's results.
+
 Linux 5.15.79-meson、S805、原 64 MiB CMA。源码修复为
 `9843894791732b8fc07f9ee0b40398cd323d82d1`。仅在编码器空闲时临时替换
 `meson-venc.ko`，每个测试脚本在 finally 恢复原模块。启动内核、设备树、

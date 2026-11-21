@@ -88,7 +88,9 @@ OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映�
   -c:v hevc_v4l2m2m -i input.mp4 -f null -
 ```
 
-该工具只启用文件协议和验收所需功能；不能替代完整生产 FFmpeg。
+该独立工具启用文件/HTTP 和验收所需功能；没有 HTTPS/TLS 或软件 H.264/
+HEVC 编码器，不能替代完整生产 FFmpeg。H.264 峰值/缓冲预算和失败语义见
+[码率控制](rate-control.md)。
 支持 Main 8-bit 线性输出，Main10、tiles、长期参考帧不支持。
 
 ## JPEG 编码

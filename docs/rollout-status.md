@@ -1,4 +1,16 @@
-# Deployment and acceptance status, 2026-11-20
+# Deployment and acceptance status, 2026-11-21
+
+The rate-budget candidate `0074967` adds peak/CPB controls and the independent
+FFmpeg 7.0.2 input/rate/error patch. Its encoder was temporarily exercised on
+S805, then restored to the installed module. The 30-minute run decoded/counted
+78000 frames over 26 blocks, verified every contiguous interval, and passed
+55 service samples. See [budget acceptance](../evidence/rate-delivery-2026-11-21/README.md).
+This candidate has not replaced autoload, the boot kernel/DT or production
+OpenList. Its original encoder fingerprint is
+`fa17e35d50f986d2eaf922590e99a44d385496956acfe64481a211b4a61c19e2`.
+The installation history below retains its recorded versions and timestamps.
+
+## Installed release history
 
 Current installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
 runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
@@ -41,7 +53,8 @@ malformed data boundaries and mixed-load run length. HEVC supports Main
 claim of arbitrary-stream or indefinite production soak is made.
 
 Original WanOS ffmpeg remains installed. The independent static tool has
-HEVC M2M decoding and a separate FFmpeg V4L2 drain/POLLERR patch. Both
+H.264/HEVC M2M, AAC/HLS/MPEG-TS, file/HTTP and separate V4L2 drain/input/rate/error
+patches. It lacks HTTPS/TLS and software H.264/HEVC encoders. Its
 sources and exact build flags are in the deliverable. On malformed data
 ffmpeg may output partial frames; exit code alone is not acceptance.
 Use scripts/verify-hashes.py and the recorded frame counts for correctness.

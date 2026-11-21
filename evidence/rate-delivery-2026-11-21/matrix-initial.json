@@ -1,0 +1,139 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "label": "bounded-pass",
+      "returncode": 0,
+      "stats": {
+        "frames": 150,
+        "bytes": 997866,
+        "target_bps": 1600000,
+        "current_bps": 1598569,
+        "peak_bps": 2887672,
+        "window_ns": 1000999980,
+        "qp": 29,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 76,
+        "overflows": 0,
+        "peak_limit_bps": 2000000,
+        "cpb_bytes": 262144,
+        "credit_bits": 2049064,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "bounded-fail",
+      "returncode": 1,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 1000000,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 1000000,
+        "cpb_bytes": 1024,
+        "credit_bits": 8192,
+        "budget_violations": 1,
+        "limit_terminal": 1
+      }
+    },
+    {
+      "label": "invalid-peak",
+      "returncode": 0,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 0,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 0,
+        "cpb_bytes": 0,
+        "credit_bits": 0,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "after-failure",
+      "returncode": 0,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 0,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 0,
+        "cpb_bytes": 0,
+        "credit_bits": 0,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "raw-fixed",
+      "returncode": 0,
+      "stats": {
+        "frames": 90,
+        "bytes": 599369,
+        "target_bps": 1600000,
+        "current_bps": 1610523,
+        "peak_bps": 2890560,
+        "window_ns": 1033333323,
+        "qp": 27,
+        "saturated_frames": 1,
+        "saturated_ns": 33333333,
+        "overshoots": 52,
+        "overflows": 0,
+        "peak_limit_bps": 0,
+        "cpb_bytes": 0,
+        "credit_bits": 0,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "raw-bounded",
+      "returncode": 0,
+      "stats": {
+        "frames": 90,
+        "bytes": 599369,
+        "target_bps": 1600000,
+        "current_bps": 1610523,
+        "peak_bps": 2890560,
+        "window_ns": 1033333323,
+        "qp": 27,
+        "saturated_frames": 1,
+        "saturated_ns": 33333333,
+        "overshoots": 52,
+        "overflows": 0,
+        "peak_limit_bps": 2000000,
+        "cpb_bytes": 249856,
+        "credit_bits": 1945992,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    }
+  ],
+  "restored": true,
+  "production_start_unchanged": true
+}

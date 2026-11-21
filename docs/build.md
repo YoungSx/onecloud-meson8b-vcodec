@@ -42,9 +42,11 @@ make dtbo
 KDIR=/absolute/path/to/kernel-output make modules -j4
 ```
 
-工具版本、源码哈希和选项固定在构建脚本。FFmpeg 为独立文件测试构建，
-包含 HEVC M2M/drain 修复，没有 H.264 硬件编码包装。v4l2-ctl 为静态 ioctl
-工具。所有构建日志与产物位于忽略的 `build/`，CI 将上传交付归档。
+工具版本、源码哈希和选项固定在构建脚本。FFmpeg 为独立测试构建，按序
+应用 drain 与 rate/input 补丁，包含 H.264/HEVC M2M、AAC、HLS/MPEG-TS 和
+文件/HTTP；没有 HTTPS/TLS、libx264/libx265 或完整格式覆盖，保留生产
+FFmpeg。v4l2-ctl 为静态 ioctl 工具。所有构建日志与产物位于忽略的
+`build/`，CI 将上传交付归档。
 
 ## Overlay
 

@@ -1,0 +1,189 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "label": "bounded-pass",
+      "frames": 150,
+      "video": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "150"
+      },
+      "software_decode": true,
+      "bytes": 997866,
+      "packet_bytes": 997866,
+      "envelope": {
+        "intervals_checked": 11325,
+        "largest_excess_bits": 99760.0,
+        "capacity_bits": 2097152
+      }
+    },
+    {
+      "label": "raw-fixed",
+      "frames": 90,
+      "video": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "90"
+      },
+      "software_decode": true,
+      "bytes": 599369,
+      "packet_bytes": 599369
+    },
+    {
+      "label": "raw-bounded",
+      "frames": 90,
+      "video": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "90"
+      },
+      "software_decode": true,
+      "bytes": 599369,
+      "packet_bytes": 599369,
+      "envelope": {
+        "intervals_checked": 4095,
+        "largest_excess_bits": 96352.0,
+        "capacity_bits": 1998848
+      }
+    },
+    {
+      "label": "ffmpeg-overbudget",
+      "returncode": 251,
+      "elapsed_seconds": 0.358,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 1000000,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 1000000,
+        "cpb_bytes": 1024,
+        "credit_bits": 8192,
+        "budget_violations": 1,
+        "limit_terminal": 1
+      }
+    },
+    {
+      "label": "retarget-restart",
+      "frames": 180,
+      "video": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "180"
+      },
+      "software_decode": true,
+      "bytes": 1061440,
+      "packet_bytes": 1061440,
+      "stats": {
+        "frames": 60,
+        "bytes": 322001,
+        "target_bps": 1200000,
+        "current_bps": 1270193,
+        "peak_bps": 2899180,
+        "window_ns": 1000999980,
+        "qp": 32,
+        "saturated_frames": 51,
+        "saturated_ns": 1701699966,
+        "overshoots": 60,
+        "overflows": 0,
+        "peak_limit_bps": 1600000,
+        "cpb_bytes": 262144,
+        "credit_bits": 2058872,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "invalid-pairs",
+      "frames": 15,
+      "video": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "15"
+      },
+      "software_decode": true,
+      "bytes": 122096,
+      "packet_bytes": 122096,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 0,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 0,
+        "cpb_bytes": 0,
+        "credit_bits": 0,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    },
+    {
+      "label": "jpeg-after-budget-failure",
+      "frames": 5,
+      "video": {
+        "codec_name": "mjpeg",
+        "width": 640,
+        "height": 360,
+        "nb_read_frames": "5"
+      },
+      "software_decode": true,
+      "bytes": 204492,
+      "packet_bytes": 204492,
+      "stats": {
+        "frames": 0,
+        "bytes": 0,
+        "target_bps": 0,
+        "current_bps": 0,
+        "peak_bps": 0,
+        "window_ns": 0,
+        "qp": 26,
+        "saturated_frames": 0,
+        "saturated_ns": 0,
+        "overshoots": 0,
+        "overflows": 0,
+        "peak_limit_bps": 0,
+        "cpb_bytes": 0,
+        "credit_bits": 0,
+        "budget_violations": 0,
+        "limit_terminal": 0
+      }
+    }
+  ],
+  "encoder_sha256": "e67a83367410c859f44151c774b2290124ca1f5eb3751c1161350556a92d84e8",
+  "boot_changed": false,
+  "production_settings_changed": false,
+  "services_before": {
+    "openlist": 200,
+    "sublink": 200,
+    "vocat": 200,
+    "homeassistant": 200,
+    "arcane_running": true
+  },
+  "restored": true,
+  "production_start_unchanged": true,
+  "services_after": {
+    "openlist": 200,
+    "sublink": 200,
+    "vocat": 200,
+    "homeassistant": 200,
+    "arcane_running": true
+  }
+}

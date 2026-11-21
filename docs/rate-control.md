@@ -38,6 +38,71 @@ sessions keep their requested QP and the same bounded failure budget. Invalid
 sizes and insufficient space for SPS/PPS return errors rather than truncated
 slices.
 
+## 峰值与缓冲预算 / Peak and buffer budget
+
+`BITRATE_PEAK`（bps）和 `H264_CPB_SIZE`（KiB，1024 字节）与 `BITRATE` 成组
+设置。两项都为零时保持原行为；启用时两项都须为正，峰值不能低于目标。
+峰值上限为 100 Mbps，缓冲上限为 32768 KiB。JPEG 不使用此预算。
+
+Set `BITRATE_PEAK` in bps and `H264_CPB_SIZE` in KiB (1024 bytes), together
+with `BITRATE`. Both zero preserves the existing behavior. Enabling requires
+both positive and peak at least the target. Limits are 100 Mbps and 32768 KiB.
+JPEG does not use this budget.
+
+每个新硬件会话从满缓冲开始，按协商帧周期补充额度，保留整数除法余数；
+完成 AU 的全部字节（含 SPS/PPS）从额度扣除。单幅 AU 不能超过缓冲容量，
+连续帧的码量受缓冲加媒体时间峰值预算约束。收紧缓冲会夹紧剩余额度，
+增大缓冲或改峰值不会重新赠送一次突发。STREAMOFF/ON 才开启新会话预算。
+
+A new hardware session starts with full credits. Each negotiated frame period
+refills them, retaining fractional division carry. Every completed access unit,
+including SPS/PPS, spends credits. One access unit cannot exceed the capacity;
+contiguous pictures are bounded by capacity plus the media-time peak allowance.
+Shrinking clamps existing credits. Enlarging or retargeting does not grant a
+fresh burst. STREAMOFF/ON starts a new session budget.
+
+预测 QP 可以在经验证的范围内提高，但硬件不能保证任意内容都达到目标。
+超预算 AU 不发布：其 payload 清零、两个队列置错，后续已排队帧不再调用
+硬件。客户端须报告失败，或在首片发布前选择更小尺寸；不能把部分输出
+继续当作成功。此处是 VBR 码量约束，没有严格 CBR、HRD/VUI 或填充字节，
+也不会按网络发送时间限速。
+
+Prediction may raise QP within the verified range. Hardware cannot reach every
+target for every scene. An oversized access unit is not published: its payload
+is cleared, both queues fail, and later queued pictures skip hardware. Clients
+must report failure or select smaller geometry before publication. This is a
+VBR output envelope. It does not implement strict CBR, HRD/VUI, filler bytes or
+network-time pacing.
+
+独立 FFmpeg 补丁以 `-v4l2_rate_limit 1` 显式启用映射，要求正的 `-b:v`、
+`-maxrate` 和 `-bufsize`，且 maxrate 不低于目标。bufsize 是 **bits**，
+除以 8192 向下取整为 KiB，实际缓冲不大于请求；不支持控件会直接报错，
+不会悄悄忽略。驱动 ERROR 缓冲和终止 DQBUF 错误也会传播为编码失败。
+共享 NV12 的软件缩放输入按 data/stride 拷贝，修复原 `frame->buf[1]` 空指针。
+
+The independent FFmpeg patch explicitly opts in with `-v4l2_rate_limit 1`.
+It requires positive `-b:v`, `-maxrate` and `-bufsize`, with maxrate at least the
+target. Bufsize is in **bits** and is rounded down to KiB by division by 8192,
+so capacity never exceeds the request. Unsupported controls fail explicitly.
+Driver ERROR buffers and terminal dequeue errors propagate as encode failures.
+Software scaling inputs copy data/strides rather than dereferencing a missing
+`frame->buf[1]` in shared NV12 frames.
+
+```sh
+tools/ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 -an \
+  -c:v h264_v4l2m2m -b:v 1600k -v4l2_rate_limit 1 \
+  -maxrate 2000k -bufsize 2M -r 30000/1001 -fps_mode cfr output.h264
+```
+
+该独立工具支持本地文件、HTTP、H.264/HEVC/AAC 与 HLS/MPEG-TS 验收功能；
+没有 HTTPS/TLS、libx264/libx265 或完整生产 FFmpeg 的格式覆盖，保留原工具。
+上例 2M bits 对应 244 KiB（249856 字节），不是 2 MB。
+
+The tool covers local files, HTTP, H.264/HEVC/AAC and HLS/MPEG-TS acceptance.
+It lacks HTTPS/TLS, libx264/libx265 and full production format coverage; keep
+the original FFmpeg. The example's 2M bits becomes 244 KiB (249856 bytes),
+not 2 MB.
+
 ## 媒体时间与观测 / Media time and diagnostics
 
 `S_PARM` 返回采用的帧周期。分子/分母通过有理数近似限制在 65535 内，超过
@@ -61,6 +126,9 @@ cat /sys/kernel/debug/meson-venc/rate_control
 | `peak_bps` | 本配置下观测到的最大窗口值，包含启动短窗口；不是严格一秒峰值 / Maximum observed window rate, including startup windows |
 | `qp`, `saturated_frames`, `saturated_ns` | 最近 QP、累计达到预测上限的帧数与时长 / Last QP and accumulated saturation |
 | `overshoots`, `overflows` | 超目标窗口采样次数与码流缓冲溢出次数 / Window overshoot samples and bitstream overflows |
+| `peak_limit_bps`, `cpb_bytes` | 当前启用的峰值与缓冲容量 / Active peak allowance and capacity |
+| `credit_bits` | 剩余媒体时间额度 / Remaining media-time credits |
+| `budget_violations`, `limit_terminal` | 超预算次数与会话终止状态 / Budget violations and terminal state |
 
 窗口最多 240 帧；媒体时长采用整数纳秒，边界可能多包含一帧。帧率/目标/
 RC 启用状态重置时观测清零。字段在自旋锁内快照，固定 QP 不累计 RC 帧。
@@ -73,6 +141,14 @@ as RC pictures. At least one media second of continuous saturation with a rate
 over 110% of target produces one warning per configuration.
 
 ## 已验证边界 / Verified limits
+
+[峰值/缓冲兑现验收](../evidence/rate-delivery-2026-11-21/README.md)记录新控件、
+FFmpeg raw 输入、失败传播及恢复的验证。下述目标跟踪数据来自较早候选，
+不是新预算控件的峰值证明。
+
+The [peak/buffer acceptance](../evidence/rate-delivery-2026-11-21/README.md)
+records the new controls, raw input, failure propagation and recovery. The
+target-tracking figures below belong to an earlier candidate.
 
 [2026-11-21 实机记录](../evidence/rate-control-2026-11-21/README.md)将可达目标、
 饱和目标、队列终止及失败的工具实验分开记录。640×360 全 I、目标 2.5 Mbps
@@ -87,13 +163,17 @@ The 640×360 all-IDR steady rate at a 2.5 Mbps target improves from 2.900 to
 1080p motion still saturates near 10.35 Mbps for targets of 1/2/4/8 Mbps.
 These samples do not establish a minimum rate for every video.
 
-没有严格 CPB、峰值保证、重编码或 HRD/VUI。上游 FFmpeg 的 V4L2 包装不映射
-`maxrate/bufsize`，因此 OpenList fork 不向该包装传这两个参数，按真实切片
-时长/字节声明 HLS 带宽并提供超目标警告。历史切片也不能保证未来场景峰值。
-受限网络须根据实测降低尺寸/帧率或使用软件编码。
+OpenList 默认 `warn` 继续跟踪目标、按实测 HLS 码量声明带宽并报告偏差。
+显式 `fail` 将视频峰值/缓冲映射交给兼容 FFmpeg 和驱动兑现；`downscale`
+先用隔离输出探测最多六秒，在首片发布前选定可达尺寸，后续 chunk 与恢复
+复用该尺寸。探测不能预测未来场景；后续超预算仍失败。缓冲不是逐个 HLS
+切片或含音频/TS 的网络带宽硬上限。应用实现与验收见
+[OpenList 文档](https://github.com/YoungSx/OpenList/tree/feat/transcode-v4l2m2m/internal/transcode/v4l2m2m)。
 
-Strict CPB/peak enforcement, re-encoding and HRD/VUI are not implemented.
-Upstream FFmpeg's V4L2 wrappers do not map `maxrate/bufsize`. The OpenList fork
-omits these arguments, advertises measured HLS segment bandwidth and reports
-overshoot. Past segments cannot bound future scene peaks. Use measured output
-to choose smaller geometry/frame rate or software encoding on limited links.
+OpenList's default `warn` retains target tracking, measured HLS bandwidth and
+overshoot diagnostics. Opt-in `fail` requires the compatible FFmpeg/driver to
+enforce video peak/buffer limits. `downscale` probes up to six seconds of isolated
+output, selects a reachable size before the first segment and reuses it for
+later chunks and reactivation. A probe cannot predict future scenes; later budget
+violations still fail. This is not a per-HLS-segment or audio/TS/network bandwidth
+cap. See the [OpenList implementation and acceptance](https://github.com/YoungSx/OpenList/tree/feat/transcode-v4l2m2m/internal/transcode/v4l2m2m).

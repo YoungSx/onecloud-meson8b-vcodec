@@ -7,6 +7,14 @@ changed.
 
 ## Unreleased
 
+- Add opt-in media-time peak/CPB controls with sticky queue failure for an
+  oversized access unit, fractional carry and preserved credits on retargeting.
+- Map FFmpeg 7.0.2 peak/buffer limits explicitly, reject unsupported control
+  transactions and propagate encoded ERROR buffers/dequeue failures.
+- Fix shared raw NV12 input copying; package the patch and the independent
+  H.264/HEVC/AAC file/HTTP/HLS test tool while retaining production FFmpeg.
+- Record [peak/buffer silicon acceptance](evidence/rate-delivery-2026-11-21/README.md),
+  including independent decode/count, interval envelopes, errors and recovery.
 - Close the all-IDR rate-feedback loop and apply pending controls at picture
   selection; retain force-key requests arriving during an IDR and reset
   history on new hardware sessions or frame-period changes.
