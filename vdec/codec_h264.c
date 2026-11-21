@@ -50,7 +50,7 @@
 static unsigned int h264_extra_buffers = 2;
 module_param(h264_extra_buffers, uint, 0644);
 MODULE_PARM_DESC(h264_extra_buffers,
-		 "H.264 decode buffers beyond the reference frames (default 5)");
+		 "H.264 decode buffers beyond the reference frames (default 2)");
 
 /* Frame status data */
 #define PIC_STRUCT_BIT	5

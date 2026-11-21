@@ -1,0 +1,85 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "case": "1080p",
+      "rc": 0,
+      "wall_seconds": 10.098,
+      "cpu_seconds": 2.242,
+      "stderr": "",
+      "bytes": 6752665,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "profile": "Baseline",
+            "width": 1920,
+            "height": 1080,
+            "level": 40,
+            "nb_read_frames": "240"
+          }
+        ]
+      }
+    },
+    {
+      "case": "720p",
+      "rc": 0,
+      "wall_seconds": 14.076,
+      "cpu_seconds": 14.576,
+      "stderr": "",
+      "bytes": 1005695,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "profile": "Baseline",
+            "width": 1280,
+            "height": 720,
+            "level": 40,
+            "nb_read_frames": "120"
+          }
+        ]
+      }
+    },
+    {
+      "case": "480p",
+      "rc": 0,
+      "wall_seconds": 15.609,
+      "cpu_seconds": 15.771,
+      "stderr": "",
+      "bytes": 406284,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "profile": "Baseline",
+            "width": 854,
+            "height": 480,
+            "level": 40,
+            "nb_read_frames": "120"
+          }
+        ]
+      }
+    },
+    {
+      "case": "direct-NV12",
+      "rc": 0
+    },
+    {
+      "case": "direct-YU12",
+      "rc": 0
+    },
+    {
+      "case": "direct-YUYV",
+      "rc": 0
+    },
+    {
+      "case": "direct-XR24",
+      "rc": 0
+    }
+  ],
+  "restored": true
+}

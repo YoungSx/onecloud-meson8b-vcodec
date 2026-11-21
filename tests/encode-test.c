@@ -46,6 +46,8 @@ struct control { unsigned int id, frame, group; int value, reject; };
 
 static const struct { const char *name; unsigned int id; } names[] = {
 	{ "bitrate", V4L2_CID_MPEG_VIDEO_BITRATE },
+	{ "profile", V4L2_CID_MPEG_VIDEO_H264_PROFILE },
+	{ "level", V4L2_CID_MPEG_VIDEO_H264_LEVEL },
 	{ "peak-bitrate", V4L2_CID_MPEG_VIDEO_BITRATE_PEAK },
 	{ "cpb-size", V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE },
 	{ "bitrate-mode", V4L2_CID_MPEG_VIDEO_BITRATE_MODE },

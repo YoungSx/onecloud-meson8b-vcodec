@@ -101,6 +101,9 @@ static const struct venc_format *venc_find_format(u32 fourcc)
 {
 	unsigned int i;
 
+	/* NV12 on an MPLANE queue still has one contiguous memory plane. */
+	if (fourcc == V4L2_PIX_FMT_NV12)
+		return &venc_formats[0];
 	for (i = 0; i < ARRAY_SIZE(venc_formats); i++)
 		if (fourcc == venc_formats[i].fourcc || fourcc == venc_formats[i].alias)
 			return &venc_formats[i];
@@ -147,6 +150,20 @@ static void venc_fill_out_fmt(struct v4l2_pix_format_mplane *pix,
 		pix->plane_fmt[i].bytesperline = bpl * fmt->halves[i] / fmt->halves[0];
 		pix->plane_fmt[i].sizeimage =
 			ALIGN(pix->plane_fmt[i].bytesperline * rows / fmt->vsub[i] + 64, 8);
+	}
+}
+
+/* Memory-plane layout is independent of the MFDIN component planes. */
+static void venc_fill_source_fmt(struct v4l2_pix_format_mplane *pix,
+				 const struct venc_format *fmt, u32 fourcc)
+{
+	venc_fill_out_fmt(pix, fmt);
+	if (fourcc == V4L2_PIX_FMT_NV12) {
+		pix->num_planes = 1;
+		pix->pixelformat = fourcc;
+		pix->plane_fmt[0].sizeimage =
+			pix->plane_fmt[0].bytesperline * pix->height * 3 / 2;
+		memset(&pix->plane_fmt[1], 0, sizeof(pix->plane_fmt[1]));
 	}
 }
 
@@ -830,8 +847,9 @@ static void venc_free_buffers(struct venc_ctx *ctx)
 	for (i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
 		if (!ctx->buffers[i].vaddr)
 			continue;
-		dma_free_coherent(ctx->core->dev, ctx->buffers[i].size,
-				  ctx->buffers[i].vaddr, ctx->buffers[i].paddr);
+		dma_free_attrs(ctx->core->dev, ctx->buffers[i].size,
+			       ctx->buffers[i].vaddr, ctx->buffers[i].paddr,
+			       i == VENC_INPUT ? DMA_ATTR_WRITE_COMBINE : 0);
 		ctx->buffers[i].vaddr = NULL;
 	}
 }
@@ -849,8 +867,10 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 		if (i == VENC_INPUT)
 			ctx->buffers[i].size = PAGE_ALIGN(venc_staging_bytes(ctx->src,
 					ctx->coded_width, ctx->height));
-		ctx->buffers[i].vaddr = dma_alloc_coherent(ctx->core->dev,
-			ctx->buffers[i].size, &ctx->buffers[i].paddr, GFP_KERNEL);
+		/* CPU only writes staging; combine stores before the DMA kick. */
+		ctx->buffers[i].vaddr = dma_alloc_attrs(ctx->core->dev,
+			ctx->buffers[i].size, &ctx->buffers[i].paddr, GFP_KERNEL,
+			i == VENC_INPUT ? DMA_ATTR_WRITE_COMBINE : 0);
 		if (!ctx->buffers[i].vaddr) {
 			dev_err(ctx->core->dev, "DMA region %u (%u bytes) unavailable\n",
 				i, ctx->buffers[i].size);
@@ -1082,6 +1102,11 @@ static void venc_copy_rows(u8 *dst, u32 dst_stride, u8 *src, u32 src_stride,
 {
 	u32 i;
 
+	if (dst_stride == row_bytes && src_stride == row_bytes &&
+	    (u64)row_bytes * rows <= src_size) {
+		memcpy(dst, src, row_bytes * rows);
+		return;
+	}
 	for (i = 0; i < rows; i++) {
 		u32 left = src_size - i * src_stride;
 		u32 n = min(row_bytes, left);
@@ -1114,6 +1139,27 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 	ktime_t start;
 
 	venc_fill_out_fmt(&pix, fmt);
+	if (ctx->src_fourcc == V4L2_PIX_FMT_NV12) {
+		u32 stride = pix.plane_fmt[0].bytesperline;
+		u32 offset = stride * ctx->height;
+		u32 bytes = vb2_get_plane_payload(b, 0);
+
+		src = venc_input_begin_cpu(b, 0);
+		if (!src || bytes < offset + stride * ctx->height / 2)
+			return -EINVAL;
+		start = ktime_get();
+		width = venc_canvas_bytes(fmt, ctx->coded_width, 0);
+		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);
+		venc_copy_rows(dst + width * rows, width, src + offset, stride,
+			       ctx->width, ctx->height / 2, bytes - offset);
+		venc_input_end_cpu(b, 0);
+		ctx->input[0] = staging;
+		ctx->input[1] = staging + width * rows;
+		dma_wmb();
+		ctx->core->copied_frames++;
+		ctx->core->copy_ns += ktime_to_ns(ktime_sub(ktime_get(), start));
+		return 0;
+	}
 	for (i = 0; i < fmt->planes; i++) {
 		ctx->input[i] = venc_input_dma(b, i);
 		direct &= ctx->input[i] && !(ctx->input[i] & 7) &&
@@ -1138,6 +1184,7 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		staging += width * rows / fmt->vsub[i];
 		dst += width * rows / fmt->vsub[i];
 	}
+	dma_wmb();
 	ctx->core->copied_frames++;
 	ctx->core->copy_ns += ktime_to_ns(ktime_sub(ktime_get(), start));
 	return 0;
@@ -1295,7 +1342,7 @@ static int venc_queue_setup(struct vb2_queue *vq, unsigned int *nbuffers,
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		pix.width = ctx->width;
 		pix.height = ctx->height;
-		venc_fill_out_fmt(&pix, ctx->src);
+		venc_fill_source_fmt(&pix, ctx->src, ctx->src_fourcc);
 	} else {
 		venc_fill_cap_fmt(ctx, &pix, ctx->dst_fmt);
 	}
@@ -1323,7 +1370,7 @@ static int venc_buf_prepare(struct vb2_buffer *vb)
 	unsigned int i;
 
 	if (V4L2_TYPE_IS_OUTPUT(vb->type))
-		venc_fill_out_fmt(&pix, ctx->src);
+		venc_fill_source_fmt(&pix, ctx->src, ctx->src_fourcc);
 	else
 		venc_fill_cap_fmt(ctx, &pix, ctx->dst_fmt);
 	for (i = 0; i < pix.num_planes; i++) {
@@ -1331,6 +1378,10 @@ static int venc_buf_prepare(struct vb2_buffer *vb)
 			return -EINVAL;
 		if (V4L2_TYPE_IS_OUTPUT(vb->type)) {
 			/* Visible rows are copied; macroblock padding stays zero. */
+			if (ctx->src_fourcc == V4L2_PIX_FMT_NV12 &&
+			    vb2_get_plane_payload(vb, 0) <
+			    pix.plane_fmt[0].bytesperline * ctx->height * 3 / 2)
+				return -EINVAL;
 			if (vb->planes[i].data_offset ||
 			    vb2_get_plane_payload(vb, i) <
 			    pix.plane_fmt[i].bytesperline * ctx->height / ctx->src->vsub[i])
@@ -1690,6 +1741,11 @@ static int venc_enum_fmt(struct file *file, void *fh,
 	unsigned int i, index = 0;
 
 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
+		if (f->index == 0) {
+			f->pixelformat = V4L2_PIX_FMT_NV12;
+			return 0;
+		}
+		index = 1;
 		for (i = 0; i < ARRAY_SIZE(venc_formats); i++) {
 			if (!venc_format_allowed(ctx, &venc_formats[i]))
 				continue;
@@ -1715,7 +1771,7 @@ static int venc_g_fmt(struct file *file, void *fh,
 	f->fmt.pix_mp.width = ctx->width;
 	f->fmt.pix_mp.height = ctx->height;
 	if (V4L2_TYPE_IS_OUTPUT(f->type)) {
-		venc_fill_out_fmt(&f->fmt.pix_mp, ctx->src);
+		venc_fill_source_fmt(&f->fmt.pix_mp, ctx->src, ctx->src_fourcc);
 		f->fmt.pix_mp.pixelformat = ctx->src_fourcc;
 		f->fmt.pix_mp.colorspace = ctx->colorspace;
 		f->fmt.pix_mp.xfer_func = ctx->xfer_func;
@@ -1743,9 +1799,11 @@ static int venc_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		f->fmt.pix_mp.width = ALIGN(f->fmt.pix_mp.width, 2);
 		f->fmt.pix_mp.height = ALIGN(f->fmt.pix_mp.height, 2);
 		/* FFmpeg only knows packed RGB32/BGR32 by their old names */
-		fourcc = fmt->planes == 1 && f->fmt.pix_mp.pixelformat == fmt->alias ?
+		fourcc = f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ?
+			 V4L2_PIX_FMT_NV12 :
+			 fmt->planes == 1 && f->fmt.pix_mp.pixelformat == fmt->alias ?
 			 fmt->alias : fmt->fourcc;
-		venc_fill_out_fmt(&f->fmt.pix_mp, fmt);
+		venc_fill_source_fmt(&f->fmt.pix_mp, fmt, fourcc);
 		f->fmt.pix_mp.pixelformat = fourcc;
 		venc_try_colorimetry(&f->fmt.pix_mp, fmt);
 	} else {
@@ -2000,7 +2058,7 @@ static int venc_open(struct file *file)
 	ctx->rc_config.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(hdl, 14);
+	ret = v4l2_ctrl_handler_init(hdl, 20);
 	if (ret)
 		goto err_free;
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_JPEG_COMPRESSION_QUALITY,
@@ -2014,6 +2072,16 @@ static int venc_open(struct file *file)
 			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CBR) |
 			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CQ),
 			       V4L2_MPEG_VIDEO_BITRATE_MODE_VBR);
+	/* The current microcode emits Baseline, level_idc 40. */
+	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+		V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE, 0,
+		V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE);
+	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_LEVEL,
+		V4L2_MPEG_VIDEO_H264_LEVEL_4_0,
+		BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) - 1,
+		V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
 	/* 0 keeps fixed QPs, as FFmpeg's -b:v 0 expects */
 	ctx->rate_controls[0] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
 			  0, 100000000, 1, 0);
