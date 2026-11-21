@@ -36,10 +36,12 @@ struct venc_rc {
 	u32 numerator, denominator;	/* seconds per picture */
 	s32 qp_min, qp_max;
 	s32 i_offset;			/* IDR QP relative to the P QP */
+	u32 gop_size;			/* 1 is all-IDR; 0 has no periodic IDRs */
 
 	s64 fullness;			/* bits above budget, in [-capacity/2, capacity] */
 	u64 p_complexity, i_complexity;	/* 0 until the first such picture */
 	s32 qp;				/* QP of the next P picture */
+	u32 idr_run;			/* consecutive IDRs, including forced ones */
 };
 
 /* 2^(n/6) in Q16 for n = 0..5 */
@@ -100,7 +102,47 @@ static inline void venc_rc_reset(struct venc_rc *rc, s32 qp)
 	rc->fullness = 0;
 	rc->p_complexity = 0;
 	rc->i_complexity = 0;
+	rc->idr_run = 0;
 	rc->qp = venc_rc_clamp_p(rc, qp);
+}
+
+/* Apply pending controls at a picture boundary; history belongs to this config. */
+static inline void venc_rc_configure(struct venc_rc *rc,
+				     const struct venc_rc *config,
+				     bool restart, s32 seed)
+{
+	bool period_changed = rc->numerator != config->numerator ||
+			      rc->denominator != config->denominator;
+	bool rate_changed = rc->bitrate != config->bitrate;
+
+	rc->bitrate = config->bitrate;
+	rc->numerator = config->numerator;
+	rc->denominator = config->denominator;
+	rc->qp_min = config->qp_min;
+	rc->qp_max = config->qp_max;
+	rc->i_offset = config->i_offset;
+	rc->gop_size = config->gop_size;
+	if (restart || period_changed) {
+		venc_rc_reset(rc, seed);
+	} else {
+		if (rate_changed)
+			rc->fullness = 0;
+		rc->qp = rc->gop_size == 1 || rc->idr_run > 1 ? venc_rc_clamp(rc, rc->qp) :
+			 venc_rc_clamp_p(rc, rc->qp);
+	}
+}
+
+static inline u64 venc_rc_target(const struct venc_rc *rc)
+{
+	u64 budget = venc_rc_budget(rc);
+	s64 target = (s64)budget - div64_s64(rc->fullness * rc->numerator,
+					  rc->denominator);
+
+	if (target < (s64)(budget / 8))
+		target = budget / 8;
+	else if (target > (s64)(2 * budget))
+		target = 2 * budget;
+	return target > 0 ? target : 1;
 }
 
 static inline s32 venc_rc_picture_qp(const struct venc_rc *rc, bool idr)
@@ -108,11 +150,14 @@ static inline s32 venc_rc_picture_qp(const struct venc_rc *rc, bool idr)
 	s32 qp, floor;
 
 	if (!idr)
-		return rc->qp;
+		return venc_rc_clamp_p(rc, rc->qp);
 	qp = venc_rc_clamp(rc, rc->qp + rc->i_offset);
-	/* One IDR may use at most a third of the bucket, bounding the 1 s peak. */
+	/* A prediction, not a peak guarantee. All-IDR uses a per-picture budget. */
 	if (rc->i_complexity) {
-		floor = venc_rc_qp_for(rc, rc->i_complexity, venc_rc_capacity(rc) / 3);
+		u64 target = rc->gop_size == 1 || rc->idr_run > 1 ?
+			venc_rc_target(rc) : (u64)venc_rc_capacity(rc) / 3;
+
+		floor = venc_rc_qp_for(rc, rc->i_complexity, target);
 		if (qp < floor)
 			qp = floor;
 	}
@@ -132,7 +177,8 @@ static inline void venc_rc_update(struct venc_rc *rc, u32 bytes, s32 qp, bool id
 {
 	u64 bits = (u64)bytes * 8, budget = venc_rc_budget(rc);
 	u64 complexity = venc_rc_scale(bits, qp - VENC_RC_REFERENCE_QP);
-	s64 capacity = venc_rc_capacity(rc), target;
+	s64 capacity = venc_rc_capacity(rc);
+	u64 target, model;
 	bool cut = !idr && rc->p_complexity && complexity > 3 * rc->p_complexity;
 	s32 next;
 
@@ -142,6 +188,8 @@ static inline void venc_rc_update(struct venc_rc *rc, u32 bytes, s32 qp, bool id
 	else if (rc->fullness < -capacity / 2)
 		rc->fullness = -capacity / 2;
 	if (idr) {
+		if (rc->idr_run < 2)
+			rc->idr_run++;
 		/* a cut on an IDR scales the P estimate by the same factor */
 		if (rc->i_complexity && complexity > 3 * rc->i_complexity && rc->p_complexity) {
 			rc->p_complexity = div64_u64(rc->p_complexity * complexity,
@@ -150,24 +198,94 @@ static inline void venc_rc_update(struct venc_rc *rc, u32 bytes, s32 qp, bool id
 		}
 		rc->i_complexity = venc_rc_average(rc->i_complexity, complexity);
 	} else {
+		rc->idr_run = 0;
 		rc->p_complexity = venc_rc_average(rc->p_complexity, complexity);
 	}
-	if (!rc->p_complexity)
+	model = rc->gop_size == 1 || rc->idr_run > 1 ?
+		rc->i_complexity : rc->p_complexity;
+	if (!model)
 		return;
 
 	/* drain the bucket over one second */
-	target = (s64)budget - div64_s64(rc->fullness * rc->numerator, rc->denominator);
-	if (target < (s64)(budget / 8))
-		target = budget / 8;
-	else if (target > (s64)(2 * budget))
-		target = 2 * budget;
-	next = venc_rc_qp_for(rc, rc->p_complexity, target);
+	target = venc_rc_target(rc);
+	next = venc_rc_qp_for(rc, model, target);
+	if (rc->gop_size == 1 || rc->idr_run > 1)
+		next -= rc->i_offset;
 	/* After a cut the estimate is fresh, so follow it at once. */
 	if (next < rc->qp - VENC_RC_MAX_DOWN)
 		next = rc->qp - VENC_RC_MAX_DOWN;
 	else if (!cut && next > rc->qp + VENC_RC_MAX_UP)
 		next = rc->qp + VENC_RC_MAX_UP;
-	rc->qp = venc_rc_clamp_p(rc, next);
+	rc->qp = rc->gop_size == 1 || rc->idr_run > 1 ?
+		venc_rc_clamp(rc, next) : venc_rc_clamp_p(rc, next);
+}
+
+/* Overflow recovery is separate from the normal P-QP prediction ceiling. */
+#define VENC_RC_MAX_OVERFLOWS 3
+struct venc_rc_recovery {
+	s32 floor;
+	u32 failures;
+	bool terminal;
+};
+
+static inline void venc_rc_overflow(struct venc_rc_recovery *r,
+				   const struct venc_rc *rc, s32 qp)
+{
+	r->failures++;
+	r->floor = venc_rc_clamp(rc, qp + VENC_RC_MAX_UP);
+	r->terminal = r->failures >= VENC_RC_MAX_OVERFLOWS || qp >= rc->qp_max;
+}
+
+#define VENC_RC_WINDOW_FRAMES 240
+struct venc_rc_measurement {
+	u32 bits[VENC_RC_WINDOW_FRAMES];
+	u64 ns[VENC_RC_WINDOW_FRAMES];
+	u32 head, count;
+	u64 window_bits, window_ns;
+	u64 frames, bytes, peak_bps, current_bps;
+	u64 saturated_frames, saturated_ns, streak_ns, overshoots, overflows;
+	u64 target_bps;
+	s32 qp;
+};
+
+static inline void venc_rc_measure(struct venc_rc_measurement *m,
+				   const struct venc_rc *rc, u32 bytes, s32 qp)
+{
+	u64 ns = div64_u64((u64)rc->numerator * 1000000000u, rc->denominator);
+	u32 index, ceiling = rc->gop_size == 1 || rc->idr_run > 1 ?
+		rc->qp_max : (rc->qp_max < VENC_RC_QP_CEILING ?
+			      rc->qp_max : VENC_RC_QP_CEILING);
+
+	if (!ns)
+		ns = 1;
+	while (m->count && (m->count == VENC_RC_WINDOW_FRAMES ||
+		m->window_ns + ns - m->ns[m->head] >= 1000000000u)) {
+		m->window_ns -= m->ns[m->head];
+		m->window_bits -= m->bits[m->head];
+		m->head = (m->head + 1) % VENC_RC_WINDOW_FRAMES;
+		m->count--;
+	}
+	index = (m->head + m->count++) % VENC_RC_WINDOW_FRAMES;
+	m->bits[index] = bytes * 8;
+	m->ns[index] = ns;
+	m->window_bits += bytes * 8;
+	m->window_ns += ns;
+	m->frames++;
+	m->bytes += bytes;
+	m->target_bps = rc->bitrate;
+	m->qp = qp;
+	m->current_bps = div64_u64(m->window_bits * 1000000000u, m->window_ns);
+	if (m->current_bps > m->peak_bps)
+		m->peak_bps = m->current_bps;
+	if (qp >= (s32)ceiling) {
+		m->saturated_frames++;
+		m->saturated_ns += ns;
+		m->streak_ns += ns;
+	} else {
+		m->streak_ns = 0;
+	}
+	if (m->current_bps > rc->bitrate)
+		m->overshoots++;
 }
 
 #endif

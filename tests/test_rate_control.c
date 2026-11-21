@@ -23,6 +23,7 @@ static struct run simulate(struct venc_rc *rc, unsigned int frames, unsigned int
 	double window[30] = {0}, sum = 0, total = 0, peak = 0;
 	struct run run = { 0, 0, 99, -1 };
 	s32 previous = rc->qp;
+	rc->gop_size = gop;
 
 	for (unsigned int frame = 0; frame < frames; frame++) {
 		bool idr = frame % gop == 0;
@@ -64,6 +65,7 @@ static void configure(struct venc_rc *rc, u64 bitrate)
 	rc->qp_min = 0;
 	rc->qp_max = 51;
 	rc->i_offset = 0;
+	rc->gop_size = 30;
 	venc_rc_reset(rc, 26);
 }
 
@@ -102,6 +104,23 @@ int main(void)
 	printf("cut on IDR: %.0f kbps, peak %.0f, QP %d..%d\n", run.average_kbps,
 	       run.peak_kbps, run.min_qp, run.max_qp);
 	assert(run.peak_kbps < 2000 * 1.3 && fabs(run.average_kbps - 2000) < 2000 * 0.1);
+	/* All-IDR and short GOPs must track a reachable target without P history. */
+	for (unsigned int gop = 1; gop <= 4; gop *= 2) {
+		configure(&rc, 6000000);
+		run = simulate(&rc, 600, gop, steady, 120);
+		printf("gop %u: %.0f kbps, peak %.0f\n", gop,
+		       run.average_kbps, run.peak_kbps);
+		assert(fabs(run.average_kbps - 6000) < 6000 * 0.06);
+	}
+	/* Dense forced IDRs converge even when a long GOP was configured. */
+	configure(&rc, 6000000);
+	for (unsigned int frame = 0; frame < 300; frame++) {
+		s32 qp = venc_rc_picture_qp(&rc, true);
+		u32 bytes = (u32)(300000.0 * pow(2, (26.0 - qp) / 6) / 8);
+
+		venc_rc_update(&rc, bytes, qp, true);
+	}
+	assert(rc.idr_run == 2 && rc.qp > 26);
 	/* an unreachable target stops at the ceiling or a lower QP maximum */
 	configure(&rc, 20000);
 	run = simulate(&rc, 120, 12, steady, 0);
@@ -121,6 +140,43 @@ int main(void)
 	for (int i = 0; i < 100; i++)
 		venc_rc_update(&rc, 1 << 20, venc_rc_picture_qp(&rc, i % 4 == 0), i % 4 == 0);
 	assert(rc.qp >= 0 && rc.qp <= 51);
+	/* A pending update cannot alter the active picture's budget. */
+	configure(&rc, 2000000);
+	struct venc_rc config = rc;
+	config.bitrate = 3000000;
+	assert(venc_rc_budget(&rc) == 2000000 / 30);
+	venc_rc_update(&rc, 10000, 26, false);
+	u64 model = rc.p_complexity;
+	venc_rc_configure(&rc, &config, false, 26);
+	assert(rc.bitrate == 3000000 && rc.fullness == 0 && rc.p_complexity == model);
+	config.numerator = 1001;
+	config.denominator = 30000;
+	venc_rc_configure(&rc, &config, false, 26);
+	assert(!rc.p_complexity && !rc.i_complexity && !rc.fullness);
+	assert(venc_rc_budget(&rc) == 100100);
+	/* Recovery floor survives success and terminates repeated overflow. */
+	struct venc_rc_recovery recovery = {0};
+	venc_rc_overflow(&recovery, &rc, 32);
+	assert(recovery.floor == 38 && recovery.failures == 1 && !recovery.terminal);
+	venc_rc_overflow(&recovery, &rc, recovery.floor);
+	venc_rc_overflow(&recovery, &rc, recovery.floor);
+	assert(recovery.terminal && recovery.failures == 3);
+	/* Measured windows use media time, include all bytes and remain bounded. */
+	struct venc_rc_measurement measurement = {0};
+	configure(&rc, 2000000);
+	for (int frame = 0; frame < 300; frame++)
+		venc_rc_measure(&measurement, &rc, 10000, 32);
+	assert(measurement.count <= 31 && measurement.count >= 30);
+	assert(measurement.current_bps >= 2399990 && measurement.current_bps <= 2400010);
+	assert(measurement.saturated_frames == 300 && measurement.overshoots == 300);
+	assert(measurement.bytes == 3000000);
+	measurement = (struct venc_rc_measurement){0};
+	rc.numerator = 1001;
+	rc.denominator = 30000;
+	for (int frame = 0; frame < 300; frame++)
+		venc_rc_measure(&measurement, &rc, 10000, 26);
+	assert(measurement.current_bps >= 2397590 && measurement.current_bps <= 2397620);
+	assert(!measurement.saturated_frames);
 	puts("rate control checks passed");
 	return 0;
 }

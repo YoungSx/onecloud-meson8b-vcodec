@@ -12,6 +12,7 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include <linux/regmap.h>
+#include <linux/spinlock.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
@@ -44,6 +45,12 @@ struct venc_core {
 	struct dentry *debugfs;
 	/* frames read straight from a DMA-BUF / copied into staging, copy time */
 	u64 direct_frames, copied_frames, copy_ns;
+	spinlock_t rc_stats_lock;
+	struct {
+		u64 frames, bytes, target_bps, current_bps, peak_bps, window_ns;
+		u64 saturated_frames, saturated_ns, overshoots, overflows;
+		s32 qp;
+	} rc_stats;
 
 	u32 hw_status;
 	bool need_reset;
@@ -89,7 +96,12 @@ struct venc_ctx {
 	s32 i_qp, p_qp;			/* fixed QPs; the P QP also seeds rate control */
 	bool rc_enable;			/* V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE */
 	bool rc_restart;		/* reset the rate control before the next picture */
-	struct venc_rc rc;		/* bitrate, frame rate, QP range and RC state */
+	struct venc_rc rc_config;	/* controls pending until the next picture */
+	struct venc_rc rc;		/* active picture config and feedback history */
+	bool picture_rc;
+	struct venc_rc_recovery recovery;
+	struct venc_rc_measurement rc_measure;
+	bool rc_unreachable_reported;
 	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */
 	bool multi_slice;		/* MULTI_SLICE_MODE is MAX_MB */
 	u32 slice_max_mb;

@@ -25,7 +25,9 @@ if printf '#include <arm_neon.h>\n' | cc -E -x c - >/dev/null 2>&1; then
 else
     echo 'skip: no arm_neon.h on this host' >&2
 fi
-cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined tests/encode-test.c \
-  -o build/host-tests/encode-test
+for client in encode-test overflow-queue; do
+    cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined "tests/$client.c" \
+      -o "build/host-tests/$client"
+done
 build/host-tests/encode-test -g -p scene - - - 96 64 70 NV12 90 H264 > /dev/null
 python3 scripts/check-docs.py

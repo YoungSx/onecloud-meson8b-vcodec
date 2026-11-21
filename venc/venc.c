@@ -10,11 +10,12 @@
  */
 #include <linux/debugfs.h>
 #include <linux/delay.h>
-#include <linux/gcd.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/math64.h>
 #include <linux/module.h>
+#include <linux/rational.h>
+#include <linux/seq_file.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/syscon.h>
 #include <media/v4l2-event.h>
@@ -1198,15 +1199,22 @@ static int venc_encode_frame(struct venc_ctx *ctx, struct vb2_buffer *src,
 	}
 
 	es_size = venc_read(core, VLC_TOTAL_BYTES);
-	es_size = min_t(u32, es_size, VENC_BITSTREAM_SIZE);
-	es_size = min(es_size, (u32)vb2_plane_size(dst, 0));
+	if (!es_size || es_size > VENC_BITSTREAM_SIZE) {
+		venc_light_reset(ctx);
+		return -EIO;
+	}
+	if (es_size > vb2_plane_size(dst, 0) ||
+	    (idr && ctx->sps_pps_valid &&
+	     ctx->sps_pps_size > vb2_plane_size(dst, 0) - es_size)) {
+		/* Never truncate a slice to make room for SPS/PPS. */
+		venc_light_reset(ctx);
+		return -ENOSPC;
+	}
 
 	if (idr && ctx->sps_pps_valid) {
-		u32 hdr = min((u32)ctx->sps_pps_size,
-			      (u32)vb2_plane_size(dst, 0));
+		u32 hdr = ctx->sps_pps_size;
 
 		memcpy(vb2_plane_vaddr(dst, 0), ctx->sps_pps, hdr);
-		es_size = min(es_size, (u32)vb2_plane_size(dst, 0) - hdr);
 		memcpy(vb2_plane_vaddr(dst, 0) + hdr,
 		       venc_stream_vaddr(ctx), es_size);
 		vb2_set_plane_payload(dst, 0, hdr + es_size);
@@ -1362,6 +1370,10 @@ static void venc_stop_streaming(struct vb2_queue *vq)
 	cancel_work_sync(&ctx->work);
 	if (core->running)
 		venc_hw_stop(ctx);
+	mutex_lock(ctx->ctrl_handler.lock);
+	ctx->rc_restart = true;
+	memset(&ctx->recovery, 0, sizeof(ctx->recovery));
+	mutex_unlock(ctx->ctrl_handler.lock);
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		while ((buf = v4l2_m2m_src_buf_remove(ctx->m2m_ctx)))
@@ -1456,21 +1468,38 @@ static const struct v4l2_m2m_ops venc_m2m_ops = {
  */
 static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 {
-	bool idr;
+	bool idr, measure_restart;
 
 	mutex_lock(ctx->ctrl_handler.lock);
 	ctx->slice_cfg = venc_slice_cfg(ctx);
-	if (new_session)
+	if (new_session) {
 		ctx->gop_idx = 0;
+		ctx->rc_restart = true;
+		memset(&ctx->rc_measure, 0, sizeof(ctx->rc_measure));
+		ctx->rc_unreachable_reported = false;
+	}
 	idr = ctx->force_key || !ctx->gop_idx ||
 	      (ctx->gop_size && ctx->gop_idx >= ctx->gop_size);
-	if (ctx->rc_enable && ctx->rc.bitrate) {
-		if (ctx->rc_restart) {
-			venc_rc_reset(&ctx->rc, ctx->p_qp);
-			ctx->rc_restart = false;
-		}
-		ctx->rc.i_offset = ctx->i_qp - ctx->p_qp;
+	/* Consume this request now; an IDR arriving during encode stays pending. */
+	ctx->force_key = false;
+	ctx->rc_config.i_offset = ctx->i_qp - ctx->p_qp;
+	ctx->rc_config.gop_size = ctx->gop_size;
+	measure_restart = ctx->rc_restart ||
+		ctx->rc.bitrate != ctx->rc_config.bitrate ||
+		ctx->rc.numerator != ctx->rc_config.numerator ||
+		ctx->rc.denominator != ctx->rc_config.denominator;
+	if (measure_restart) {
+		memset(&ctx->rc_measure, 0, sizeof(ctx->rc_measure));
+		ctx->rc_unreachable_reported = false;
+	}
+	venc_rc_configure(&ctx->rc, &ctx->rc_config, ctx->rc_restart, ctx->p_qp);
+	ctx->rc_restart = false;
+	ctx->picture_rc = ctx->rc_enable && ctx->rc.bitrate;
+	if (ctx->picture_rc) {
 		ctx->quant = venc_rc_picture_qp(&ctx->rc, idr);
+		if (ctx->recovery.failures)
+			ctx->quant = max_t(s32, ctx->quant,
+					venc_rc_clamp(&ctx->rc, ctx->recovery.floor));
 	} else {
 		ctx->quant = venc_rc_clamp(&ctx->rc, idr ? ctx->i_qp : ctx->p_qp);
 	}
@@ -1485,27 +1514,50 @@ static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 				 int result)
 {
-	bool rc;
+	struct venc_core *core = ctx->core;
+	struct venc_rc_measurement *m = &ctx->rc_measure;
+	unsigned long flags;
 
 	mutex_lock(ctx->ctrl_handler.lock);
-	rc = ctx->rc_enable && ctx->rc.bitrate && !ctx->rc_restart;
 	if (result) {
 		ctx->gop_idx = 0;
-		/* past the ceiling if need be: a lost picture is worse */
-		if (rc && result == -ENOSPC) {
+		if (result == -ENOSPC) {
+			m->overflows++;
+			venc_rc_overflow(&ctx->recovery, &ctx->rc, ctx->quant);
 			ctx->rc.fullness = venc_rc_capacity(&ctx->rc);
-			ctx->rc.qp = venc_rc_clamp(&ctx->rc, ctx->rc.qp + VENC_RC_MAX_UP);
 		}
 	} else {
 		if (idr) {
-			ctx->force_key = false;
 			ctx->gop_idx = 0;
 		}
 		if (ctx->gop_idx < U32_MAX)
 			ctx->gop_idx++;
-		if (rc)
+		if (ctx->picture_rc) {
 			venc_rc_update(&ctx->rc, bytes, ctx->quant, idr);
+			venc_rc_measure(m, &ctx->rc, bytes, ctx->quant);
+			if (m->streak_ns >= 1000000000u &&
+			    m->current_bps > ctx->rc.bitrate + ctx->rc.bitrate / 10 &&
+			    !ctx->rc_unreachable_reported) {
+				dev_warn_ratelimited(core->dev,
+					"rate target %llu bps saturated at QP %u; measured %llu bps, reduce size/fps or use software encoding\n",
+					ctx->rc.bitrate, ctx->quant, m->current_bps);
+				ctx->rc_unreachable_reported = true;
+			}
+		}
 	}
+	spin_lock_irqsave(&core->rc_stats_lock, flags);
+	core->rc_stats.frames = m->frames;
+	core->rc_stats.bytes = m->bytes;
+	core->rc_stats.target_bps = ctx->rc.bitrate;
+	core->rc_stats.current_bps = m->current_bps;
+	core->rc_stats.peak_bps = m->peak_bps;
+	core->rc_stats.window_ns = m->window_ns;
+	core->rc_stats.qp = ctx->quant;
+	core->rc_stats.saturated_frames = m->saturated_frames;
+	core->rc_stats.saturated_ns = m->saturated_ns;
+	core->rc_stats.overshoots = m->overshoots;
+	core->rc_stats.overflows = m->overflows;
+	spin_unlock_irqrestore(&core->rc_stats_lock, flags);
 	mutex_unlock(ctx->ctrl_handler.lock);
 }
 
@@ -1525,6 +1577,11 @@ static void venc_work(struct work_struct *work)
 	if (!src || !dst) {
 		v4l2_m2m_job_finish(core->m2m_dev, m2m_ctx);
 		return;
+	}
+	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG && ctx->recovery.terminal) {
+		/* Return already queued frames without trying a failed session again. */
+		state = VB2_BUF_STATE_ERROR;
+		goto out;
 	}
 
 	if (!core->running) {
@@ -1547,6 +1604,12 @@ static void venc_work(struct work_struct *work)
 		ret = venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf, idr);
 		venc_account_picture(ctx, idr,
 				     vb2_get_plane_payload(&dst->vb2_buf, 0), ret);
+		if (ctx->recovery.terminal) {
+			dev_err(core->dev, "bitstream overflow recovery exhausted after %u failures\n",
+				ctx->recovery.failures);
+			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
+			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
+		}
 	}
 	if (ret)
 		state = VB2_BUF_STATE_ERROR;
@@ -1713,20 +1776,25 @@ static int venc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
 	struct venc_ctx *ctx = venc_fh_to_ctx(file);
 	struct v4l2_fract *t = &a->parm.output.timeperframe;
-	u32 divisor;
+	unsigned long numerator, denominator;
 
 	if (a->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
 	if (t->numerator && t->denominator) {
 		/* bounds keep the rate-control arithmetic in 64 bits */
-		divisor = gcd(t->numerator, t->denominator);
-		t->numerator = clamp(t->numerator / divisor, 1u, 65535u);
-		t->denominator = clamp(t->denominator / divisor, 1u, 65535u);
+		if ((u64)t->denominator > (u64)t->numerator * VENC_RC_WINDOW_FRAMES)
+			return -ERANGE;
+		rational_best_approximation(t->numerator, t->denominator,
+					    65535, 65535, &numerator, &denominator);
+		if (!numerator || !denominator)
+			return -ERANGE;
+		t->numerator = numerator;
+		t->denominator = denominator;
 		/* frame rate only feeds the rate control, not the hardware */
 		mutex_lock(ctx->ctrl_handler.lock);
 		ctx->timeperframe = *t;
-		ctx->rc.numerator = t->numerator;
-		ctx->rc.denominator = t->denominator;
+		ctx->rc_config.numerator = t->numerator;
+		ctx->rc_config.denominator = t->denominator;
 		mutex_unlock(ctx->ctrl_handler.lock);
 	}
 	return venc_g_parm(file, fh, a);
@@ -1819,19 +1887,17 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
 		/* a new target keeps the QP and estimates, the bucket restarts */
-		if (!ctx->rc.bitrate)
+		if (!ctx->rc_config.bitrate)
 			ctx->rc_restart = true;
-		ctx->rc.bitrate = ctrl->val;
-		ctx->rc.fullness = 0;
+		ctx->rc_config.bitrate = ctrl->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
 		ctx->rc_enable = ctrl->val;
 		ctx->rc_restart = true;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
-		ctx->rc.qp_min = ctx->qp_range[0]->val;
-		ctx->rc.qp_max = ctx->qp_range[1]->val;
-		ctx->rc.qp = venc_rc_clamp_p(&ctx->rc, ctx->rc.qp);
+		ctx->rc_config.qp_min = ctx->qp_range[0]->val;
+		ctx->rc_config.qp_max = ctx->qp_range[1]->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
 		ctx->i_qp = ctrl->val;
@@ -1889,8 +1955,8 @@ static int venc_open(struct file *file)
 	ctx->quant = ENC_QUANT_DEFAULT;
 	ctx->timeperframe.numerator = 1;
 	ctx->timeperframe.denominator = 30;
-	ctx->rc.numerator = 1;
-	ctx->rc.denominator = 30;
+	ctx->rc_config.numerator = 1;
+	ctx->rc_config.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
 	ret = v4l2_ctrl_handler_init(hdl, 14);
@@ -1901,6 +1967,12 @@ static int venc_open(struct file *file)
 
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_B_FRAMES,
 			  0, 0, 1, 0);
+	/* Average-rate tracking is VBR; this firmware has no strict CBR/CPB path. */
+	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
+			       V4L2_MPEG_VIDEO_BITRATE_MODE_CQ,
+			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CBR) |
+			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CQ),
+			       V4L2_MPEG_VIDEO_BITRATE_MODE_VBR);
 	/* 0 keeps fixed QPs, as FFmpeg's -b:v 0 expects */
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
 			  0, 100000000, 1, 0);
@@ -2012,6 +2084,26 @@ static const struct of_device_id venc_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, venc_dt_match);
 
+static int venc_rate_control_show(struct seq_file *file, void *unused)
+{
+	struct venc_core *core = file->private;
+	typeof(core->rc_stats) stats;
+	unsigned long flags;
+
+	spin_lock_irqsave(&core->rc_stats_lock, flags);
+	stats = core->rc_stats;
+	spin_unlock_irqrestore(&core->rc_stats_lock, flags);
+	seq_printf(file,
+		   "frames %llu\nbytes %llu\ntarget_bps %llu\ncurrent_bps %llu\n"
+		   "peak_bps %llu\nwindow_ns %llu\nqp %d\nsaturated_frames %llu\n"
+		   "saturated_ns %llu\novershoots %llu\noverflows %llu\n",
+		   stats.frames, stats.bytes, stats.target_bps, stats.current_bps,
+		   stats.peak_bps, stats.window_ns, stats.qp, stats.saturated_frames,
+		   stats.saturated_ns, stats.overshoots, stats.overflows);
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(venc_rate_control);
+
 static int venc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2029,6 +2121,7 @@ static int venc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	core->dev = dev;
+	spin_lock_init(&core->rc_stats_lock);
 	platform_set_drvdata(pdev, core);
 	init_completion(&core->done);
 	mutex_init(&core->lock);
@@ -2115,6 +2208,8 @@ static int venc_probe(struct platform_device *pdev)
 	debugfs_create_u64("direct_frames", 0444, core->debugfs, &core->direct_frames);
 	debugfs_create_u64("copied_frames", 0444, core->debugfs, &core->copied_frames);
 	debugfs_create_u64("copy_ns", 0444, core->debugfs, &core->copy_ns);
+	debugfs_create_file("rate_control", 0444, core->debugfs, core,
+			    &venc_rate_control_fops);
 	dev_info(dev, "registered %s as /dev/video%d\n",
 		 vdev->name, vdev->num);
 	return 0;

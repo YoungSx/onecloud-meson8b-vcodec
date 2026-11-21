@@ -7,6 +7,7 @@
  *
  * usage: encode-test [-p PATTERN] [-r FPS[/DIVISOR]] [-m 601|709] [-a FORMAT]
  *        [-c CONTROLS]... [-x CONTROLS]... [-d dumb|lima] [-g] [-e]
+ *        [-s FRAME] [-f FRAME]
  *        DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264
  * CONTROLS is NAME=VALUE[,NAME=VALUE...][@FRAME], set in one VIDIOC_S_EXT_CTRLS
  * before streaming or before queueing FRAME; -x requires the driver to
@@ -16,6 +17,8 @@
  * meson-drm dumb buffers (contiguous) or lima GEM objects (scattered).
  * Each frame prints "frame N bytes B flags F latency_us L" (OUTPUT QBUF to
  * CAPTURE DQBUF).
+ * -s restarts both queues on the same fd before FRAME; -f requests an IDR
+ * five milliseconds after queueing FRAME, for the in-flight control check.
  */
 #include <drm/drm.h>
 #include <drm/drm_mode.h>
@@ -526,6 +529,7 @@ static void usage(const char *name)
 	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene|palette] [-r FPS[/DIVISOR]]\n"
 		"  [-m 601|709] [-a FORMAT] [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]...\n"
 		"  [-x ...]... [-d dumb|lima] [-g] [-e]\n"
+		"  [-s RESTART_FRAME] [-f FORCE_DURING_FRAME]\n"
 		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
 		"FORMAT: NV12 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
 	exit(2);
@@ -545,12 +549,13 @@ static int generate(FILE *ref, unsigned int frames)
 int main(int argc, char **argv)
 {
 	unsigned int fps = 0, divisor = 1, generate_only = 0, tolerate_errors = 0, frames, quality;
+	unsigned int restart_frame = UINT_MAX, inflight_force = UINT_MAX;
 	const char *program = argv[0], *negotiate = NULL;
 	const struct format *as;
 	char *end;
 	int option, jpeg;
 
-	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:ge")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:s:f:ge")) != -1) {
 		switch (option) {
 		case 'p':
 			for (pattern = 0; pattern < PATTERNS && strcmp(optarg, patterns[pattern]); pattern++)
@@ -574,6 +579,14 @@ int main(int argc, char **argv)
 		case 'c': case 'x': add_control(optarg, option == 'x'); break;
 		case 'g': generate_only = 1; break;
 		case 'e': tolerate_errors = 1; break;
+		case 's': case 'f': {
+			unsigned long value = strtoul(optarg, &end, 10);
+
+			if (!*optarg || *end || value >= UINT_MAX) usage(program);
+			if (option == 's') restart_frame = value;
+			else inflight_force = value;
+			break;
+		}
 		default: usage(program);
 		}
 	}
@@ -654,6 +667,8 @@ int main(int argc, char **argv)
 		parm.parm.output.timeperframe.numerator = divisor;
 		parm.parm.output.timeperframe.denominator = fps;
 		ctl(VIDIOC_S_PARM, &parm);
+		fprintf(stderr, "timeperframe %u/%u\n", parm.parm.output.timeperframe.numerator,
+			parm.parm.output.timeperframe.denominator);
 	}
 	struct v4l2_control c = { .id = V4L2_CID_JPEG_COMPRESSION_QUALITY, .value = quality };
 	ctl(VIDIOC_S_CTRL, &c);
@@ -672,12 +687,26 @@ int main(int argc, char **argv)
 	for (unsigned int frame = 0; frame < frames; frame++) {
 		struct v4l2_plane p[VIDEO_MAX_PLANES] = {0};
 
+		if (frame == restart_frame) {
+			type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE; ctl(VIDIOC_STREAMOFF, &type);
+			type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; ctl(VIDIOC_STREAMOFF, &type);
+			type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; ctl(VIDIOC_STREAMON, &type);
+			type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE; ctl(VIDIOC_STREAMON, &type);
+			fprintf(stderr, "same-fd restart before frame %u\n", frame);
+		}
 		apply_controls(frame);
 		put_frame(frame, plane, stride);
 		if (ref) write_reference(ref, frame, uv);
 		queue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, frame);
 		uint64_t queued = now_us();
 		queue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, pix.num_planes, frame);
+		if (frame == inflight_force) {
+			struct v4l2_control force = { .id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME };
+
+			usleep(5000);
+			ctl(VIDIOC_S_CTRL, &force);
+			fprintf(stderr, "force key after queueing frame %u\n", frame);
+		}
 		struct v4l2_buffer b = dequeue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, p);
 		uint64_t latency = now_us() - queued;
 		if (tolerate_errors && (b.flags & V4L2_BUF_FLAG_ERROR) && b.timestamp.tv_sec == frame) {
