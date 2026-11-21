@@ -1144,9 +1144,11 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		u32 offset = stride * ctx->height;
 		u32 bytes = vb2_get_plane_payload(b, 0);
 
-		src = venc_input_begin_cpu(b, 0);
-		if (!src || bytes < offset + stride * ctx->height / 2)
+		if (bytes < offset + stride * ctx->height / 2)
 			return -EINVAL;
+		src = venc_input_begin_cpu(b, 0);
+		if (!src)
+			return -EFAULT;
 		start = ktime_get();
 		width = venc_canvas_bytes(fmt, ctx->coded_width, 0);
 		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);

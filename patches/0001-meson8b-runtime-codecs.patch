@@ -12872,7 +12872,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2370 @@
+@@ -0,0 +1,2372 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -14019,9 +14019,11 @@
 +		u32 offset = stride * ctx->height;
 +		u32 bytes = vb2_get_plane_payload(b, 0);
 +
-+		src = venc_input_begin_cpu(b, 0);
-+		if (!src || bytes < offset + stride * ctx->height / 2)
++		if (bytes < offset + stride * ctx->height / 2)
 +			return -EINVAL;
++		src = venc_input_begin_cpu(b, 0);
++		if (!src)
++			return -EFAULT;
 +		start = ktime_get();
 +		width = venc_canvas_bytes(fmt, ctx->coded_width, 0);
 +		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);
