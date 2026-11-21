@@ -43,13 +43,15 @@ def _fetch(url, attempts=7):
     """Download a pinned file, retrying the transient failures GitHub returns
     for unauthenticated raw fetches (429 rate limiting, 5xx).
 
-    CI runners share GitHub's egress and routinely hit 429 while fetching the
-    vendor sources, so authenticate when a token is available and back off for
-    about a minute (1+2+4+8+16+32 s) before giving up."""
+    Use the authenticated contents API when a token is available: raw GitHub
+    downloads still hit the shared runner IP limit despite that header."""
     headers = {}
     token = os.environ.get("GITHUB_TOKEN")
-    if token:
+    if token and url.startswith("https://raw.githubusercontent.com/"):
+        owner, repo, ref, path = url.removeprefix("https://raw.githubusercontent.com/").split("/", 3)
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}"
         headers["Authorization"] = f"Bearer {token}"
+        headers["Accept"] = "application/vnd.github.raw+json"
     for attempt in range(attempts):
         try:
             request = urllib.request.Request(url, headers=headers)
