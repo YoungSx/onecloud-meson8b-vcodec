@@ -12797,8 +12797,82 @@
 +
 +#endif
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/venc/rate-limit.h
+@@ -0,0 +1,71 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/* Media-time peak-rate envelope; an oversized access unit ends the session. */
++#ifndef MESON_VENC_RATE_LIMIT_H
++#define MESON_VENC_RATE_LIMIT_H
++
++struct venc_rate_limit {
++	u64 peak_bps, capacity_bits, credit_bits, remainder;
++	u64 violations;
++	u32 numerator, denominator;
++	bool active, terminal;
++};
++
++static inline void venc_rate_limit_configure(struct venc_rate_limit *limit,
++					    u64 peak_bps, u64 cpb_bytes,
++					    u32 numerator, u32 denominator,
++					    bool restart)
++{
++	u64 capacity = cpb_bytes * 8;
++	bool active = peak_bps && capacity;
++
++	if (restart) {
++		limit->terminal = false;
++		limit->violations = 0;
++	}
++	if (restart || !limit->active)
++		limit->credit_bits = capacity;
++	else if (limit->credit_bits > capacity)
++		limit->credit_bits = capacity;
++	if (restart || !limit->active || limit->denominator != denominator)
++		limit->remainder = 0;
++	limit->peak_bps = peak_bps;
++	limit->capacity_bits = capacity;
++	limit->numerator = numerator;
++	limit->denominator = denominator;
++	limit->active = active;
++}
++
++static inline u64 venc_rate_limit_begin(struct venc_rate_limit *limit)
++{
++	u64 bits, added;
++
++	if (!limit->active)
++		return 0;
++	bits = limit->peak_bps * limit->numerator + limit->remainder;
++	added = div64_u64(bits, limit->denominator);
++	limit->remainder = bits - added * limit->denominator;
++	if (added >= limit->capacity_bits - limit->credit_bits)
++		limit->credit_bits = limit->capacity_bits;
++	else
++		limit->credit_bits += added;
++	return limit->credit_bits;
++}
++
++static inline bool venc_rate_limit_accept(struct venc_rate_limit *limit, u32 bytes)
++{
++	u64 bits = (u64)bytes * 8;
++
++	if (limit->terminal)
++		return false;
++	if (!limit->active)
++		return true;
++	if (bits > limit->credit_bits) {
++		limit->terminal = true;
++		limit->violations++;
++		return false;
++	}
++	limit->credit_bits -= bits;
++	return true;
++}
++
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2251 @@
+@@ -0,0 +1,2302 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -14174,6 +14248,7 @@
 +	mutex_lock(ctx->ctrl_handler.lock);
 +	ctx->rc_restart = true;
 +	memset(&ctx->recovery, 0, sizeof(ctx->recovery));
++	memset(&ctx->limit, 0, sizeof(ctx->limit));
 +	mutex_unlock(ctx->ctrl_handler.lock);
 +
 +	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
@@ -14270,6 +14345,7 @@
 +static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 +{
 +	bool idr, measure_restart;
++	u64 available;
 +
 +	mutex_lock(ctx->ctrl_handler.lock);
 +	ctx->slice_cfg = venc_slice_cfg(ctx);
@@ -14294,10 +14370,22 @@
 +		ctx->rc_unreachable_reported = false;
 +	}
 +	venc_rc_configure(&ctx->rc, &ctx->rc_config, ctx->rc_restart, ctx->p_qp);
++	venc_rate_limit_configure(&ctx->limit, ctx->peak_bitrate,
++				  (u64)ctx->cpb_size * 1024,
++				  ctx->rc.numerator, ctx->rc.denominator, new_session);
++	available = venc_rate_limit_begin(&ctx->limit);
 +	ctx->rc_restart = false;
 +	ctx->picture_rc = ctx->rc_enable && ctx->rc.bitrate;
 +	if (ctx->picture_rc) {
 +		ctx->quant = venc_rc_picture_qp(&ctx->rc, idr);
++		if (ctx->limit.active) {
++			u64 model = idr ? ctx->rc.i_complexity : ctx->rc.p_complexity;
++			s32 floor = venc_rc_qp_for(&ctx->rc, model, available);
++
++			floor = idr ? venc_rc_clamp(&ctx->rc, floor) :
++				venc_rc_clamp_p(&ctx->rc, floor);
++			ctx->quant = max_t(s32, ctx->quant, floor);
++		}
 +		if (ctx->recovery.failures)
 +			ctx->quant = max_t(s32, ctx->quant,
 +					venc_rc_clamp(&ctx->rc, ctx->recovery.floor));
@@ -14312,7 +14400,7 @@
 + * Account a finished picture. After a failure the next picture is an IDR;
 + * one that overflowed the bitstream buffer also coarsens rate control.
 + */
-+static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
++static int venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 +				 int result)
 +{
 +	struct venc_core *core = ctx->core;
@@ -14320,6 +14408,12 @@
 +	unsigned long flags;
 +
 +	mutex_lock(ctx->ctrl_handler.lock);
++	if (!result && !venc_rate_limit_accept(&ctx->limit, bytes)) {
++		dev_err(core->dev,
++			"rate budget exceeded: %u bytes at %llu bps with %llu-byte CPB\n",
++			bytes, ctx->limit.peak_bps, ctx->limit.capacity_bits / 8);
++		result = -EOVERFLOW;
++	}
 +	if (result) {
 +		ctx->gop_idx = 0;
 +		if (result == -ENOSPC) {
@@ -14358,8 +14452,14 @@
 +	core->rc_stats.saturated_ns = m->saturated_ns;
 +	core->rc_stats.overshoots = m->overshoots;
 +	core->rc_stats.overflows = m->overflows;
++	core->rc_stats.peak_limit_bps = ctx->limit.peak_bps;
++	core->rc_stats.cpb_bytes = ctx->limit.capacity_bits / 8;
++	core->rc_stats.credit_bits = ctx->limit.credit_bits;
++	core->rc_stats.budget_violations = ctx->limit.violations;
++	core->rc_stats.limit_terminal = ctx->limit.terminal;
 +	spin_unlock_irqrestore(&core->rc_stats_lock, flags);
 +	mutex_unlock(ctx->ctrl_handler.lock);
++	return result;
 +}
 +
 +static void venc_work(struct work_struct *work)
@@ -14379,7 +14479,8 @@
 +		v4l2_m2m_job_finish(core->m2m_dev, m2m_ctx);
 +		return;
 +	}
-+	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG && ctx->recovery.terminal) {
++	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG &&
++	    (ctx->recovery.terminal || ctx->limit.terminal)) {
 +		/* Return already queued frames without trying a failed session again. */
 +		state = VB2_BUF_STATE_ERROR;
 +		goto out;
@@ -14403,11 +14504,16 @@
 +	} else {
 +		idr = venc_pick_picture(ctx, new_session);
 +		ret = venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf, idr);
-+		venc_account_picture(ctx, idr,
++		ret = venc_account_picture(ctx, idr,
 +				     vb2_get_plane_payload(&dst->vb2_buf, 0), ret);
 +		if (ctx->recovery.terminal) {
 +			dev_err(core->dev, "bitstream overflow recovery exhausted after %u failures\n",
 +				ctx->recovery.failures);
++			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
++			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
++		}
++		if (ctx->limit.terminal) {
++			vb2_set_plane_payload(&dst->vb2_buf, 0, 0);
 +			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
 +			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
 +		}
@@ -14666,6 +14772,13 @@
 +	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_MIN_QP &&
 +	    ctx->qp_range[0]->val > ctx->qp_range[1]->val)
 +		return -ERANGE;
++	if (ctrl->id == V4L2_CID_MPEG_VIDEO_BITRATE) {
++		u32 peak = ctx->rate_controls[1]->val;
++		u32 cpb = ctx->rate_controls[2]->val;
++
++		if (!!peak != !!cpb || (peak && peak < ctrl->val))
++			return -ERANGE;
++	}
 +	return 0;
 +}
 +
@@ -14691,6 +14804,8 @@
 +		if (!ctx->rc_config.bitrate)
 +			ctx->rc_restart = true;
 +		ctx->rc_config.bitrate = ctrl->val;
++		ctx->peak_bitrate = ctx->rate_controls[1]->val;
++		ctx->cpb_size = ctx->rate_controls[2]->val;
 +		break;
 +	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
 +		ctx->rc_enable = ctrl->val;
@@ -14775,8 +14890,12 @@
 +			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CQ),
 +			       V4L2_MPEG_VIDEO_BITRATE_MODE_VBR);
 +	/* 0 keeps fixed QPs, as FFmpeg's -b:v 0 expects */
-+	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
++	ctx->rate_controls[0] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
 +			  0, 100000000, 1, 0);
++	ctx->rate_controls[1] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE_PEAK,
++			  0, 100000000, 1, 0);
++	ctx->rate_controls[2] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE,
++			  0, 32768, 1, 0);
 +	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE,
 +			  0, 1, 1, 1);
 +	/* 0: only the first picture and forced key frames are IDR */
@@ -14812,6 +14931,7 @@
 +		goto err_ctrl;
 +	}
 +	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->qp_range), ctx->qp_range);
++	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->rate_controls), ctx->rate_controls);
 +	/* state starts from the control defaults */
 +	ret = v4l2_ctrl_handler_setup(hdl);
 +	if (ret)
@@ -14901,6 +15021,11 @@
 +		   stats.frames, stats.bytes, stats.target_bps, stats.current_bps,
 +		   stats.peak_bps, stats.window_ns, stats.qp, stats.saturated_frames,
 +		   stats.saturated_ns, stats.overshoots, stats.overflows);
++	seq_printf(file,
++		   "peak_limit_bps %llu\ncpb_bytes %llu\ncredit_bits %llu\n"
++		   "budget_violations %llu\nlimit_terminal %u\n",
++		   stats.peak_limit_bps, stats.cpb_bytes, stats.credit_bits,
++		   stats.budget_violations, stats.limit_terminal);
 +	return 0;
 +}
 +DEFINE_SHOW_ATTRIBUTE(venc_rate_control);
@@ -15052,7 +15177,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.h
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,191 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Amlogic Meson8b (S805) HCODEC H.264 hardware encoder,
@@ -15077,6 +15202,7 @@
 +
 +#include "hcodec_regs.h"
 +#include "rate-control.h"
++#include "rate-limit.h"
 +
 +#define VENC_BITSTREAM_SIZE	0x100000
 +#define VENC_MC_SIZE		(4096 * 4)
@@ -15104,6 +15230,8 @@
 +	struct {
 +		u64 frames, bytes, target_bps, current_bps, peak_bps, window_ns;
 +		u64 saturated_frames, saturated_ns, overshoots, overflows;
++		u64 peak_limit_bps, cpb_bytes, credit_bits, budget_violations;
++		bool limit_terminal;
 +		s32 qp;
 +	} rc_stats;
 +
@@ -15155,6 +15283,9 @@
 +	struct venc_rc rc;		/* active picture config and feedback history */
 +	bool picture_rc;
 +	struct venc_rc_recovery recovery;
++	u32 peak_bitrate, cpb_size;	/* pending peak bps / CPB kilobytes */
++	struct venc_rate_limit limit;
++	struct v4l2_ctrl *rate_controls[3]; /* bitrate, peak, CPB cluster */
 +	struct venc_rc_measurement rc_measure;
 +	bool rc_unreachable_reported;
 +	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */

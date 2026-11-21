@@ -22,6 +22,7 @@
 
 #include "hcodec_regs.h"
 #include "rate-control.h"
+#include "rate-limit.h"
 
 #define VENC_BITSTREAM_SIZE	0x100000
 #define VENC_MC_SIZE		(4096 * 4)
@@ -49,6 +50,8 @@ struct venc_core {
 	struct {
 		u64 frames, bytes, target_bps, current_bps, peak_bps, window_ns;
 		u64 saturated_frames, saturated_ns, overshoots, overflows;
+		u64 peak_limit_bps, cpb_bytes, credit_bits, budget_violations;
+		bool limit_terminal;
 		s32 qp;
 	} rc_stats;
 
@@ -100,6 +103,9 @@ struct venc_ctx {
 	struct venc_rc rc;		/* active picture config and feedback history */
 	bool picture_rc;
 	struct venc_rc_recovery recovery;
+	u32 peak_bitrate, cpb_size;	/* pending peak bps / CPB kilobytes */
+	struct venc_rate_limit limit;
+	struct v4l2_ctrl *rate_controls[3]; /* bitrate, peak, CPB cluster */
 	struct venc_rc_measurement rc_measure;
 	bool rc_unreachable_reported;
 	struct v4l2_ctrl *qp_range[2];	/* MIN_QP/MAX_QP cluster */

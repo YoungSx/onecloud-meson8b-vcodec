@@ -32,11 +32,15 @@ typedef int32_t s32; typedef int64_t s64;
 #define spin_lock_irqsave(x,f) ((void)(x),(f)=0)
 #define spin_unlock_irqrestore(x,f) ((void)(x),(void)(f))
 #define dev_warn_ratelimited(...) ((void)0)
+#define dev_err(...) ((void)0)
 #include "rate-control.h"
+#include "rate-limit.h"
 struct venc_core {
     int rc_stats_lock;
     struct {u64 frames,bytes,target_bps,current_bps,peak_bps,window_ns;
-            u64 saturated_frames,saturated_ns,overshoots,overflows;s32 qp;} rc_stats;
+            u64 saturated_frames,saturated_ns,overshoots,overflows;
+            u64 peak_limit_bps,cpb_bytes,credit_bits,budget_violations;
+            bool limit_terminal;s32 qp;} rc_stats;
 };
 struct venc_ctx {
     struct {void *lock;} ctrl_handler; struct venc_core *core;
@@ -44,6 +48,7 @@ struct venc_ctx {
     bool force_key,rc_enable,rc_restart,picture_rc,rc_unreachable_reported;
     s32 i_qp,p_qp; struct venc_rc rc_config,rc;
     struct venc_rc_recovery recovery; struct venc_rc_measurement rc_measure;
+    u32 peak_bitrate,cpb_size;struct venc_rate_limit limit;
 };
 static u32 venc_slice_cfg(struct venc_ctx *ctx) {(void)ctx;return 0;}
 '''
@@ -70,6 +75,14 @@ int main(void) {
     venc_account_picture(&c,false,0,-ENOSPC);
     assert(venc_pick_picture(&c,false) && c.quant>=44);
     venc_account_picture(&c,true,0,-ENOSPC);assert(c.recovery.terminal);
+    c.peak_bitrate=1000000;c.cpb_size=1;
+    assert(venc_pick_picture(&c,true));
+    assert(venc_account_picture(&c,true,1025,0)==-EOVERFLOW && c.limit.terminal);
+    assert(core.rc_stats.budget_violations==1 && !core.rc_stats.frames);
+    c.peak_bitrate=2000000;c.cpb_size=512;
+    assert(venc_pick_picture(&c,false));
+    assert(c.limit.terminal); /* Controls cannot revive a failed queue. */
+    assert(venc_pick_picture(&c,true) && !c.limit.terminal);
     puts("picture boundary and overflow recovery: ok"); return 0;
 }
 '''

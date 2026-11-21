@@ -1373,6 +1373,7 @@ static void venc_stop_streaming(struct vb2_queue *vq)
 	mutex_lock(ctx->ctrl_handler.lock);
 	ctx->rc_restart = true;
 	memset(&ctx->recovery, 0, sizeof(ctx->recovery));
+	memset(&ctx->limit, 0, sizeof(ctx->limit));
 	mutex_unlock(ctx->ctrl_handler.lock);
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
@@ -1469,6 +1470,7 @@ static const struct v4l2_m2m_ops venc_m2m_ops = {
 static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 {
 	bool idr, measure_restart;
+	u64 available;
 
 	mutex_lock(ctx->ctrl_handler.lock);
 	ctx->slice_cfg = venc_slice_cfg(ctx);
@@ -1493,10 +1495,22 @@ static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
 		ctx->rc_unreachable_reported = false;
 	}
 	venc_rc_configure(&ctx->rc, &ctx->rc_config, ctx->rc_restart, ctx->p_qp);
+	venc_rate_limit_configure(&ctx->limit, ctx->peak_bitrate,
+				  (u64)ctx->cpb_size * 1024,
+				  ctx->rc.numerator, ctx->rc.denominator, new_session);
+	available = venc_rate_limit_begin(&ctx->limit);
 	ctx->rc_restart = false;
 	ctx->picture_rc = ctx->rc_enable && ctx->rc.bitrate;
 	if (ctx->picture_rc) {
 		ctx->quant = venc_rc_picture_qp(&ctx->rc, idr);
+		if (ctx->limit.active) {
+			u64 model = idr ? ctx->rc.i_complexity : ctx->rc.p_complexity;
+			s32 floor = venc_rc_qp_for(&ctx->rc, model, available);
+
+			floor = idr ? venc_rc_clamp(&ctx->rc, floor) :
+				venc_rc_clamp_p(&ctx->rc, floor);
+			ctx->quant = max_t(s32, ctx->quant, floor);
+		}
 		if (ctx->recovery.failures)
 			ctx->quant = max_t(s32, ctx->quant,
 					venc_rc_clamp(&ctx->rc, ctx->recovery.floor));
@@ -1511,7 +1525,7 @@ static bool venc_pick_picture(struct venc_ctx *ctx, bool new_session)
  * Account a finished picture. After a failure the next picture is an IDR;
  * one that overflowed the bitstream buffer also coarsens rate control.
  */
-static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
+static int venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 				 int result)
 {
 	struct venc_core *core = ctx->core;
@@ -1519,6 +1533,12 @@ static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 	unsigned long flags;
 
 	mutex_lock(ctx->ctrl_handler.lock);
+	if (!result && !venc_rate_limit_accept(&ctx->limit, bytes)) {
+		dev_err(core->dev,
+			"rate budget exceeded: %u bytes at %llu bps with %llu-byte CPB\n",
+			bytes, ctx->limit.peak_bps, ctx->limit.capacity_bits / 8);
+		result = -EOVERFLOW;
+	}
 	if (result) {
 		ctx->gop_idx = 0;
 		if (result == -ENOSPC) {
@@ -1557,8 +1577,14 @@ static void venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 	core->rc_stats.saturated_ns = m->saturated_ns;
 	core->rc_stats.overshoots = m->overshoots;
 	core->rc_stats.overflows = m->overflows;
+	core->rc_stats.peak_limit_bps = ctx->limit.peak_bps;
+	core->rc_stats.cpb_bytes = ctx->limit.capacity_bits / 8;
+	core->rc_stats.credit_bits = ctx->limit.credit_bits;
+	core->rc_stats.budget_violations = ctx->limit.violations;
+	core->rc_stats.limit_terminal = ctx->limit.terminal;
 	spin_unlock_irqrestore(&core->rc_stats_lock, flags);
 	mutex_unlock(ctx->ctrl_handler.lock);
+	return result;
 }
 
 static void venc_work(struct work_struct *work)
@@ -1578,7 +1604,8 @@ static void venc_work(struct work_struct *work)
 		v4l2_m2m_job_finish(core->m2m_dev, m2m_ctx);
 		return;
 	}
-	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG && ctx->recovery.terminal) {
+	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG &&
+	    (ctx->recovery.terminal || ctx->limit.terminal)) {
 		/* Return already queued frames without trying a failed session again. */
 		state = VB2_BUF_STATE_ERROR;
 		goto out;
@@ -1602,11 +1629,16 @@ static void venc_work(struct work_struct *work)
 	} else {
 		idr = venc_pick_picture(ctx, new_session);
 		ret = venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf, idr);
-		venc_account_picture(ctx, idr,
+		ret = venc_account_picture(ctx, idr,
 				     vb2_get_plane_payload(&dst->vb2_buf, 0), ret);
 		if (ctx->recovery.terminal) {
 			dev_err(core->dev, "bitstream overflow recovery exhausted after %u failures\n",
 				ctx->recovery.failures);
+			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
+			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
+		}
+		if (ctx->limit.terminal) {
+			vb2_set_plane_payload(&dst->vb2_buf, 0, 0);
 			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
 			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
 		}
@@ -1865,6 +1897,13 @@ static int venc_try_ctrl(struct v4l2_ctrl *ctrl)
 	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_MIN_QP &&
 	    ctx->qp_range[0]->val > ctx->qp_range[1]->val)
 		return -ERANGE;
+	if (ctrl->id == V4L2_CID_MPEG_VIDEO_BITRATE) {
+		u32 peak = ctx->rate_controls[1]->val;
+		u32 cpb = ctx->rate_controls[2]->val;
+
+		if (!!peak != !!cpb || (peak && peak < ctrl->val))
+			return -ERANGE;
+	}
 	return 0;
 }
 
@@ -1890,6 +1929,8 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		if (!ctx->rc_config.bitrate)
 			ctx->rc_restart = true;
 		ctx->rc_config.bitrate = ctrl->val;
+		ctx->peak_bitrate = ctx->rate_controls[1]->val;
+		ctx->cpb_size = ctx->rate_controls[2]->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
 		ctx->rc_enable = ctrl->val;
@@ -1974,8 +2015,12 @@ static int venc_open(struct file *file)
 			       BIT(V4L2_MPEG_VIDEO_BITRATE_MODE_CQ),
 			       V4L2_MPEG_VIDEO_BITRATE_MODE_VBR);
 	/* 0 keeps fixed QPs, as FFmpeg's -b:v 0 expects */
-	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
+	ctx->rate_controls[0] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE,
 			  0, 100000000, 1, 0);
+	ctx->rate_controls[1] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_BITRATE_PEAK,
+			  0, 100000000, 1, 0);
+	ctx->rate_controls[2] = v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE,
+			  0, 32768, 1, 0);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE,
 			  0, 1, 1, 1);
 	/* 0: only the first picture and forced key frames are IDR */
@@ -2011,6 +2056,7 @@ static int venc_open(struct file *file)
 		goto err_ctrl;
 	}
 	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->qp_range), ctx->qp_range);
+	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->rate_controls), ctx->rate_controls);
 	/* state starts from the control defaults */
 	ret = v4l2_ctrl_handler_setup(hdl);
 	if (ret)
@@ -2100,6 +2146,11 @@ static int venc_rate_control_show(struct seq_file *file, void *unused)
 		   stats.frames, stats.bytes, stats.target_bps, stats.current_bps,
 		   stats.peak_bps, stats.window_ns, stats.qp, stats.saturated_frames,
 		   stats.saturated_ns, stats.overshoots, stats.overflows);
+	seq_printf(file,
+		   "peak_limit_bps %llu\ncpb_bytes %llu\ncredit_bits %llu\n"
+		   "budget_violations %llu\nlimit_terminal %u\n",
+		   stats.peak_limit_bps, stats.cpb_bytes, stats.credit_bits,
+		   stats.budget_violations, stats.limit_terminal);
 	return 0;
 }
 DEFINE_SHOW_ATTRIBUTE(venc_rate_control);
