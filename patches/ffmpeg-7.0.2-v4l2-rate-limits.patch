@@ -1,0 +1,229 @@
+--- a/libavcodec/v4l2_buffers.c
++++ b/libavcodec/v4l2_buffers.c
+@@ -29,6 +29,7 @@
+ #include <poll.h>
+ #include "libavcodec/avcodec.h"
+ #include "libavutil/pixdesc.h"
++#include "libavutil/imgutils.h"
+ #include "v4l2_context.h"
+ #include "v4l2_buffers.h"
+ #include "v4l2_m2m.h"
+@@ -277,13 +278,16 @@
+ {
+     unsigned int bytesused, length;
+ 
+-    if (plane >= out->num_planes)
++    if (plane < 0 || plane >= out->num_planes || size < 0 || offset < 0)
+         return AVERROR(EINVAL);
+ 
+     length = out->plane_info[plane].length;
+-    bytesused = FFMIN(size+offset, length);
+-
+-    memcpy((uint8_t*)out->plane_info[plane].mm_addr+offset, data, FFMIN(size, length-offset));
++    if ((unsigned int)offset > length || (unsigned int)size > length - offset || (size && !data))
++        return AVERROR(EINVAL);
++    bytesused = size + offset;
++
++    if (size)
++        memcpy((uint8_t*)out->plane_info[plane].mm_addr + offset, data, size);
+ 
+     if (V4L2_TYPE_IS_MULTIPLANAR(out->buf.type)) {
+         out->planes[plane].bytesused = bytesused;
+@@ -340,12 +344,17 @@
+ static int v4l2_buffer_swframe_to_buf(const AVFrame *frame, V4L2Buffer *out)
+ {
+     int i, ret;
++    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
+     struct v4l2_format fmt = out->context->format;
+     int pixel_format = V4L2_TYPE_IS_MULTIPLANAR(fmt.type) ?
+                        fmt.fmt.pix_mp.pixelformat : fmt.fmt.pix.pixelformat;
+     int height       = V4L2_TYPE_IS_MULTIPLANAR(fmt.type) ?
+                        fmt.fmt.pix_mp.height : fmt.fmt.pix.height;
+     int is_planar_format = 0;
++
++    if (!desc || frame->width <= 0 || frame->height <= 0 ||
++        out->num_planes <= 0 || out->num_planes > VIDEO_MAX_PLANES)
++        return AVERROR(EINVAL);
+ 
+     switch (pixel_format) {
+     case V4L2_PIX_FMT_YUV420M:
+@@ -394,9 +403,21 @@
+     }
+ 
+     for (i = 0; i < out->num_planes; i++) {
+-        ret = v4l2_bufref_to_buf(out, i, frame->buf[i]->data, frame->buf[i]->size, 0);
+-        if (ret)
+-            return ret;
++        int rows = i == 1 || i == 2 ? AV_CEIL_RSHIFT(frame->height, desc->log2_chroma_h) : frame->height;
++        int width = av_image_get_linesize(frame->format, frame->width, i);
++        int stride = out->plane_info[i].bytesperline;
++        size_t length = out->plane_info[i].length;
++        uint8_t *dst = out->plane_info[i].mm_addr;
++
++        /* Software frames often share buf[0] across all data[] planes. */
++        if (!frame->data[i] || !dst || width <= 0 || stride < width ||
++            (int64_t)FFABS((int64_t)frame->linesize[i]) < width ||
++            (uint64_t)stride * rows > length)
++            return AVERROR(EINVAL);
++        memset(dst, 0, length);
++        av_image_copy_plane(dst, stride, frame->data[i], frame->linesize[i], width, rows);
++        out->planes[i].bytesused = length;
++        out->planes[i].length = length;
+     }
+ 
+     return 0;
+@@ -467,7 +488,8 @@
+ 
+     if (avbuf->buf.flags & V4L2_BUF_FLAG_ERROR) {
+         av_log(logger(avbuf), AV_LOG_ERROR, "%s driver encode error\n", avbuf->context->name);
+-        pkt->flags |= AV_PKT_FLAG_CORRUPT;
++        av_packet_unref(pkt);
++        return AVERROR_INVALIDDATA;
+     }
+ 
+     pkt->dts = pkt->pts = v4l2_get_pts(avbuf);
+--- a/libavcodec/v4l2_context.c
++++ b/libavcodec/v4l2_context.c
+@@ -378,6 +378,8 @@
+             if (errno != EAGAIN) {
+                 ctx->done = 1;
+                 if (errno != EPIPE)
++                    ctx->error = AVERROR(errno);
++                if (errno != EPIPE)
+                     av_log(logger(ctx), AV_LOG_DEBUG, "%s VIDIOC_DQBUF, errno (%s)\n",
+                         ctx->name, av_err2str(AVERROR(errno)));
+             }
+@@ -558,6 +560,10 @@
+         return AVERROR(errno);
+ 
+     ctx->streamon = (cmd == VIDIOC_STREAMON);
++    if (ctx->streamon) {
++        ctx->done = 0;
++        ctx->error = 0;
++    }
+ 
+     return 0;
+ }
+@@ -567,6 +573,9 @@
+     V4L2m2mContext *s = ctx_to_m2mctx(ctx);
+     V4L2Buffer* avbuf;
+     int ret;
++
++    if (ctx->error)
++        return ctx->error;
+ 
+     if (!frame) {
+         ret = v4l2_stop_encode(ctx);
+@@ -578,7 +587,7 @@
+ 
+     avbuf = v4l2_getfree_v4l2buf(ctx);
+     if (!avbuf)
+-        return AVERROR(EAGAIN);
++        return ctx->error ? ctx->error : AVERROR(EAGAIN);
+ 
+     ret = ff_v4l2_buffer_avframe_to_buf(frame, avbuf);
+     if (ret)
+@@ -623,6 +632,8 @@
+      */
+     avbuf = v4l2_dequeue_v4l2buf(ctx, timeout);
+     if (!avbuf) {
++        if (ctx->error)
++            return ctx->error;
+         if (ctx->done)
+             return AVERROR_EOF;
+ 
+@@ -643,6 +654,8 @@
+      */
+     avbuf = v4l2_dequeue_v4l2buf(ctx, -1);
+     if (!avbuf) {
++        if (ctx->error)
++            return ctx->error;
+         if (ctx->done)
+             return AVERROR_EOF;
+ 
+--- a/libavcodec/v4l2_context.h
++++ b/libavcodec/v4l2_context.h
+@@ -92,6 +92,7 @@
+      *  by the V4L2 kernel driver: once set the context has to be exited.
+      */
+     int done;
++    int error;
+ 
+ } V4L2Context;
+ 
+--- a/libavcodec/v4l2_m2m.h
++++ b/libavcodec/v4l2_m2m.h
+@@ -76,6 +76,7 @@
+ 
+     int num_output_buffers;
+     int num_capture_buffers;
++    int rate_limit;
+ } V4L2m2mPriv;
+ 
+ /**
+--- a/libavcodec/v4l2_m2m_enc.c
++++ b/libavcodec/v4l2_m2m_enc.c
+@@ -171,6 +171,44 @@
+                "the v4l2 driver does not support end of stream VIDIOC_SUBSCRIBE_EVENT\n");
+ }
+ 
++static int v4l2_prepare_rate_limit(V4L2m2mContext *s)
++{
++    AVCodecContext *avctx = s->avctx;
++    V4L2m2mPriv *priv = avctx->priv_data;
++    struct v4l2_ext_control controls[4] = { 0 };
++    struct v4l2_ext_controls config = { 0 };
++    int64_t cpb_kbytes = avctx->rc_buffer_size / (8 * 1024);
++    int ret;
++
++    if (!priv->rate_limit)
++        return 0;
++    if (avctx->codec_id != AV_CODEC_ID_H264 || avctx->bit_rate <= 0 ||
++        avctx->rc_max_rate < avctx->bit_rate || avctx->rc_max_rate > INT_MAX ||
++        cpb_kbytes <= 0 || cpb_kbytes > INT_MAX) {
++        av_log(avctx, AV_LOG_ERROR, "V4L2 rate limits require H.264, positive bitrate/bufsize and maxrate >= bitrate\n");
++        return AVERROR(EINVAL);
++    }
++    controls[0].id = MPEG_CID(BITRATE_MODE);
++    controls[0].value = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR;
++    controls[1].id = MPEG_CID(BITRATE);
++    controls[1].value = avctx->bit_rate;
++    controls[2].id = MPEG_CID(BITRATE_PEAK);
++    controls[2].value = avctx->rc_max_rate;
++    controls[3].id = MPEG_CID(H264_CPB_SIZE);
++    controls[3].value = cpb_kbytes;
++    config.ctrl_class = V4L2_CTRL_CLASS_MPEG;
++    config.count = FF_ARRAY_ELEMS(controls);
++    config.controls = controls;
++    ret = ioctl(s->fd, VIDIOC_S_EXT_CTRLS, &config);
++    if (ret < 0) {
++        av_log(avctx, AV_LOG_ERROR, "Device rejected required V4L2 peak/CPB controls: %s\n", av_err2str(AVERROR(errno)));
++        return AVERROR(errno);
++    }
++    av_log(avctx, AV_LOG_INFO, "V4L2 rate limits: peak=%"PRId64" bps, CPB=%"PRId64" KiB\n",
++           avctx->rc_max_rate, cpb_kbytes);
++    return 0;
++}
++
+ static int v4l2_prepare_encoder(V4L2m2mContext *s)
+ {
+     AVCodecContext *avctx = s->avctx;
+@@ -197,6 +235,9 @@
+     v4l2_set_ext_ctrl(s, MPEG_CID(BITRATE) , avctx->bit_rate, "bit rate", 1);
+     v4l2_set_ext_ctrl(s, MPEG_CID(FRAME_RC_ENABLE), 1, "frame level rate control", 0);
+     v4l2_set_ext_ctrl(s, MPEG_CID(GOP_SIZE), avctx->gop_size,"gop size", 1);
++    ret = v4l2_prepare_rate_limit(s);
++    if (ret < 0)
++        return ret;
+ 
+     av_log(avctx, AV_LOG_DEBUG,
+         "Encoder Context: id (%d), profile (%d), frame rate(%d/%d), number b-frames (%d), "
+@@ -391,6 +432,8 @@
+ 
+ #define V4L_M2M_CAPTURE_OPTS \
+     V4L_M2M_DEFAULT_OPTS,\
++    { "v4l2_rate_limit", "Require V4L2 peak bitrate and CPB controls", \
++        OFFSET(rate_limit), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, FLAGS },\
+     { "num_capture_buffers", "Number of buffers in the capture context", \
+         OFFSET(num_capture_buffers), AV_OPT_TYPE_INT, {.i64 = 4 }, 4, INT_MAX, FLAGS }
+ 

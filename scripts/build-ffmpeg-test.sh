@@ -17,19 +17,25 @@ elif ! patch -R -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-drain.
     echo 'FFmpeg drain patch does not apply to this source' >&2
     exit 1
 fi
+if patch -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" >/dev/null 2>&1; then
+    patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch"
+elif ! patch -R -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" >/dev/null 2>&1; then
+    echo 'FFmpeg rate/input patch does not apply to this source' >&2
+    exit 1
+fi
 ./configure --arch=arm --cpu=cortex-a5 --target-os=linux \
   --cross-prefix=arm-linux-gnueabihf- --cc=arm-linux-gnueabihf-gcc-11 \
   --enable-cross-compile --disable-shared --enable-static --extra-ldflags=-static \
   --disable-doc --disable-debug --disable-autodetect --disable-everything \
   --enable-ffmpeg --enable-ffprobe --enable-avformat --enable-avcodec --enable-avfilter \
-  --enable-swscale --enable-swresample --enable-protocol=file \
-  --enable-demuxer=mov,hevc,h264,rawvideo,mjpeg \
-  --enable-muxer=framehash,framemd5,null,rawvideo,hevc,h264,mjpeg \
-  --enable-parser=hevc,h264,mjpeg \
-  --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo \
-  --enable-encoder=rawvideo,wrapped_avframe \
+  --enable-swscale --enable-swresample --enable-protocol=file,pipe,http,tcp \
+  --enable-demuxer=mov,hevc,h264,rawvideo,mjpeg,mpegts,aac \
+  --enable-muxer=framehash,framemd5,null,rawvideo,hevc,h264,mjpeg,mpegts,hls \
+  --enable-parser=hevc,h264,mjpeg,aac \
+  --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo,aac \
+  --enable-encoder=rawvideo,wrapped_avframe,h264_v4l2m2m,aac \
   --enable-bsf=hevc_mp4toannexb,h264_mp4toannexb \
-  --enable-filter=buffer,buffersink,format,scale,null,setpts,psnr --enable-v4l2-m2m
+  --enable-filter=buffer,buffersink,format,scale,null,setpts,asetpts,aresample,anull,psnr --enable-v4l2-m2m
 make -j"${JOBS:-4}"
 mkdir -p "$root/build/ffmpeg-test"
 install -m 755 ffmpeg ffprobe "$root/build/ffmpeg-test/"

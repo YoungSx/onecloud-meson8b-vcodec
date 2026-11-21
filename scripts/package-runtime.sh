@@ -28,7 +28,8 @@ cp -a "$root/docs" "$dest/docs"
 install -m 644 "$root/LICENSE" "$dest/LICENSE"
 mkdir "$dest/patches"
 install -m 644 "$root/patches/0001-meson8b-runtime-codecs.patch" \
-  "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch" "$root/patches/series" "$dest/patches/"
+  "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch" \
+  "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" "$root/patches/series" "$dest/patches/"
 cp -a "$root/config" "$dest/config"
 if [[ -x "$root/build/ffmpeg-test/ffmpeg" && -x "$root/build/ffmpeg-test/ffprobe" ]]; then
     mkdir "$dest/tools"
