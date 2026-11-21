@@ -58,7 +58,7 @@ FFmpeg 默认 bitrate 为 200 kbit/s；码率控制达不到的目标会停在 Q
 
 | 格式 | 说明 |
 | --- | --- |
-| NV12M、NV21M、YUV420M | 4:2:0；FFmpeg 的 `nv12`/`nv21`/`yuv420p` |
+| NV12（连续平面）、NV12M、NV21M、YUV420M | 4:2:0；FFmpeg 的 `nv12`/`nv21`/`yuv420p` |
 | YUV444M、YUYV、UYVY | 由硬件下采样为 4:2:0；FFmpeg `yuyv422`、`uyvy422` |
 | RGB24 | 宽度不超过 1376；更宽的行硬件读取错乱 |
 | XRGB32、XBGR32、RGBX32、BGRX32 | 全宽度；FFmpeg `0rgb`/`bgr0` 用旧名 RGB32/BGR32 也可 |
@@ -68,6 +68,20 @@ colorspace 默认为 709）时用 BT.709，否则 BT.601；CAPTURE 格式据此�
 三字节 BGR 不受支持。JPEG 保持全量程输入，不接受 RGB 输入。宽度不是
 16 的倍数，或为 1–3、65 个宏块宽时，驱动在内部补齐宏块并在 SPS 中裁掉，
 解码得到原尺寸。
+
+## 官方 FFmpeg 软件缩放
+
+编码器枚举标准连续 `NV12`（一个内存平面）以及 `NV12M`（两个内存平面）。
+官方 FFmpeg 的 `scale` 输出可直接使用连续布局，驱动按协商行宽拆分 Y/UV
+进入同一硬件路径，不依赖 FFmpeg 共享多平面缓冲补丁。
+
+```sh
+ffmpeg -c:v h264_v4l2m2m -i input.mp4 -vf scale=1280:-2 \
+  -c:v h264_v4l2m2m -pix_fmt nv12 -b:v 2M -g 60 output.mp4
+```
+
+H.264 profile/level 控件仅声明微码输出的 Baseline / Level 4.0；其他值被拒绝。
+软件缩放在 Cortex-A5 上可能成为主要瓶颈，不能由硬件编码名称推断实时性能。
 
 ## DMA-BUF 输入
 

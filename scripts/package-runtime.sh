@@ -29,12 +29,16 @@ install -m 644 "$root/LICENSE" "$dest/LICENSE"
 mkdir "$dest/patches"
 install -m 644 "$root/patches/0001-meson8b-runtime-codecs.patch" \
   "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch" \
-  "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" "$root/patches/series" "$dest/patches/"
+  "$root/patches/ffmpeg-7.0.2-v4l2-bugs.patch" "$root/patches/series" "$dest/patches/"
 cp -a "$root/config" "$dest/config"
 if [[ -x "$root/build/ffmpeg-test/ffmpeg" && -x "$root/build/ffmpeg-test/ffprobe" ]]; then
+    [[ -f "$root/build/ffmpeg-test/BUILD_VARIANT" ]] || {
+        echo 'Rebuild FFmpeg with the current script before packaging' >&2; exit 1;
+    }
+    install -m 644 "$root/build/ffmpeg-test/BUILD_VARIANT" "$dest/FFMPEG_BUILD_VARIANT"
     mkdir "$dest/tools"
     install -m 755 "$root/build/ffmpeg-test/ffmpeg" "$root/build/ffmpeg-test/ffprobe" "$dest/tools/"
-    install -m 644 "$root/sources/ffmpeg/ffmpeg-7.0.2/COPYING.LGPLv2.1" "$dest/tools/"
+    install -m 644 "$root/build/ffmpeg-test/COPYING.LGPLv2.1" "$dest/tools/"
 fi
 if [[ -x "$root/build/v4l2-tools/v4l2-ctl" ]]; then
     mkdir -p "$dest/tools"

@@ -7,6 +7,13 @@ changed.
 
 ## Unreleased
 
+- Target unmodified official FFmpeg by default; remove the private peak/CPB
+  option and retain only optional reproducible bug fixes.
+- Accept standard contiguous NV12 on MPLANE queues alongside NV12M so official
+  FFmpeg software scaling can upload shared frames without a custom wrapper.
+- Use write-combined encoder staging and a whole-plane copy fast path, with a
+  DMA write barrier before hardware reads; expose verified Baseline/Level 4.0.
+
 - Add opt-in media-time peak/CPB controls with sticky queue failure for an
   oversized access unit, fractional carry and preserved credits on retargeting.
 - Map FFmpeg 7.0.2 peak/buffer limits explicitly, reject unsupported control

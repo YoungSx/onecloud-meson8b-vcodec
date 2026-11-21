@@ -42,11 +42,16 @@ make dtbo
 KDIR=/absolute/path/to/kernel-output make modules -j4
 ```
 
-工具版本、源码哈希和选项固定在构建脚本。FFmpeg 为独立测试构建，按序
-应用 drain 与 rate/input 补丁，包含 H.264/HEVC M2M、AAC、HLS/MPEG-TS 和
+工具版本、源码哈希和选项固定在构建脚本。FFmpeg 默认为未修改的官方
+源码测试构建，包含 H.264/HEVC M2M、AAC、HLS/MPEG-TS 和
 文件/HTTP；没有 HTTPS/TLS、libx264/libx265 或完整格式覆盖，保留生产
 FFmpeg。v4l2-ctl 为静态 ioctl 工具。所有构建日志与产物位于忽略的
 `build/`，CI 将上传交付归档。
+
+只有复现明确 bug 时才使用 `bash scripts/build-ffmpeg-test.sh --bugfixes`：
+它只应用 drain 与缓冲/错误修复，没有私有选项或峰值映射。产物记录
+`BUILD_VARIANT`，运行包附 `FFMPEG_BUILD_VARIANT`；旧的私有码控实验
+不再作为兼容或发布基线。详见 [官方 FFmpeg 适配](ffmpeg-compatibility.md)。
 
 ## Overlay
 

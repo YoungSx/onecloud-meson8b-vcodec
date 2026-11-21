@@ -1,5 +1,9 @@
 # Deployment and acceptance status, 2026-11-21
 
+Current development targets official unmodified FFmpeg. The earlier private
+peak/CPB option is retired; its dated acceptance below remains historical.
+See [official compatibility](ffmpeg-compatibility.md).
+
 The rate-budget candidate `0074967` adds peak/CPB controls and the independent
 FFmpeg 7.0.2 input/rate/error patch. Its encoder was temporarily exercised on
 S805, then restored to the installed module. The 30-minute run decoded/counted

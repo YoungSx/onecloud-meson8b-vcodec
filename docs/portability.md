@@ -36,8 +36,8 @@ and STREAMOFF ordering, then repeat frame counts, CAPTURE 1/2/4/20/32, dynamic
 resolution and concurrent encode checks. Another board/kernel needs hardware
 validation; current v0.4 results cannot be copied onto that research series.
 
-Encoder standard H.264 profile/level negotiation should be a separate change,
-exposing only the firmware's verified Baseline/Level 4.0 values. Do not claim
+Encoder standard H.264 profile/level controls expose only the firmware's
+verified Baseline/Level 4.0 values. Do not claim
 High/Main or another level without firmware and output-SPS evidence. Apps
 still need the actual output profile to generate HLS CODECS accurately.
 

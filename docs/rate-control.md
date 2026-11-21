@@ -74,34 +74,32 @@ must report failure or select smaller geometry before publication. This is a
 VBR output envelope. It does not implement strict CBR, HRD/VUI, filler bytes or
 network-time pacing.
 
-独立 FFmpeg 补丁以 `-v4l2_rate_limit 1` 显式启用映射，要求正的 `-b:v`、
-`-maxrate` 和 `-bufsize`，且 maxrate 不低于目标。bufsize 是 **bits**，
-除以 8192 向下取整为 KiB，实际缓冲不大于请求；不支持控件会直接报错，
-不会悄悄忽略。驱动 ERROR 缓冲和终止 DQBUF 错误也会传播为编码失败。
-共享 NV12 的软件缩放输入按 data/stride 拷贝，修复原 `frame->buf[1]` 空指针。
+官方 FFmpeg 是兼容目标，使用标准 `-b:v`、`-qmin/-qmax`、`-g` 和输出帧率；
+不依赖私有扩展。驱动 `BITRATE_PEAK`/`H264_CPB_SIZE` 仍供直接 V4L2 客户端
+使用。检查的官方 7.0.2、8.1.3 和 master 没有把 `maxrate/bufsize` 转成这两项
+控件；参数能解析不代表硬件收到了限制。此前 `v4l2_rate_limit` 是实验扩展，
+已经移除，不应部署旧实验镜像来取得它。来源和 ioctl 证据见
+[官方 FFmpeg 适配](ffmpeg-compatibility.md)。
 
-The independent FFmpeg patch explicitly opts in with `-v4l2_rate_limit 1`.
-It requires positive `-b:v`, `-maxrate` and `-bufsize`, with maxrate at least the
-target. Bufsize is in **bits** and is rounded down to KiB by division by 8192,
-so capacity never exceeds the request. Unsupported controls fail explicitly.
-Driver ERROR buffers and terminal dequeue errors propagate as encode failures.
-Software scaling inputs copy data/strides rather than dereferencing a missing
-`frame->buf[1]` in shared NV12 frames.
+Official FFmpeg is the compatibility target. Use its standard bitrate, QP,
+GOP and output-frame-rate options. Direct V4L2 clients may use the driver peak
+and CPB controls. The checked official wrappers do not map maxrate/bufsize to
+those controls. The earlier private rate-limit experiment is retired; accepting
+an option does not establish delivery to hardware.
 
 ```sh
-tools/ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 -an \
-  -c:v h264_v4l2m2m -b:v 1600k -v4l2_rate_limit 1 \
-  -maxrate 2000k -bufsize 2M -r 30000/1001 -fps_mode cfr output.h264
+ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 -an \
+  -c:v h264_v4l2m2m -b:v 1600k -qmin 20 -qmax 32 -g 30 \
+  -r 30000/1001 -fps_mode cfr output.h264
 ```
 
-该独立工具支持本地文件、HTTP、H.264/HEVC/AAC 与 HLS/MPEG-TS 验收功能；
-没有 HTTPS/TLS、libx264/libx265 或完整生产 FFmpeg 的格式覆盖，保留原工具。
-上例 2M bits 对应 244 KiB（249856 字节），不是 2 MB。
+软件帧输入的可复现空指针、drain 与终止错误保留为独立可选 bug 修复，
+默认构建不应用，不添加功能扩展。队列数量 `num_capture_buffers` 与 CPB
+容量无关；不能用另一个进程的 `v4l2-ctl` 设置 FFmpeg 会话。
 
-The tool covers local files, HTTP, H.264/HEVC/AAC and HLS/MPEG-TS acceptance.
-It lacks HTTPS/TLS, libx264/libx265 and full production format coverage; keep
-the original FFmpeg. The example's 2M bits becomes 244 KiB (249856 bytes),
-not 2 MB.
+Reproducible raw-input, drain and terminal-error fixes remain optional bug
+patches, not default build changes. V4L2 queue counts are unrelated to CPB
+capacity. Another process's v4l2-ctl open does not configure FFmpeg's context.
 
 ## 媒体时间与观测 / Media time and diagnostics
 
@@ -163,17 +161,12 @@ The 640×360 all-IDR steady rate at a 2.5 Mbps target improves from 2.900 to
 1080p motion still saturates near 10.35 Mbps for targets of 1/2/4/8 Mbps.
 These samples do not establish a minimum rate for every video.
 
-OpenList 默认 `warn` 继续跟踪目标、按实测 HLS 码量声明带宽并报告偏差。
-显式 `fail` 将视频峰值/缓冲映射交给兼容 FFmpeg 和驱动兑现；`downscale`
-先用隔离输出探测最多六秒，在首片发布前选定可达尺寸，后续 chunk 与恢复
-复用该尺寸。探测不能预测未来场景；后续超预算仍失败。缓冲不是逐个 HLS
-切片或含音频/TS 的网络带宽硬上限。应用实现与验收见
-[OpenList 文档](https://github.com/YoungSx/OpenList/tree/feat/transcode-v4l2m2m/internal/transcode/v4l2m2m)。
+OpenList 默认 `warn` 跟踪目标并报告实测 HLS 偏差。官方 V4L2 路径的
+`downscale` 在峰值/缓冲留空时按试编码平均码率选择尺寸，不宣称 CPB
+保证。显式强制预算须使用原生支持相应选项的编码器；不为此 fork FFmpeg。
+短探测不能预测后续场景；音频/TS 与网络发送预算另计。
 
-OpenList's default `warn` retains target tracking, measured HLS bandwidth and
-overshoot diagnostics. Opt-in `fail` requires the compatible FFmpeg/driver to
-enforce video peak/buffer limits. `downscale` probes up to six seconds of isolated
-output, selects a reachable size before the first segment and reuses it for
-later chunks and reactivation. A probe cannot predict future scenes; later budget
-violations still fail. This is not a per-HLS-segment or audio/TS/network bandwidth
-cap. See the [OpenList implementation and acceptance](https://github.com/YoungSx/OpenList/tree/feat/transcode-v4l2m2m/internal/transcode/v4l2m2m).
+OpenList defaults to target tracking and measured warnings. V4L2 downscale
+without explicit peak/buffer limits selects geometry from measured probe output;
+it does not promise a hardware CPB envelope. Required explicit limits need an
+encoder with native support. No FFmpeg fork is maintained for this feature.

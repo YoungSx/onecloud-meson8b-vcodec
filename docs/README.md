@@ -7,6 +7,7 @@
 | 需要做什么 / Task | 文档 / Guide |
 | --- | --- |
 | 安装、升级、卸载和回滚 | [Installation](installation.md) |
+| 官方 FFmpeg 用法、标准控件、可选 bug 修复 | [Compatibility](ffmpeg-compatibility.md) |
 | FFmpeg、JPEG、设备枚举、缓冲数量 | [Usage](usage.md) |
 | VBR、帧边界、溢出恢复、码率观测与可达性 | [Rate control](rate-control.md) |
 | 外部交叉构建、配置、源码补丁 | [Build](build.md) |

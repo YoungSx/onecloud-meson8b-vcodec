@@ -9,19 +9,21 @@ if [[ ! -f "$archive" ]]; then
     curl -fsSL --max-time 120 https://ffmpeg.org/releases/ffmpeg-7.0.2.tar.xz -o "$archive"
 fi
 printf '%s  %s\n' 8646515b638a3ad303e23af6a3587734447cb8fc0a0c064ecdb8e95c4fd8b389 "$archive" | sha256sum -c -
-if [[ ! -d "$cache/ffmpeg-7.0.2" ]]; then tar -xJf "$archive" -C "$cache"; fi
-cd "$cache/ffmpeg-7.0.2"
-if patch -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch" >/dev/null 2>&1; then
+variant=upstream
+case ${1:-} in
+    '') ;;
+    --bugfixes) variant=bugfixes ;;
+    *) echo 'Usage: build-ffmpeg-test.sh [--bugfixes]' >&2; exit 2 ;;
+esac
+# Re-extract pinned sources so stale local patches cannot enter an upstream build.
+source_dir="$cache/ffmpeg-7.0.2-$variant"
+rm -rf "$source_dir"
+mkdir "$source_dir"
+tar -xJf "$archive" --strip-components=1 -C "$source_dir"
+cd "$source_dir"
+if [[ "$variant" == bugfixes ]]; then
     patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch"
-elif ! patch -R -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch" >/dev/null 2>&1; then
-    echo 'FFmpeg drain patch does not apply to this source' >&2
-    exit 1
-fi
-if patch -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" >/dev/null 2>&1; then
-    patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch"
-elif ! patch -R -p1 --dry-run --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-rate-limits.patch" >/dev/null 2>&1; then
-    echo 'FFmpeg rate/input patch does not apply to this source' >&2
-    exit 1
+    patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-bugs.patch"
 fi
 ./configure --arch=arm --cpu=cortex-a5 --target-os=linux \
   --cross-prefix=arm-linux-gnueabihf- --cc=arm-linux-gnueabihf-gcc-11 \
@@ -39,4 +41,6 @@ fi
 make -j"${JOBS:-4}"
 mkdir -p "$root/build/ffmpeg-test"
 install -m 755 ffmpeg ffprobe "$root/build/ffmpeg-test/"
+install -m 644 COPYING.LGPLv2.1 "$root/build/ffmpeg-test/"
+printf '%s\n' "$variant" > "$root/build/ffmpeg-test/BUILD_VARIANT"
 printf 'Independent armhf test binaries: %s\n' "$root/build/ffmpeg-test"

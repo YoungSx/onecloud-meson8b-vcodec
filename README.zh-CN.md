@@ -38,8 +38,9 @@ S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
 
 [码率控制更新](docs/rate-control.md)修复全 I 反馈、控件帧边界与有界溢出恢复，
 已补 S805 回归证据。显式启用峰值/CPB 控件后可兑现媒体时间 VBR 预算，
-超预算 AU 不发布并终止队列；FFmpeg 补丁负责控件映射、共享 NV12 输入
-及编码错误传播。复杂场景仍可能使目标不可达；这不提供严格 CBR、HRD 或
+超预算 AU 不发布并终止队列。适配目标为官方原版 FFmpeg，标准 `-b:v`、
+QP 和 GOP 不需 fork；峰值/CPB 由直接 V4L2 客户端使用，官方包装未传递
+这两项控件。复杂场景仍可能使目标不可达；这不提供严格 CBR、HRD 或
 网络限速。候选构建的实机验收与在役安装分别记录。
 
 ## 开始使用
@@ -72,8 +73,8 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
   -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
 ```
 
-独立包 `tools/ffmpeg` 增加 HEVC M2M、H.264 M2M 预算映射、V4L2 输入/drain/
-错误修复及 AAC、HLS/MPEG-TS 验收功能。它支持文件和 HTTP，没有 HTTPS/TLS
+独立包 `tools/ffmpeg` 默认从未修改的官方源码构建，启用 H.264/HEVC M2M、
+AAC 与 HLS/MPEG-TS 验收功能。它支持文件和 HTTP，没有 HTTPS/TLS
 或 libx264/libx265；完整格式和软件编码继续使用原生产工具。启用前阅读
 [码率预算](docs/rate-control.md)。FFmpeg 7.0.2 没有 JPEG M2M 编码包装，JPEG
 使用 V4L2 客户端。[使用指南](docs/usage.md)提供完整命令及缓冲数量说明。

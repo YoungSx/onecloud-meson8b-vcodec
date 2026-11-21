@@ -47,8 +47,9 @@ stack from the older research port and the OpenList integration.
 The [rate-control update](docs/rate-control.md) fixes all-IDR feedback,
 picture-boundary controls and bounded overflow recovery, with S805 regression
 evidence. Opt-in peak/CPB controls now enforce a media-time VBR envelope;
-oversized access units fail without being published. The FFmpeg patch maps
-these controls and fixes shared raw NV12 input and encode error propagation.
+oversized access units fail without being published. Official FFmpeg remains the compatibility target; standard `-b:v`, QP and GOP
+options work without a fork. Peak/CPB controls are available to direct V4L2
+clients; official wrappers do not forward those two controls.
 Complex scenes can still make a target unreachable. This is not strict CBR,
 HRD or a network bandwidth cap; the production installation remains separate
 from the candidate's hardware acceptance.
@@ -85,11 +86,11 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
   -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
 ```
 
-The independent package `tools/ffmpeg` adds HEVC M2M, H.264 M2M rate limits and
-V4L2 input/drain/error fixes, plus AAC and HLS/MPEG-TS test support. It supports
+The independent package `tools/ffmpeg` builds unmodified upstream FFmpeg with
+H.264/HEVC M2M, AAC and HLS/MPEG-TS test support. It supports
 files and HTTP; it lacks HTTPS/TLS and libx264/libx265. Keep production FFmpeg
 for its broader formats and software encoders. See [rate limits](docs/rate-control.md)
-before opting in to the new controls.
+for the boundary between target tracking and direct V4L2 controls.
 JPEG requires a V4L2 client because FFmpeg 7.0.2 has no JPEG M2M encoder wrapper.
 [Commands and buffer sizing](docs/usage.md) explain these differences.
 
