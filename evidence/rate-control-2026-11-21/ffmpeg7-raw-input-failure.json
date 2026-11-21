@@ -1,0 +1,22 @@
+{
+  "returncode": -11,
+  "wall_seconds": 0.203,
+  "rate_control": {
+    "frames": 0,
+    "bytes": 0,
+    "target_bps": 1000000,
+    "current_bps": 0,
+    "peak_bps": 0,
+    "window_ns": 0,
+    "qp": 38,
+    "saturated_frames": 0,
+    "saturated_ns": 0,
+    "overshoots": 0,
+    "overflows": 3
+  },
+  "output_buffers": 4,
+  "capture_buffers": 4,
+  "status": "failed_client_experiment",
+  "signal": 11,
+  "note": "Original FFmpeg 7.0.2 raw NV12 input exited SIGSEGV before hardware encoding; stats are from the prior session and do not validate this experiment."
+}

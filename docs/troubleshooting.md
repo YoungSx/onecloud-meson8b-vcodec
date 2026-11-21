@@ -14,8 +14,9 @@
 | unload busy | 退出所有持有设备的客户端，再停止 unit；不强制 rmmod |
 | 回滚拒绝固件变化 | state 记录后存在其他更新；保留备份并比较哈希，不能盲目覆盖 |
 | `/tmp` 空间不足 | raw 1080p 图像很大，长测试参考使用 `/dev/null`；只清理自己产生的测试文件 |
-| `picture at QP N exceeds the 1024 KiB bitstream buffer` | 单帧超过码流缓冲，该帧返回错误、下一帧为 IDR；提高 QP 或启用码率控制，避免在 1080p 使用很低的固定 QP |
-| 码率高于目标且 QP 停在 32 | 目标低于该内容在 QP 32 的码率；此微码在 QP 32 以上码率不再下降，应降低分辨率或帧率 |
+| `picture at QP N exceeds the 1024 KiB bitstream buffer` | 单帧超过缓冲，失败后尝试恢复 IDR；累计第三次溢出或 MAX_QP 仍溢出时终止队列，STREAMOFF 后再开始，避免无界重试 |
+| 码率高于目标且 QP 停在 32 | 核对 `rate_control` 的窗口、饱和时长与超目标次数；此微码部分内容在 QP32 以上码率反而增加，应按实测降低尺寸/帧率或用软件编码 |
+| 设置 `maxrate/bufsize` 后仍超目标 | 上游 V4L2 包装未映射峰值/CPB 控件；本驱动提供 VBR 平均目标跟踪，见[码率控制](rate-control.md) |
 | 设置 MIN/MAX_QP 后客户端卡在 D 状态 | 仅 `bd1cb79`/v0.1.0 模块有此死锁；`cd4e6b5` 起修复。旧模块上不要修改这两个控件 |
 | RGB24 宽度被改小 | RGB24 最宽 1376；更宽时改用 XRGB32/XBGR32 等 32 位格式 |
 | 解码转换耗时偏高 | `/sys/kernel/debug/meson-vdec/` 的 `converted_frames`、`cropped_frames`、`convert_ns` 给出每帧 CPU 转换耗时；1080p 约 7–8 ms 属正常，明显更高时检查是否走未对齐左偏移路径或 CPU 被其他负载占满 |

@@ -36,6 +36,11 @@ S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
 [编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
 [通用性说明](docs/portability.md)区分已验证运行包、较旧的研究移植与 OpenList 接入边界。
 
+[码率控制更新](docs/rate-control.md)修复全 I 反馈、控件帧边界与有界溢出恢复，
+已补 S805 回归证据，并提供 VBR 目标跟踪及实际码率观测。复杂内容仍可能在
+经验证的 P 帧 QP 上限超过低目标；没有严格 CPB/峰值约束。本更新临时上机
+测试后已恢复原在役编码模块。
+
 ## 开始使用
 
 1. 阅读[安装和回滚](docs/installation.md)：包须匹配内核 ABI、板型与运行

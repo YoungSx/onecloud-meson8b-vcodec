@@ -44,6 +44,13 @@ evidence and further H.264/JPEG development paths.
 The [portability note](docs/portability.md) separates the verified runtime
 stack from the older research port and the OpenList integration.
 
+The [rate-control update](docs/rate-control.md) fixes all-IDR feedback,
+picture-boundary controls and bounded overflow recovery, with S805 regression
+evidence. It exposes VBR target tracking and measured rate diagnostics. Complex
+content can still exceed a low target at the verified P-QP ceiling; strict
+CPB/peak enforcement is not implemented. The update was tested temporarily
+and the installed encoder was restored afterwards.
+
 ## Start here
 
 1. Read [installation and rollback](docs/installation.md). The package must

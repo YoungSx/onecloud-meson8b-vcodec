@@ -53,6 +53,12 @@ canvas 交给 MFDIN，其他 DMA-BUF 经 CPU 映射拷入 staging。
 补入右侧裁剪；会话内 SPS/PPS 拼在每个 IDR 之前。码流缓冲为 1 MiB，写满时
 VLC 停在末尾不越界，驱动约 150 ms 内报错。端到端零拷贝尚未实现。
 
+码率控制的待应用配置与当前帧历史分开；取帧时应用配置并消费 force-key，
+当前帧完成时按快照记账。GOP1/密集 IDR 用 I 模型闭环。溢出恢复有独立
+QP 下限和会话失败上限，第三次溢出停止队列，预排队帧不再启动硬件。
+debugfs 通过自旋锁快照暴露实际媒体窗口码率与饱和情况，详见
+[码率控制](rate-control.md)。
+
 ## 状态与帧尾
 
 HEVC 固件 RPM 缺少裁剪窗口，bounded SPS parser 补充可见尺寸与 DPB 信息。

@@ -16,6 +16,7 @@
 | B 帧并发及 900 JPEG | [B frames](BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md) |
 | HEVC Main 8-bit | [HEVC](HEVC-ACCEPTANCE-2026-11-14.md) |
 | 编码基线、控件与码率控制（P0/P1） | [Encoder controls](ENCODER-CONTROLS-2026-11-15.md) |
+| VBR 帧边界、可达/饱和目标、预排队溢出终止与工具失败 | [Rate control](rate-control-2026-11-21/README.md) |
 | 编码输入格式、DMA-BUF、多分片（P2–P4） | [Encoder input](ENCODER-INPUT-SLICES-2026-11-15.md) |
 | 解码输出转换、canvas 尺寸与 GE2D 门槛（P5） | [Decoder convert](P5-DECODER-CONVERT-2026-11-15.md) |
 | 运行包升级、回滚与旧编码兼容（P6） | [P6 deploy](p6-2026-11-15/deploy.log)、[compat](p6-2026-11-15/compat.log) |

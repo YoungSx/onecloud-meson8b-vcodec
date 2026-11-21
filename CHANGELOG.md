@@ -5,6 +5,21 @@ recorded OneCloud kernel and device-tree ABI. A patch release may ship the
 same modules as its predecessor when only documentation, evidence or tooling
 changed.
 
+## Unreleased
+
+- Close the all-IDR rate-feedback loop and apply pending controls at picture
+  selection; retain force-key requests arriving during an IDR and reset
+  history on new hardware sessions or frame-period changes.
+- Bound bitstream overflow recovery to three failures per session, retain its
+  recovery QP floor and return already queued pictures without further hardware
+  attempts; reject invalid sizes and truncated SPS/PPS-plus-slice output.
+- Expose only VBR bitrate mode, approximate fractional periods without changing
+  their ratio arbitrarily, and provide locked media-rate/saturation diagnostics.
+- Validate reachable targets, QP saturation, restart/force-key behavior, VBR ABI,
+  JPEG and four-buffer terminal recovery on S805. Preserve the original
+  FFmpeg 7.0.2 raw-input client crash as a failed tool experiment. See
+  [rate-control evidence](evidence/rate-control-2026-11-21/README.md).
+
 ## v0.4.0 — 2026-11-20
 
 The decoder no longer sizes its hardware memory by the CAPTURE count. Each

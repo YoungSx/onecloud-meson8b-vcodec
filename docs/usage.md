@@ -36,7 +36,8 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
 
 | 控件 | 行为 |
 | --- | --- |
-| `BITRATE` + `FRAME_RC_ENABLE` | 二者都非零时启用码率控制：1 秒漏桶、按 QP 26 归一化的 P/IDR 复杂度估计，P 帧 QP 不超过 32 |
+| `BITRATE_MODE` | 仅 VBR；CBR/CQ 返回错误，不承诺峰值/CPB 上限 |
+| `BITRATE` + `FRAME_RC_ENABLE` | 二者都非零时跟踪目标平均码率：有界误差桶、独立 P/IDR 模型，普通 P QP 的预测上限为 32（受用户范围限制） |
 | `H264_I_FRAME_QP` / `H264_P_FRAME_QP` | 关闭码率控制时的固定 QP（默认 26）；码率控制时 P QP 为起点，二者差值为 IDR 偏移 |
 | `H264_MIN_QP` / `H264_MAX_QP` | 限制所有 QP；同一次 `S_EXT_CTRLS` 内按新的一对校验，min>max 返回 `ERANGE` |
 | `GOP_SIZE` | IDR 间隔；0 表示只有首帧和强制关键帧为 IDR |
@@ -44,10 +45,14 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
 | `HEADER_MODE` | 只有 `JOINED_WITH_1ST_FRAME`；SPS/PPS 在每个 IDR 前 |
 | `MULTI_SLICE_MODE` / `MULTI_SLICE_MAX_MB` | `MAX_MB` 按整行宏块向下取整；分片随整帧交付，没有逐片低延迟 |
 
-控件在两帧之间生效。码流为 Baseline、无 VUI，帧率与色彩信息由封装层携带。
+控件在取下一帧时生效，当前帧按旧配置记账；STREAMOFF/ON 新会话重置历史。
+码流为 Baseline、无 VUI，帧率与色彩信息由封装层携带。
 FFmpeg 默认 bitrate 为 200 kbit/s；码率控制达不到的目标会停在 QP 32，
 需要更低码率时应降低分辨率或帧率。单帧超过 1 MiB 码流缓冲（例如 1080p
-在很低 QP 下）时该帧返回错误，下一帧为 IDR，日志提示所用 QP。
+在很低 QP 下）时该帧返回错误，下一帧为恢复 IDR，日志提示所用 QP；累计
+第三次溢出或 MAX_QP 仍溢出时终止两队列，须 STREAMOFF 后重新启动。
+详细语义与 debugfs 字段见[码率控制](rate-control.md)。上游 FFmpeg V4L2
+包装未映射 `maxrate/bufsize`，传入这两个参数也不构成峰值约束。
 
 ## 编码输入格式
 
@@ -117,6 +122,6 @@ MPEG/VC-1/MJPEG 的输出及帧尾边界见[验证指南](validation.md)。MPEG-
 ffmpeg -c:v mpeg2_v4l2m2m -i input.ts -c:v h264_v4l2m2m -b:v 0 -c:a copy output.mp4
 ```
 
-OpenList 可索引预转码后的文件；应用内部自动转码链未配置，不修改
-OpenList/WanOS 核心。故障、空输出或卡住按[排查指南](troubleshooting.md)
+OpenList fork 已通过标准 V4L2 自动选择设备，并按实际切片码量与时长声明
+HLS 带宽；接入边界见[通用性说明](portability.md)。故障、空输出或卡住按[排查指南](troubleshooting.md)
 核查，不用成功退出码替代完整帧数与内容检查。

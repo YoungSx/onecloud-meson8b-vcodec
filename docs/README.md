@@ -8,6 +8,7 @@
 | --- | --- |
 | 安装、升级、卸载和回滚 | [Installation](installation.md) |
 | FFmpeg、JPEG、设备枚举、缓冲数量 | [Usage](usage.md) |
+| VBR、帧边界、溢出恢复、码率观测与可达性 | [Rate control](rate-control.md) |
 | 外部交叉构建、配置、源码补丁 | [Build](build.md) |
 | 模块职责、共享资源、输出数据路径 | [Architecture](architecture.md) |
 | 平台通用性、应用边界与研究线帧池差异 | [Portability](portability.md) |
