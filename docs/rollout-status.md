@@ -1,18 +1,21 @@
-# Deployment and acceptance status, 2026-11-21
+# Deployment and acceptance status, 2026-11-22
 
 Current development targets official unmodified FFmpeg. The earlier private
 peak/CPB option is retired; its dated acceptance below remains historical.
 See [official compatibility](ffmpeg-compatibility.md).
 
-The rate-budget candidate `0074967` adds peak/CPB controls and the independent
-FFmpeg 7.0.2 input/rate/error patch. Its encoder was temporarily exercised on
-S805, then restored to the installed module. The 30-minute run decoded/counted
-78000 frames over 26 blocks, verified every contiguous interval, and passed
-55 service samples. See [budget acceptance](../evidence/rate-delivery-2026-11-21/README.md).
-This candidate has not replaced autoload, the boot kernel/DT or production
-OpenList. Its original encoder fingerprint is
-`fa17e35d50f986d2eaf922590e99a44d385496956acfe64481a211b4a61c19e2`.
-The installation history below retains its recorded versions and timestamps.
+The official-FFmpeg candidate image is
+`youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a137737`. It was loaded
+on the device and passed disposable local/worker HLS acceptance. It has
+**not replaced the production container**. The production image remains
+`youngsx/openlist-onecloud:v4.2.10-v4l2m2m-d1c514c`; its start time and
+restart count were preserved during the tests. Current candidate changes,
+performance and unresolved goals are in [development results](next-development-status.md).
+
+The older rate-budget candidate and its private FFmpeg option are historical
+experiments, superseded by the official compatibility route. Direct V4L2
+peak/CPB controls remain in the driver. Original modules are restored after
+each bounded candidate test; no boot kernel, DT or CMA change is made.
 
 ## Installed release history
 
@@ -57,8 +60,8 @@ malformed data boundaries and mixed-load run length. HEVC supports Main
 claim of arbitrary-stream or indefinite production soak is made.
 
 Original WanOS ffmpeg remains installed. The independent static tool has
-H.264/HEVC M2M, AAC/HLS/MPEG-TS, file/HTTP and separate V4L2 drain/input/rate/error
-patches. It lacks HTTPS/TLS and software H.264/HEVC encoders. Its
+H.264/HEVC M2M, AAC/HLS/MPEG-TS, file/HTTP and optional minimal V4L2 bug-fix
+patches (default builds are unmodified upstream). It lacks HTTPS/TLS and software H.264/HEVC encoders. Its
 sources and exact build flags are in the deliverable. On malformed data
 ffmpeg may output partial frames; exit code alone is not acceptance.
 Use scripts/verify-hashes.py and the recorded frame counts for correctness.

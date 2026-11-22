@@ -6,6 +6,8 @@
 
 | 主题 | 主记录 |
 | --- | --- |
+| 官方 FFmpeg 30 分钟、质量、解析竞态及主线重编译 | [2026-11-22 regression](official-ffmpeg-2026-11-22/README.md) |
+| 官方 FFmpeg、连续 NV12、1080p 拷贝优化与标准控件 | [Official FFmpeg](official-ffmpeg-2026-11-21/README.md) |
 | H.264 解码、CPU、第二会话、分辨率切换 | [2026-11-13 Decode](ACCEPTANCE-2026-11-13.md) |
 | H.264 编码与性能 | [Encode](ENCODE-ACCEPTANCE-2026-11-13.md) |
 | CBR 与 MPEG-4 | [Rate control / MPEG-4](RC-MPEG4-ACCEPTANCE-2026-11-13.md) |

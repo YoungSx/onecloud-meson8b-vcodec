@@ -32,11 +32,29 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
 每次一个 decoder 和一个 encoder，应用侧排队。`-vf scale=640:-2` 可缩图，
 缩放由 CPU 完成；数据路径仍有字节序转换和输入拷贝。
 
+## 帧哈希验收
+
+哈希/原始视频输出应显式限制滤镜和输出编码线程，避免异步输出长期持有
+所有采集 buffer：
+
+```sh
+ffmpeg -nostdin -filter_threads 1 -c:v h264_v4l2m2m -i input.mp4 \
+  -pix_fmt nv12 -threads:v 1 -f framemd5 hardware.md5
+python3 scripts/verify-hashes.py software.md5 hardware.md5
+```
+
+此处 `-threads:v 1` 位于输入之后，约束 rawvideo 输出编码器；不是给驱动
+增加私有控件，也不需改变硬件帧池。原版 7.0.2 的默认多线程哈希输出在
+原模块及候选模块上都曾提前结束，单线程配置用同一参考逐帧核查。
+正常退出码不足以证明交付完整，仍须核对所有帧数与哈希。
+
 ## H.264 编码控件
 
 | 控件 | 行为 |
 | --- | --- |
-| `BITRATE_MODE` | 仅 VBR；CBR/CQ 返回错误，不承诺峰值/CPB 上限 |
+| `BITRATE_MODE` | 仅 VBR；CBR/CQ 返回错误；此控件单独不启用预算 |
+| `BITRATE_PEAK` / `H264_CPB_SIZE` | 直接 V4L2 客户端成组启用媒体时间预算；峰值 bps、容量 KiB，超预算终止，详见码控指南 |
+| `H264_PROFILE` / `H264_LEVEL` | 仅枚举微码已验证的 Baseline / Level 4.0 |
 | `BITRATE` + `FRAME_RC_ENABLE` | 二者都非零时跟踪目标平均码率：有界误差桶、独立 P/IDR 模型，普通 P QP 的预测上限为 32（受用户范围限制） |
 | `H264_I_FRAME_QP` / `H264_P_FRAME_QP` | 关闭码率控制时的固定 QP（默认 26）；码率控制时 P QP 为起点，二者差值为 IDR 偏移 |
 | `H264_MIN_QP` / `H264_MAX_QP` | 限制所有 QP；同一次 `S_EXT_CTRLS` 内按新的一对校验，min>max 返回 `ERANGE` |

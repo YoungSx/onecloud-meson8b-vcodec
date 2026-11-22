@@ -36,12 +36,17 @@ is made. The matching host/sanitizer result is [recorded](host-tests.log).
 
 ## 拒绝的 drain 实验 / Rejected drain experiments
 
-A candidate that delayed custom EOS and changed LAST ownership produced
-157–158 pictures from a nominal 150-picture MPEG-2 stream. Another candidate
-changing input flush/quiet handling did not pass repeated H.264 output tests.
-Both were removed; no drain fix or resolution of the historical short-output
-issue is claimed. The installed modules were restored after every attempt.
+The historical client printed 157–158 capture completions after an EOS/LAST
+experiment, and another input/quiet-handling experiment failed H.264 checks.
+Both were removed and no drain fix was accepted.
 
-延后 EOS/LAST 的实验产生重复图像，输入排空/静默期修改也未通过 H.264
-重复测试，均已撤回。既有稀有短输出与旧格式尾帧仍是明确未解决项，不能
-通过增加等待或补假帧宣称完成。完整失败记录保留在目标测试目录。
+2026-11-22 correction: that client's `frames=` included empty completions,
+so 157–158 cannot establish duplicate **pictures**. Default threaded checksum
+output also reproduced truncation with the original module. These experiments
+remain unvalidated; they are not retrospectively declared successful. New
+checks count only nonempty pictures and compare content; see the
+[corrected regression](../official-ffmpeg-2026-11-22/README.md).
+
+2026-11-22 复核修正：旧客户端报告的 157–158 次出队包含空载荷，不能据此
+确认重复图像；默认多线程哈希输出的短输出也在原模块上复现。实验仍未
+通过充分内容验证，继续保留撤回状态，不把旧计数当作新修复的依据。

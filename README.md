@@ -99,7 +99,8 @@ JPEG requires a V4L2 client because FFmpeg 7.0.2 has no JPEG M2M encoder wrapper
 [Documentation index](docs/README.md) · [Architecture](docs/architecture.md) ·
 [Build](docs/build.md) · [Validation](docs/validation.md) ·
 [CI and releases](docs/release.md) · [Contributing](CONTRIBUTING.md) ·
-[Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md)
+[Roadmap](ROADMAP.md) · [Current development results](docs/next-development-status.md) ·
+[Changelog](CHANGELOG.md)
 
 CI runs host tests and sanitizers, reproduces pinned firmware, cross-builds
 against the matching kernel, checks the additive patch and verifies packages.

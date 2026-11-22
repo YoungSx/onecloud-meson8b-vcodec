@@ -14,10 +14,20 @@ changed.
 - Use write-combined encoder staging and a whole-plane copy fast path, with a
   DMA write barrier before hardware reads; expose verified Baseline/Level 4.0.
 
+- Publish parser completion and queued-input state before the fetch kick;
+  stop feeding when parser consumption is uncertain after timeout.
+- Correct diagnostic codec access-unit boundaries, nonempty-picture counts
+  and EOS/LAST handling. Bound standard checksum-output threads to avoid
+  retaining every capture buffer.
+- Record official encoder 30-minute/11880-picture soak, nine quality samples,
+  4500 H.264 hashes and full research-kernel builds; retain legacy tail and
+  throughput limitations explicitly.
 - Add opt-in media-time peak/CPB controls with sticky queue failure for an
   oversized access unit, fractional carry and preserved credits on retargeting.
-- Map FFmpeg 7.0.2 peak/buffer limits explicitly, reject unsupported control
-  transactions and propagate encoded ERROR buffers/dequeue failures.
+- Keep peak/CPB enforcement in standard driver controls for direct V4L2
+  clients. Official FFmpeg maxrate/bufsize forwarding is not claimed; the
+  former private mapping experiment is retired. Optional bug patches cover
+  encoded ERROR buffers and terminal dequeue failures.
 - Fix shared raw NV12 input copying; package the patch and the independent
   H.264/HEVC/AAC file/HTTP/HLS test tool while retaining production FFmpeg.
 - Record [peak/buffer silicon acceptance](evidence/rate-delivery-2026-11-21/README.md),

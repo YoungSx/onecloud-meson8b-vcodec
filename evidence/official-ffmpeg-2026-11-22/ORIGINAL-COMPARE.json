@@ -1,0 +1,170 @@
+[
+  {
+    "module": "original",
+    "mode": "default",
+    "index": 0,
+    "frames": 146,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db2e0] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd",
+      "0,        145,        145,        1,  3110400, f0e6ee25f161257ba00842f68248aa32"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "default",
+    "index": 1,
+    "frames": 145,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db2e0] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        143,        143,        1,  3110400, 36b66febc7bb052a765876a49c2b5615",
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "default",
+    "index": 2,
+    "frames": 146,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db2e0] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd",
+      "0,        145,        145,        1,  3110400, f0e6ee25f161257ba00842f68248aa32"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "passthrough",
+    "index": 0,
+    "frames": 146,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db490] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd",
+      "0,        145,        145,        1,  3110400, f0e6ee25f161257ba00842f68248aa32"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "passthrough",
+    "index": 1,
+    "frames": 146,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db490] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd",
+      "0,        145,        145,        1,  3110400, f0e6ee25f161257ba00842f68248aa32"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "passthrough",
+    "index": 2,
+    "frames": 146,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "[h264_v4l2m2m @ 0x35db490] All capture buffers returned to userspace. Increase num_capture_buffers to prevent device deadlock or dropped packets/frames.\n",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        144,        144,        1,  3110400, 84173e829be3758cc3067675cb17ccbd",
+      "0,        145,        145,        1,  3110400, f0e6ee25f161257ba00842f68248aa32"
+    ]
+  }
+]

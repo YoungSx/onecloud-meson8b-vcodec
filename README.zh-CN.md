@@ -84,7 +84,8 @@ AAC 与 HLS/MPEG-TS 验收功能。它支持文件和 HTTP，没有 HTTPS/TLS
 [文档目录](docs/README.md) · [架构](docs/architecture.md) ·
 [构建](docs/build.md) · [验证](docs/validation.md) ·
 [CI 和发版](docs/release.md) · [贡献指南](CONTRIBUTING.md) ·
-[路线图](ROADMAP.md) · [变更记录](CHANGELOG.md)
+[路线图](ROADMAP.md) · [本轮开发结果](docs/next-development-status.md) ·
+[变更记录](CHANGELOG.md)
 
 CI 运行主机测试及 Sanitizer，复现固定微码，针对匹配内核交叉编译、检查
 additive 补丁与包校验。版本标签运行同样检查，并生成含运行包、源码包、

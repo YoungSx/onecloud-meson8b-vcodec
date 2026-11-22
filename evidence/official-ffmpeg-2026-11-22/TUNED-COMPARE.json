@@ -1,0 +1,86 @@
+[
+  {
+    "module": "original",
+    "mode": "single-thread-output",
+    "index": 0,
+    "frames": 300,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        298,        298,        1,  3110400, 7569aec39c2f9a27d7b82a2e1348dcc2",
+      "0,        299,        299,        1,  3110400, 7bc1d68ed2c0d63acf5dc4cea90b5e2f"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "single-thread-output",
+    "index": 1,
+    "frames": 300,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        298,        298,        1,  3110400, 7569aec39c2f9a27d7b82a2e1348dcc2",
+      "0,        299,        299,        1,  3110400, 7bc1d68ed2c0d63acf5dc4cea90b5e2f"
+    ]
+  },
+  {
+    "module": "original",
+    "mode": "single-thread-output",
+    "index": 2,
+    "frames": 300,
+    "rc": 0,
+    "first_diff": null,
+    "prefix": true,
+    "stderr": "",
+    "head": [
+      "#format: frame checksums",
+      "#version: 2",
+      "#hash: MD5",
+      "#software: Lavf61.1.100",
+      "#tb 0: 1/30",
+      "#media_type 0: video",
+      "#codec_id 0: rawvideo",
+      "#dimensions 0: 1920x1080",
+      "#sar 0: 1/1",
+      "#stream#, dts,        pts, duration,     size, hash",
+      "0,          0,          0,        1,  3110400, 2f88882f4f90d14ce28ee44f08a9ffa4",
+      "0,          1,          1,        1,  3110400, cc0ae9e28c2f894365d0c7cb9c50c5fc"
+    ],
+    "last": [
+      "0,        298,        298,        1,  3110400, 7569aec39c2f9a27d7b82a2e1348dcc2",
+      "0,        299,        299,        1,  3110400, 7bc1d68ed2c0d63acf5dc4cea90b5e2f"
+    ]
+  }
+]

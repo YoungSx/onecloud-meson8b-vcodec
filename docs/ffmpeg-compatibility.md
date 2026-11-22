@@ -67,3 +67,16 @@ function. Silicon error tests remain in the dated evidence. Each build records
 
 原在役 7.0.2 的三组 ioctl 跟踪确认标准参数生效；加入 maxrate/bufsize
 没有额外 peak/CPB 调用。三次都输出 60 帧，生产容器与模块未变。
+
+## 哈希输出线程 / Checksum output threads
+
+用于 `framemd5` 验收时，设置全局 `-filter_threads 1` 及输入之后的
+`-threads:v 1`，避免输出帧线程长期持有采集 buffer。原版宿主 7.0.2 在
+原驱动和候选驱动上都复现默认输出提前结束，单线程配置与参考逐帧比较；
+见[对照记录](../evidence/official-ffmpeg-2026-11-22/README.md)。这不增加
+任何私有功能，也不意味着所有历史短输出都已归因。
+
+For checksum diagnostics, bound filter and rawvideo output threads using
+standard options. The input codec and hardware frame pool are unchanged.
+This addresses a reproduced output-retention case; rare historical short
+output remains a separate open investigation.
