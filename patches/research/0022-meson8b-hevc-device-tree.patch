@@ -1,0 +1,21 @@
+Subject: [PATCH RFC] ARM: dts: meson8b: connect HEVC and fixed parent clocks
+
+Provide both engine clocks for the shared video decoder node.
+
+---
+diff --git a/arch/arm/boot/dts/amlogic/meson8b.dtsi b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+--- a/arch/arm/boot/dts/amlogic/meson8b.dtsi
++++ b/arch/arm/boot/dts/amlogic/meson8b.dtsi
+@@ -29,9 +29,10 @@
+ 			interrupt-names = "vdec", "esparser";
+ 			clocks = <&clkc CLKID_DOS_PARSER>, <&clkc CLKID_DOS>,
+ 				 <&clkc CLKID_VDEC_1>, <&clkc CLKID_VDEC_1_1_DIV>,
+-				 <&clkc CLKID_FCLK_DIV7>;
++				 <&clkc CLKID_FCLK_DIV7>, <&clkc CLKID_VDEC_HEVC>,
++				 <&clkc CLKID_FCLK_DIV5>;
+ 			clock-names = "dos_parser", "dos", "vdec_1", "vdec_1_div",
+-				      "vdec_1_parent";
++				      "vdec_1_parent", "vdec_hevc", "hevc_parent";
+ 			resets = <&reset RESET_PARSER>;
+ 			reset-names = "esparser";
+ 			amlogic,dos = <&dos>;
