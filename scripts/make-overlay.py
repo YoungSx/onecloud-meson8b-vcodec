@@ -49,8 +49,8 @@ def render(tree):
                 reg-names = "dos", "esparser";
                 interrupts = <0 44 1>, <0 32 1>;
                 interrupt-names = "vdec", "esparser";
-                clocks = <{clkc} 54>, <{clkc} 17>, <{clkc} 196>, <{clkc} 206>, <{clkc} 8>;
-                clock-names = "dos_parser", "dos", "vdec_1", "vdec_hevc", "hevc_parent";
+                clocks = <{clkc} 54>, <{clkc} 17>, <{clkc} 196>, <{clkc} 206>, <{clkc} 8>, <{clkc} 192>;
+                clock-names = "dos_parser", "dos", "vdec_1", "vdec_hevc", "hevc_parent", "vdec_1_div";
                 resets = <{reset} 40>;
                 reset-names = "esparser";
                 amlogic,ao-sysctrl = <{pmu}>;

@@ -142,6 +142,7 @@ struct amvdec_core {
 	struct clk *dos_parser_clk;
 	struct clk *dos_clk;
 	struct clk *vdec_1_clk;
+	struct clk *vdec_1_div_clk;
 	struct clk *vdec_hevc_clk;
 	struct clk *hevc_parent_clk;
 	struct clk *vdec_hevcf_clk;
@@ -153,6 +154,7 @@ struct amvdec_core {
 
 	struct amvdec_session *cur_sess;
 	struct mutex lock; /* video device lock */
+	struct mutex esparser_lock; /* one parser fetch, including its IRQ wait */
 
 	/* Meson8b output conversion: frames per path and CPU time */
 	struct dentry *debugfs;

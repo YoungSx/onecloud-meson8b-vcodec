@@ -116,12 +116,18 @@ disable_dos_parser:
 	return ret;
 }
 
-static void vdec_wait_inactive(struct amvdec_session *sess)
+static int vdec_wait_inactive(struct amvdec_session *sess)
 {
-	/* We consider 50ms with no IRQ to be inactive. */
+	u64 deadline = get_jiffies_64() + msecs_to_jiffies(3000);
+
+	/* A broken stream must not keep STOP or close waiting forever. */
 	while (time_is_after_jiffies64(sess->last_irq_jiffies +
-				       msecs_to_jiffies(50)))
+				       msecs_to_jiffies(50))) {
+		if (!time_is_after_jiffies64(deadline))
+			return -ETIMEDOUT;
 		msleep(25);
+	}
+	return 0;
 }
 
 static void vdec_poweroff(struct amvdec_session *sess)
@@ -369,7 +375,8 @@ static bool vdec_capture_queue_fits(struct amvdec_session *sess,
 			u32 plane_size = output_size;
 
 			if (j == 1)
-				plane_size = output_size / 2;
+				plane_size = output_size /
+					(sess->pixfmt_cap == V4L2_PIX_FMT_YUV420M ? 4 : 2);
 			else if (j == 2)
 				plane_size = output_size / 4;
 
@@ -923,22 +930,21 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 		return -EINVAL;
 
 	dev_dbg(dev, "Received V4L2_DEC_CMD_STOP\n");
-	WRITE_ONCE(sess->stop_requested, true);
-
-	/* Drain input still queued in the m2m OUTPUT queue into the
-	 * ESPARSER before marking the session stopped, or the EOS marker
-	 * overtakes it and those frames are lost. Visible once the capture
-	 * copy became fast enough for ffmpeg to send STOP while input was
-	 * still queued (VIFIFO full). */
-	if (codec_ops->eos_sequence) {
+	/* A terminator must follow every OUTPUT buffer, for every codec. */
+	if (codec_ops->eos_sequence || codec_ops->drain) {
 		unsigned int tries = 1000;
 
-		while (v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx) &&
-		       tries--) {
+		while (v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx) && tries--) {
 			esparser_queue_all(sess);
-			msleep(10);
+			if (v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx))
+				msleep(10);
+		}
+		if (v4l2_m2m_num_src_bufs_ready(sess->m2m_ctx)) {
+			amvdec_abort(sess);
+			return -ETIMEDOUT;
 		}
 	}
+	WRITE_ONCE(sess->stop_requested, true);
 
 	if (!codec_ops->firmware_eos) {
 		sess->should_stop = 1;
@@ -946,17 +952,23 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 	}
 
 	if (codec_ops->drain) {
-		vdec_wait_inactive(sess);
-		codec_ops->drain(sess);
+		ret = vdec_wait_inactive(sess);
+		if (ret)
+			amvdec_abort(sess);
+		else
+			codec_ops->drain(sess);
 	} else if (codec_ops->eos_sequence) {
 		u32 len;
 		const u8 *data = codec_ops->eos_sequence(&len);
 
 		ret = esparser_queue_eos(sess->core, data, len);
-		if (ret)
+		if (ret) {
 			amvdec_abort(sess);
-		else
-			vdec_wait_inactive(sess);
+		} else {
+			ret = vdec_wait_inactive(sess);
+			if (ret)
+				amvdec_abort(sess);
+		}
 	}
 
 	return ret;
@@ -1281,6 +1293,12 @@ static int vdec_probe(struct platform_device *pdev)
 	if (IS_ERR(core->vdec_1_clk))
 		return -EPROBE_DEFER;
 
+	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+		core->vdec_1_div_clk = devm_clk_get(dev, "vdec_1_div");
+		if (IS_ERR(core->vdec_1_div_clk))
+			return PTR_ERR(core->vdec_1_div_clk);
+	}
+
 	core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");
 	if (IS_ERR(core->vdec_hevc_clk))
 		return PTR_ERR(core->vdec_hevc_clk);
@@ -1324,6 +1342,7 @@ static int vdec_probe(struct platform_device *pdev)
 	core->vdev_dec = vdev;
 	core->dev_dec = dev;
 	mutex_init(&core->lock);
+	mutex_init(&core->esparser_lock);
 
 	strscpy(vdev->name, "meson-video-decoder", sizeof(vdev->name));
 	vdev->release = video_device_release;

@@ -10,8 +10,8 @@
                 reg-names = "dos", "esparser";
                 interrupts = <0 44 1>, <0 32 1>;
                 interrupt-names = "vdec", "esparser";
-                clocks = <3 54>, <3 17>, <3 196>, <3 206>, <3 8>;
-                clock-names = "dos_parser", "dos", "vdec_1", "vdec_hevc", "hevc_parent";
+                clocks = <3 54>, <3 17>, <3 196>, <3 206>, <3 8>, <3 192>;
+                clock-names = "dos_parser", "dos", "vdec_1", "vdec_hevc", "hevc_parent", "vdec_1_div";
                 resets = <8 40>;
                 reset-names = "esparser";
                 amlogic,ao-sysctrl = <7>;

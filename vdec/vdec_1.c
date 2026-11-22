@@ -191,6 +191,27 @@ static int vdec_1_stop(struct amvdec_session *sess)
 	return 0;
 }
 
+/* An exact divider change must never retune the shared MPLL parents. */
+static int vdec_1_set_rate(struct amvdec_core *core, unsigned long rate)
+{
+	struct clk *divider = core->vdec_1_div_clk;
+	struct clk *selector;
+	unsigned long parent_rate;
+
+	if (core->platform->revision != VDEC_REVISION_MESON8B)
+		return clk_set_rate(core->vdec_1_clk, rate);
+
+	selector = divider ? clk_get_parent(divider) : NULL;
+	parent_rate = selector ? clk_get_rate(selector) : 0;
+	if (parent_rate != 2 * rate) {
+		dev_err(core->dev,
+			"VDEC1 parent at %lu Hz cannot provide %lu Hz without retuning; refusing\n",
+			parent_rate, rate);
+		return -EINVAL;
+	}
+	return clk_set_rate(divider, rate);
+}
+
 static int vdec_1_start(struct amvdec_session *sess)
 {
 	int ret;
@@ -200,7 +221,7 @@ static int vdec_1_start(struct amvdec_session *sess)
 	u32 iso_reg = AO_RTI_GEN_PWR_ISO0 - core->platform->ao_sysctrl_offset;
 	unsigned long rate = core->platform->vdec_1_rate ?: 666666666;
 
-	ret = clk_set_rate(core->vdec_1_clk, rate);
+	ret = vdec_1_set_rate(core, rate);
 	if (ret)
 		return ret;
 	ret = clk_prepare_enable(core->vdec_1_clk);

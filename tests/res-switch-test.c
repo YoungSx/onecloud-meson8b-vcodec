@@ -50,6 +50,8 @@ static FILE *dumpf;
  * runs can be compared picture by picture without storing the pictures */
 static FILE *hashf;
 static unsigned long pictures;
+static unsigned long streamoff_after;
+static int streamoff_capture_first;
 
 static int dump_frame(struct v4l2_buffer *b)
 {
@@ -78,6 +80,23 @@ static void xioctl(int req, void *arg, const char *what)
 		fprintf(stderr, "%s: %s\n", what, strerror(errno));
 		exit(1);
 	}
+}
+
+/* Exercise both queue shutdown orders while decoded pictures still exist. */
+static int stop_early(unsigned long frames)
+{
+	enum v4l2_buf_type out = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	enum v4l2_buf_type cap = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+
+	if (!streamoff_after || frames < streamoff_after)
+		return 0;
+	xioctl(VIDIOC_STREAMOFF, streamoff_capture_first ? &cap : &out,
+	       "early STREAMOFF(first)");
+	xioctl(VIDIOC_STREAMOFF, streamoff_capture_first ? &out : &cap,
+	       "early STREAMOFF(second)");
+	printf("STREAMOFF frames=%lu capture_first=%d\n", frames,
+	       streamoff_capture_first);
+	return 1;
 }
 
 static unsigned out_fourcc = V4L2_PIX_FMT_H264;
@@ -275,6 +294,10 @@ int main(int argc, char **argv)
 	 * ESPARSER search padding after every chunk. */
 	size_t *chunks;
 	size_t nchunks = 0, chunk_idx = 0, espos = 0;
+
+	if (getenv("STREAMOFF_AFTER"))
+		streamoff_after = strtoul(getenv("STREAMOFF_AFTER"), NULL, 10);
+	streamoff_capture_first = getenv("STREAMOFF_CAPTURE_FIRST") != NULL;
 
 	if (argc < 3 || argc > 6) {
 		fprintf(stderr, "usage: %s DEVICE ELEMENTARY_STREAM "
@@ -495,6 +518,8 @@ int main(int argc, char **argv)
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
 				frames += dump_frame(&b);
+				if (stop_early(frames))
+					return 0;
 				if (b.flags & V4L2_BUF_FLAG_LAST) {
 					printf("EOS frames=%lu resolutions=%lu\n",
 					       frames, resolutions);
@@ -537,6 +562,8 @@ int main(int argc, char **argv)
 					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
 						break;
 					frames += dump_frame(&b);
+					if (stop_early(frames))
+						return 0;
 					xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 				}
 			}

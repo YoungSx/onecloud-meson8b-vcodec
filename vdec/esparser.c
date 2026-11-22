@@ -204,6 +204,9 @@ static int esparser_pad_start_code(struct amvdec_core *core,
 static int
 esparser_write_data(struct amvdec_core *core, dma_addr_t addr, u32 size)
 {
+	int ret;
+
+	mutex_lock(&core->esparser_lock);
 	/* Clear before the fetch kick: its IRQ may arrive before the wait. */
 	WRITE_ONCE(search_done, 0);
 	amvdec_write_parser(core, PFIFO_RD_PTR, 0);
@@ -219,7 +222,11 @@ esparser_write_data(struct amvdec_core *core, dma_addr_t addr, u32 size)
 			    (7 << FETCH_ENDIAN_BIT) |
 			    (size + SEARCH_PATTERN_LEN));
 
-	return wait_event_interruptible_timeout(wq, READ_ONCE(search_done), (HZ / 5));
+	ret = wait_event_interruptible_timeout(wq, READ_ONCE(search_done), (HZ / 5));
+	if (ret <= 0)
+		amvdec_write_parser(core, PARSER_FETCH_CMD, 0);
+	mutex_unlock(&core->esparser_lock);
+	return ret;
 }
 
 static u32 esparser_vififo_get_free_space(struct amvdec_session *sess)
@@ -382,7 +389,6 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		dev_warn(core->dev, "esparser: input parsing error\n");
 		amvdec_remove_ts(sess, vb->timestamp);
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-		amvdec_write_parser(core, PARSER_FETCH_CMD, 0);
 		/* Consumption is uncertain after a timeout: end this session. */
 		amvdec_abort(sess);
 

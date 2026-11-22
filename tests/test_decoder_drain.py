@@ -97,15 +97,16 @@ struct amvdec_session {
     int streamon_out,streamon_cap,should_stop;bool stop_requested;
 };
 static struct amvdec_session session;
-static int aborted,waited,result;
+static int aborted,waited,result,queued,blocked,custom_calls;
 static int v4l2_m2m_ioctl_try_decoder_cmd(struct file *f,void *h,struct v4l2_decoder_cmd *c) {(void)f;(void)h;(void)c;return 0;}
 static void v4l2_m2m_clear_state(void *c) {(void)c;}
 static void v4l2_m2m_mark_stopped(void *c) {(void)c;}
-static int v4l2_m2m_num_src_bufs_ready(void *c) {(void)c;return 0;}
-static void esparser_queue_all(struct amvdec_session *s) {(void)s;}
+static int v4l2_m2m_num_src_bufs_ready(void *c) {(void)c;return queued;}
+static void esparser_queue_all(struct amvdec_session *s) {assert(!s->should_stop);assert(!s->stop_requested);if(!blocked)queued=0;}
 static void msleep(int ms) {(void)ms;}
-static void vdec_wait_inactive(struct amvdec_session *s) {(void)s;waited++;}
+static int vdec_wait_inactive(struct amvdec_session *s) {(void)s;waited++;return 0;}
 static void amvdec_abort(struct amvdec_session *s) {(void)s;aborted++;}
+static void custom_drain(struct amvdec_session *s) {assert(s->stop_requested && !queued);custom_calls++;}
 static const u8 *sequence(u32 *len) {static const u8 eos[4];*len=4;return eos;}
 static int esparser_queue_eos(struct core *c,const u8 *data,u32 len) {(void)c;(void)data;assert(len==4);return result;}
 """
@@ -122,6 +123,14 @@ int main(void) {
     result=0;
     assert(vdec_decoder_cmd(&f,0,&cmd)==0);
     assert(aborted==1 && waited==1);
+    cmd.cmd=V4L2_DEC_CMD_START;assert(!vdec_decoder_cmd(&f,0,&cmd));
+    ops.eos_sequence=0;ops.drain=custom_drain;queued=2;
+    cmd.cmd=V4L2_DEC_CMD_STOP;assert(!vdec_decoder_cmd(&f,0,&cmd));
+    assert(!queued && custom_calls==1);
+    cmd.cmd=V4L2_DEC_CMD_START;assert(!vdec_decoder_cmd(&f,0,&cmd));
+    queued=2;blocked=1;cmd.cmd=V4L2_DEC_CMD_STOP;
+    assert(vdec_decoder_cmd(&f,0,&cmd)==-ETIMEDOUT);
+    assert(custom_calls==1 && aborted==2);
     return 0;
 }
 """
@@ -136,6 +145,46 @@ int main(void) {
                     "-Werror",
                     "-Wno-unused-parameter",
                     "-Wno-unused-variable",
+                    "-fsanitize=address,undefined",
+                    "-fno-pie",
+                    "-no-pie",
+                    str(path / "test.c"),
+                    "-o",
+                    str(path / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(path / "test")], check=True)
+
+    def test_abort_stops_input_and_errors_both_queues(self):
+        source = (ROOT / "vdec/vdec_helpers.c").read_text()
+        start = source.index("void amvdec_abort(")
+        end = source.index("EXPORT_SYMBOL_GPL(amvdec_abort)", start)
+        body = (
+            r"""
+#include <assert.h>
+#define WRITE_ONCE(p,v) ((p)=(v))
+#define dev_info(...) ((void)0)
+struct queue {int error;};
+struct ctx {struct {struct queue q;} cap_q_ctx,out_q_ctx;};
+struct core {int dev;};
+struct amvdec_session {struct ctx *m2m_ctx;struct core *core;int should_stop;};
+static void vb2_queue_error(struct queue *q){q->error=1;}
+"""
+            + source[start:end]
+            + r"""
+int main(void){struct ctx ctx={0};struct core core={0};struct amvdec_session s={.m2m_ctx=&ctx,.core=&core};amvdec_abort(&s);assert(s.should_stop && ctx.cap_q_ctx.q.error && ctx.out_q_ctx.q.error);return 0;}
+"""
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory)
+            (path / "test.c").write_text(body)
+            subprocess.run(
+                [
+                    "cc",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
                     "-fsanitize=address,undefined",
                     "-fno-pie",
                     "-no-pie",

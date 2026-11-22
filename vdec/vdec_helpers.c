@@ -737,6 +737,7 @@ EXPORT_SYMBOL_GPL(amvdec_src_change);
 void amvdec_abort(struct amvdec_session *sess)
 {
 	dev_info(sess->core->dev, "Aborting decoding session!\n");
+	WRITE_ONCE(sess->should_stop, 1);
 	vb2_queue_error(&sess->m2m_ctx->cap_q_ctx.q);
 	vb2_queue_error(&sess->m2m_ctx->out_q_ctx.q);
 }
