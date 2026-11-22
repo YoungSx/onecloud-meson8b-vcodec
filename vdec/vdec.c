@@ -129,7 +129,8 @@ static int vdec_wait_inactive(struct amvdec_session *sess)
 	u64 deadline = get_jiffies_64() + msecs_to_jiffies(3000);
 
 	/* A broken stream must not keep STOP or close waiting forever. */
-	while (time_is_after_jiffies64(sess->last_irq_jiffies +
+	while (READ_ONCE(sess->irq_active) ||
+	       time_is_after_jiffies64(READ_ONCE(sess->last_irq_jiffies) +
 				       msecs_to_jiffies(50))) {
 		if (!time_is_after_jiffies64(deadline))
 			return -ETIMEDOUT;
@@ -158,8 +159,10 @@ void amvdec_recycle(struct amvdec_session *sess, u32 fw_idx)
 	struct amvdec_buffer *new_buf;
 
 	new_buf = kmalloc(sizeof(*new_buf), GFP_KERNEL);
-	if (!new_buf)
+	if (!new_buf) {
+		amvdec_abort(sess);
 		return;
+	}
 	new_buf->fw_idx = fw_idx;
 
 	mutex_lock(&sess->bufs_recycle_lock);
@@ -1200,25 +1203,35 @@ static irqreturn_t vdec_isr(int irq, void *data)
 {
 	struct amvdec_core *core = data;
 	struct amvdec_session *sess = READ_ONCE(core->cur_sess);
+	irqreturn_t ret;
 
 	if (!sess)
 		return IRQ_NONE;
 
-	sess->last_irq_jiffies = get_jiffies_64();
+	WRITE_ONCE(sess->irq_active, true);
+	WRITE_ONCE(sess->last_irq_jiffies, get_jiffies_64());
 	wake_up_interruptible(&sess->recycle_wq);
 
-	return sess->fmt_out->codec_ops->isr(sess);
+	ret = sess->fmt_out->codec_ops->isr(sess);
+	if (ret != IRQ_WAKE_THREAD)
+		WRITE_ONCE(sess->irq_active, false);
+	return ret;
 }
 
 static irqreturn_t vdec_threaded_isr(int irq, void *data)
 {
 	struct amvdec_core *core = data;
 	struct amvdec_session *sess = READ_ONCE(core->cur_sess);
+	irqreturn_t ret;
 
 	if (!sess)
 		return IRQ_NONE;
 
-	return sess->fmt_out->codec_ops->threaded_isr(sess);
+	ret = sess->fmt_out->codec_ops->threaded_isr(sess);
+	/* Conversion in the threaded handler can outlast the inactivity window. */
+	WRITE_ONCE(sess->last_irq_jiffies, get_jiffies_64());
+	WRITE_ONCE(sess->irq_active, false);
+	return ret;
 }
 
 static const struct of_device_id vdec_dt_match[] = {

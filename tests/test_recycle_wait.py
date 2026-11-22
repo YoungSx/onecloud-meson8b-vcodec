@@ -32,6 +32,7 @@ struct amvdec_session {struct list_head bufs_recycle;int bufs_recycle_lock,recyc
 #define mutex_lock(p) ((void)(p))
 #define mutex_unlock(p) ((void)(p))
 static int wakeups;
+static void amvdec_abort(struct amvdec_session *s) {(void)s;assert(0);}
 #define wake_up_interruptible(p) ((void)(p),wakeups++)
 static void list_add_tail(struct list_head *p,struct list_head *h) {p->next=h;p->prev=h->prev;h->prev->next=p;h->prev=p;}
 static void list_del(struct list_head *p) {p->prev->next=p->next;p->next->prev=p->prev;}

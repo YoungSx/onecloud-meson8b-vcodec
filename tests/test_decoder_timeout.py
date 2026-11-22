@@ -15,17 +15,19 @@ class DecoderTimeoutTests(unittest.TestCase):
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 typedef uint64_t u64;
-struct amvdec_session {u64 last_irq_jiffies;};
-static u64 now;static int continuous;static struct amvdec_session *active;
+struct amvdec_session {u64 last_irq_jiffies;bool irq_active;};
+static u64 now,finish_irq;static int continuous;static struct amvdec_session *active;
+#define READ_ONCE(x) (x)
 #define msecs_to_jiffies(n) (n)
 #define time_is_after_jiffies64(n) ((n)>now)
 static u64 get_jiffies_64(void) {return now;}
-static void msleep(unsigned int n){now+=n;if(continuous)active->last_irq_jiffies=now;}
+static void msleep(unsigned int n){now+=n;if(continuous)active->last_irq_jiffies=now;if(finish_irq && now>=finish_irq){active->irq_active=false;active->last_irq_jiffies=now;finish_irq=0;}}
 """
             + source[start:end]
             + r"""
-int main(void){struct amvdec_session s={.last_irq_jiffies=100};active=&s;now=100;assert(!vdec_wait_inactive(&s));assert(now==150);now=200;s.last_irq_jiffies=100;assert(!vdec_wait_inactive(&s) && now==200);s.last_irq_jiffies=now;continuous=1;assert(vdec_wait_inactive(&s)==-ETIMEDOUT && now==3200);return 0;}
+int main(void){struct amvdec_session s={.last_irq_jiffies=100};active=&s;now=100;assert(!vdec_wait_inactive(&s));assert(now==150);now=200;s.last_irq_jiffies=100;assert(!vdec_wait_inactive(&s) && now==200);s.irq_active=true;finish_irq=325;assert(!vdec_wait_inactive(&s) && now==375);s.last_irq_jiffies=now;continuous=1;assert(vdec_wait_inactive(&s)==-ETIMEDOUT && now==3375);return 0;}
 """
         )
         with tempfile.TemporaryDirectory() as d:

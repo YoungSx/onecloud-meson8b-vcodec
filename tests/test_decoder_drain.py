@@ -66,6 +66,41 @@ int main(void) {
                     )
                     subprocess.run([str(path / "test")], check=True)
 
+    def test_drain_timeout_does_not_publish_success(self):
+        for codec in ("mpeg12", "mpeg4", "vc1", "mjpeg"):
+            with self.subTest(codec=codec):
+                source = (ROOT / ("vdec/codec_" + codec + ".c")).read_text()
+                start = source.index("static void codec_" + codec + "_drain_work(struct work_struct *work)\n{")
+                end = source.index("\nstatic void codec_" + codec + "_drain(struct", start)
+                body = r"""
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+typedef uint32_t u32;typedef uint64_t u64;
+struct work_struct {int unused;};
+struct amvdec_session {u64 last_irq_jiffies;bool irq_active;int esparser_queued_bufs;};
+struct CODEC {struct amvdec_session *sess;bool draining;};
+static struct CODEC state;
+static u64 now,finish_irq;static int continuous,aborts,flushes;
+#define container_of(p,t,m) (&state)
+#define READ_ONCE(x) (x)
+#define time_is_after_jiffies64(x) ((x)>now)
+#define msecs_to_jiffies(x) (x)
+static int atomic_read(int *p){return *p;}
+static void msleep(int n){now+=n;if(continuous)state.sess->last_irq_jiffies=now;if(finish_irq && now>=finish_irq){state.sess->irq_active=false;state.sess->last_irq_jiffies=now;finish_irq=0;}}
+static void amvdec_abort(struct amvdec_session *s){(void)s;aborts++;}
+static void amvdec_flush_capture_buffers(struct amvdec_session *s){(void)s;flushes++;}
+""".replace("CODEC", "codec_" + codec)
+                body += source[start:end]
+                body += r"""
+int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&s;state.draining=true;now=200;DRAIN(&w);assert(flushes==1 && !aborts && !state.draining);state.draining=true;s.irq_active=true;finish_irq=400;DRAIN(&w);assert(now==500 && flushes==2 && !aborts);state.draining=true;s.last_irq_jiffies=now;continuous=1;DRAIN(&w);assert(aborts==1 && flushes==2 && !state.draining);continuous=0;s.esparser_queued_bufs=2;state.draining=true;DRAIN(&w);assert(aborts==2 && flushes==2 && !state.draining);return 0;}
+""".replace("DRAIN", "codec_" + codec + "_drain_work")
+                with tempfile.TemporaryDirectory() as directory:
+                    path = pathlib.Path(directory)
+                    (path / "test.c").write_text(body)
+                    subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-fsanitize=address,undefined", "-fno-pie", "-no-pie", str(path / "test.c"), "-o", str(path / "test")], check=True)
+                    subprocess.run([str(path / "test")], check=True)
+
     def test_decoder_stop_returns_parser_error(self):
         source = (ROOT / "vdec/vdec.c").read_text()
         start = source.index("static int\nvdec_decoder_cmd(")
