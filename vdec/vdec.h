@@ -357,6 +357,7 @@ struct amvdec_session {
 	struct task_struct *recycle_thread;
 	wait_queue_head_t recycle_wq;
 	u32 recycle_pending;
+	bool recycle_paused;
 
 	struct list_head timestamps;
 	spinlock_t ts_spinlock; /* timestamp list lock */

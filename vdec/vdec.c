@@ -63,12 +63,15 @@ static int vdec_recycle_thread(void *data)
 
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(sess->recycle_wq,
-			kthread_should_stop() || READ_ONCE(sess->recycle_pending));
+			kthread_should_stop() ||
+			(READ_ONCE(sess->recycle_pending) &&
+			 !READ_ONCE(sess->recycle_paused)));
 		if (kthread_should_stop())
 			break;
 		mutex_lock(&sess->bufs_recycle_lock);
 		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
-			if (!codec_ops->can_recycle(core))
+			if (READ_ONCE(sess->recycle_paused) ||
+			    !codec_ops->can_recycle(core))
 				break;
 
 			codec_ops->recycle(core, tmp->fw_idx);
@@ -80,7 +83,8 @@ static int vdec_recycle_thread(void *data)
 
 		/* Wait only while the firmware's recycle mailbox is occupied. */
 		wait_event_interruptible_timeout(sess->recycle_wq,
-			kthread_should_stop() || codec_ops->can_recycle(core),
+			kthread_should_stop() || READ_ONCE(sess->recycle_paused) ||
+			codec_ops->can_recycle(core),
 			msecs_to_jiffies(5));
 	}
 

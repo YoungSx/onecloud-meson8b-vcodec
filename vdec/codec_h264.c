@@ -340,7 +340,23 @@ static void codec_h264_resume(struct amvdec_session *sess)
 	struct amvdec_core *core = sess->core;
 	struct codec_h264 *h264 = sess->priv;
 	u32 mb_width, mb_height, mb_total;
+	struct amvdec_buffer *pending, *next;
 	int ret;
+
+	if (core->platform->revision == VDEC_REVISION_MESON8B &&
+	    READ_ONCE(sess->recycle_paused)) {
+		/* Old slot numbers must not free pictures in the new buffer table. */
+		mutex_lock(&sess->bufs_recycle_lock);
+		list_for_each_entry_safe(pending, next, &sess->bufs_recycle, list) {
+			list_del(&pending->list);
+			kfree(pending);
+		}
+		sess->recycle_pending = 0;
+		amvdec_write_dos(core, AV_SCRATCH_7, 0);
+		amvdec_write_dos(core, AV_SCRATCH_8, 0);
+		amvdec_write_dos(core, AV_SCRATCH_9, 0);
+		mutex_unlock(&sess->bufs_recycle_lock);
+	}
 
 	ret = amvdec_set_canvases(sess,
 				  (u32[]){ ANC0_CANVAS_ADDR, 0 },
@@ -375,6 +391,8 @@ static void codec_h264_resume(struct amvdec_session *sess)
 	/* End of ref MV */
 	amvdec_write_dos(core, AV_SCRATCH_4, h264->ref_paddr + h264->ref_size);
 
+	WRITE_ONCE(sess->recycle_paused, false);
+	wake_up_interruptible(&sess->recycle_wq);
 	amvdec_write_dos(core, AV_SCRATCH_0, (h264->max_refs << 24) |
 					     (sess->num_dst_bufs << 16) |
 					     ((h264->max_refs - 1) << 8));
@@ -432,6 +450,11 @@ static void codec_h264_src_change(struct amvdec_session *sess)
 	dev_dbg(core->dev, "frame: %ux%u; crop: %u %u\n",
 		frame_width, frame_height, crop_right, crop_bottom);
 
+	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+		mutex_lock(&sess->bufs_recycle_lock);
+		WRITE_ONCE(sess->recycle_paused, true);
+		mutex_unlock(&sess->bufs_recycle_lock);
+	}
 	codec_h264_set_par(sess);
 	amvdec_src_change(sess, frame_width, frame_height, dpb_size);
 }
