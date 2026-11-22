@@ -28,3 +28,9 @@
 历史 USB URB `-121` 日志在 codec 前已存在，不能只看旧 dmesg 就归因于
 本驱动；对比本次加载与解码期间新增日志。失败 probe 的 `insmod` 可能仍
 返回成功，runtime loader 会额外检查两个设备名称。
+
+2026-11-22 的两轮 LAN/Tailnet失联不能混作同一事故：旧 VDEC1通用调频可
+重调以太网依赖的MPLL2，第一轮有高置信度证据；第二轮原厂频率混载后
+失联的journal尾部未落盘，仍未定案。详见[逐轮调查](../evidence/outage-investigation-2026-11-22/README.md)。
+`journalctl -b -1`未显示不代表归档都不存在，必要时按`--file`和`_BOOT_ID`
+核对损坏/归档文件。加载ramoops模块也不等于配置了可保存崩溃日志的内存。

@@ -1,0 +1,119 @@
+{
+  "authorization": "Read-only diagnostics and offline CCF simulation; temporary query module unloaded; no rate writes,stress,network rule changes or business restarts.",
+  "first_outage": {
+    "classification": "host Ethernet path failure; host continues running",
+    "high_confidence_mechanism": "unrestricted VDEC1 clk_set_rate selects and retunes shared MPLL2,which feeds Ethernet RGMII TX; static source reproduction and outage timing agree",
+    "live_pre_failure_clock_registers_available": false,
+    "causal_certainty": "high confidence mechanism; no direct register snapshot at failure",
+    "clock_selection_reproduced": {
+      "request182_parent": "fclk_div7",
+      "request182_divider": 2,
+      "request255_parent": "mpll2",
+      "request255_mpll_rate_hz": 255000000,
+      "ethernet_tx_before_hz": 124999102,
+      "ethernet_tx_predicted_hz": 63750000
+    },
+    "kernel_parent_index_issue": "VDEC selector advertises6parents but masks0x3; parent4 encodes0. Do not claim actual VDEC frequency equals software estimate.",
+    "timing": {
+      "first_test_start": {
+        "present": true,
+        "wall_utc": "2026-11-22T06:29:37Z",
+        "wall_cst": "14:29:37"
+      },
+      "first_remote_failure": {
+        "present": true,
+        "wall_utc": "2026-11-22T06:29:48Z",
+        "wall_cst": "14:29:48"
+      },
+      "first_logged_alive_after_failure": {
+        "present": true,
+        "wall_utc": "2026-11-22T07:45:43Z",
+        "wall_cst": "15:45:43",
+        "seconds_after_first_remote_failure": 4555
+      },
+      "first_wdt_after_failure": {
+        "present": true,
+        "wall_utc": "2026-11-22T07:45:09Z",
+        "wall_cst": "15:45:09"
+      }
+    },
+    "restoration_scope": "module reloads restore codec code; they do not restore a different clock consumer's MPLL",
+    "local_services_receipt_explanation": "Clock script checked127.0.0.1 HTTP and container state; those can allpass whileEthernet LAN and Tailnet are broken.",
+    "driver_fixed_parent_status": "Current installed5fedae9 explicitly selects fclk_div7 and sets an exact divider; guarded silicon test preservedMPLL2andfixedPLL.",
+    "read_only_round_rate_query": "Matched running kernel round255=255000000,actual clock tree unchanged before/after; probe unloaded."
+  },
+  "second_outage": {
+    "classification": "LAN and tailnet unavailable; full host hang not established",
+    "last_successful_test_uptime": 7259.413,
+    "corrupt_journal_header_uptime": 7271.320251,
+    "last_decodable_journal_uptime": 6923.573697,
+    "tail_region_all_zero": true,
+    "missing_persistent_window_seconds": 347.747,
+    "confirmed_root_cause": null,
+    "panic_or_oom_in_retained_window": false,
+    "user_confirmed_lan_unreachable": true,
+    "drivers_used_original_fixed_parent": true,
+    "possible_causes": "Ethernet MAC/DMA/PHY or kernel/DMA hang; storage/power/CPU contention not eliminated by missing tail",
+    "diagnostic_blind_spots": [
+      "CONFIG_SOFTLOCKUP_DETECTORisdisabled",
+      "CONFIG_DETECT_HUNG_TASKisdisabled",
+      "CONFIG_PSIisdisabled",
+      "ramoops loadedwithoutmemoryregion",
+      "journalpayload347.746554snotpersisted"
+    ],
+    "last_decodable_kernel_uptime": 6913.549001,
+    "missing_kernel_log_to_last_test_seconds": 345.864,
+    "current_driver_causality": "not established; the later DMA/locking safeguards are defects fixed separately, not proof of what triggered this outage"
+  },
+  "independent_findings": {
+    "proxy_mark_conflict": "ShellCrash local-output rules lack bypass exemption for0x80000/0xff0000 and overwrite eligible Tailscale IPv4 packet mark with0x1ed4; packets then route tolocaltable100",
+    "ethernet_watchdog": "writesEEE/autoneg unconditionally eachminute; first startup re-negotiation aligns with120s timer; steady writes do not necessarily restart hardware auto-neg when settings unchanged",
+    "usb_mapping": "bus1 SSD at480M,usb-storage; bus2 smart-card at12M; usb2-1 -121 is reader not SSD",
+    "pstore": "ramoops.mem_address=0,mem_size=0,no reservedramoopsnode; module loaded but no crash buffer",
+    "journals": "archived boot records readable with--file; defaultbootlisting misses somefiles,including corruptjournal",
+    "current_load": "Hidagent software uxplay restarts and concurrent OpenList/CrashCore CPU activity were observed. A 31.91-second read-only sample stayed reachable with no OOM or direct reclaim stall; this does not describe the missing failure window."
+  },
+  "source_sha256": {
+    "build/kernel/linux-5.15.79/drivers/clk/clk.c": "58dc0604cdd3744b8e5739d7675a94a425cf60a94ba54f6656e61240154eb1b6",
+    "build/kernel/linux-5.15.79/drivers/clk/clk-divider.c": "f33308870acf3820881a1493c0810c112862f2cf543f2b1e24125279195be29f",
+    "build/kernel/linux-5.15.79/drivers/clk/meson/clk-mpll.c": "e335ebe71bf56e38e3f2f05427a41a319f7af3d45e813ea15d79c950c87f9ad5",
+    "build/kernel/linux-5.15.79/drivers/clk/meson/meson8b.c": "3922d696e712d9004907cbc62c798a0d01fe618c0a736e65d39d22f9a7c7cffa",
+    "build/kernel/linux-5.15.79/drivers/net/ethernet/stmicro/stmmac/dwmac-meson8b.c": "e01dc6c277b37fd639070013a87e5f1b1c370cf2c7d4eb9a9aef1fd9a448f816"
+  },
+  "production_configuration_changed_in_this_investigation": false,
+  "user_confirmed_both_lan_failures": true,
+  "current_fixed_parent_hz": {
+    "MPLL2": 499996410,
+    "Ethernet_RGMII_TX": 124999102,
+    "VDEC1": 182142857,
+    "HEVC": 255000000,
+    "HCODEC": 318750000
+  },
+  "raw_evidence_sha256": {
+    "live-private.json.gz": "f6c1f03a3f65046233bfb79778a608e3cf3c8e9cd879828730bc53938fbd5a9b",
+    "archived-boots-private.json.gz": "dd92a5d6680ea72ab982b91c6735daa3faf173fcd1cf7b2e58cf5b18480ea9a6",
+    "previous-corrupt.journal.gz": "da8f62344e471a5eb3eaf77780248e372151e7563304ef1db7fcc7a4333757e8",
+    "health-samples-private.json.gz": "eb865efc83e86ab153b03b9042dcb911058627dc6f3bb6f64dddf6dc99592556",
+    "network-journal-private.json.gz": "326b7c2057934ecec30274a26f3dc31c32b44ce46c7cbe4e7e94089012583721",
+    "final-live-private.json.gz": "a49833444a65d1c487846cbe28335eb22f4622c45d30813efe2d3ccf373815d2"
+  },
+  "offline_reproduction": {
+    "function_names": [
+      "mux_is_better_rate",
+      "clk_mux_determine_rate_flags",
+      "_is_best_div",
+      "_next_div",
+      "clk_divider_bestdiv",
+      "rate_from_params",
+      "params_from_rate"
+    ],
+    "sanitizers": "ASan/UBSan on host",
+    "scope": "extracted selection logic with matching Meson8b parent wiring; no target clock write",
+    "source_kernel": "5.15.79",
+    "compilation_model": "ARMv7 limits represented by ULONG_MAX=0xffffffff and kernel abs32 adapter; native host execution",
+    "verified_requested_rates_hz": [
+      182142857,
+      255000000
+    ]
+  }
+}

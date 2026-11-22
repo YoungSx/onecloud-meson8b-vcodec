@@ -9,7 +9,7 @@ list is not complete.**
 
 | Priority | Implemented and checked | Remaining boundary |
 | --- | --- | --- |
-| P0 reliability | Wait for the threaded IRQ to finish before declaring inactivity; fail drain timeouts and recycle allocation failures; publish EOS once, after its LAST buffer is dequeued; preserve source-change LAST separately. Order firmware DMA writes and cancel timed-out transfers before freeing staging. | Previous two device outages still have no proven cause. Old H.264 short-output race is addressed by concrete ordering fixes, but bounded tests cannot prove elimination. Production sustained load stays paused. |
+| P0 reliability | Wait for the threaded IRQ to finish before declaring inactivity; fail drain timeouts and recycle allocation failures; publish EOS once, after its LAST buffer is dequeued; preserve source-change LAST separately. Order firmware DMA writes and cancel timed-out transfers before freeing staging. | The first outage now has a high-confidence shared-MPLL2 clock explanation; the second remains undetermined. Old H.264 short-output race is addressed by concrete ordering fixes, but bounded tests cannot prove elimination. Production sustained load stays paused. |
 | P0 deployment | New modules, matching overlay and autoload package installed; original v0.4.0 installation/firmware/unit/state preserved. Idle checks, checksums, rollback-on-load-failure and service probes used. Two-client QUERYCAP/EBUSY/takeover check passed. Production OpenList was not restarted. | New installed package has service restart/short content checks; a new cold boot has not been requested or tested. Temporary overlay isolation also lacks abnormal-reboot acceptance. |
 | P1 playback | Clean image and latest frontend played real HLS in a browser, sought forward into uncached content, backward, and to the end; no MediaError. Cached seeked events hit 12 and 50 exactly; cancel released hardware in 0.242s. | Buffering occurred. This is bounded playback, not a realtime or multi-browser guarantee. |
 | P1 performance | Run conversion on the existing pool worker outside the firmware IRQ. A copying slot remains queued and protected while IRQs queue other slots; separate delivery/reconfiguration locking protects lifetime. | Production CPU/memory load causes large timing variation; 1.3× realtime remains unmet. A high-priority queue experiment had no stable gain and was rejected. No higher clock retained. |
@@ -19,11 +19,20 @@ list is not complete.**
 
 ## Production recovery and diagnostics
 
-Earlier temporary255MHz and original182MHz mixed-load runs were followed by
-two connectivity failures requiring local reboots. The latter record ended at
-1169.753s with no completed/restored receipt. It is not a passing soak. The
-first experiment's retrieved receipt did report completed restoration; this
-does not establish its relationship to the later outage.
+The [read-only outage investigation](../evidence/outage-investigation-2026-11-22/README.md)
+separates the two failures. The 255 MHz experiment's old unrestricted rate path
+can select and retune Ethernet's shared MPLL2; extracted Linux 5.15.79 CCF
+selection reproduces the mechanism. LAN/Tailnet failed shortly after the
+experiment started, while host processes continued for over an hour. Module
+restoration and loopback HTTP checks did not establish Ethernet recovery.
+This is a high-confidence explanation, without a failure-time clock register
+snapshot. Current fixed-parent protection avoids that path.
+
+The later 182 MHz mixed-load run used protected fixed parents. Its journal is
+readable only by exact archived file/boot ID and is corrupt: its index records
+7271 s but the tail after 6924 s is all zero. The initiating fault remains unknown;
+this is not a passing soak or a reason to transfer the first cause to the
+second outage.
 
 After the second reboot, the temporary overlay had persisted at the canonical
 firmware path. Its checksum mismatch correctly blocked original autoload;
@@ -31,8 +40,10 @@ original overlay/modules/services were restored before further work. Subsequent
 explicitly authorized upgrades preserved that original installation, boot
 kernel/DT/CMA and business container configuration.
 
-There was no previous-boot journal or pstore record, and retained kernel logs
-ended about346s before the final successful sample. Cause remains undetermined.
+Some previous-boot journal entries were recovered from archived files, but the
+second outage still lacks its final 347.75 s and a crash stack. Ramoops has no
+configured memory reservation; lockup/hung-task detectors are disabled. The
+second cause remains undetermined.
 Development uses bounded checks and a transient, rotating, per-line-fsynced
 kernel log on persistent storage. It improves evidence retention but cannot
 capture every CPU/network hang. Raw production logs stay private.
@@ -49,5 +60,5 @@ CABAC/High-profile/B-picture encoding are not advertised.
 
 中文：新驱动已按授权部署，与新版 OpenList 配套使用；本轮补齐了 IRQ/EOS、
 固件 DMA 防护、异步转换和编码 VUI，并完成最新版浏览器的有界播放与跳转。
-研究线已移植现有解码格式，构建和设备树检查通过。整机失联根因、实时吞吐、
+研究线已移植现有解码格式，构建和设备树检查通过。首轮失联高置信度归因于旧时钟路径，第二轮根因、实时吞吐、
 旧格式完整性、异常重启和跨板验收仍开放，不能宣称全部完成。

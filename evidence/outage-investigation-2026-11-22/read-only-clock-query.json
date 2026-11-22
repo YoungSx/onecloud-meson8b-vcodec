@@ -1,0 +1,26 @@
+{
+  "status": "read-only-query-pass",
+  "query": "[35979.264640] clock-round-probe: before=182142857 round182=182142857 round255=255000000 after=182142857 (no clk_set_rate)",
+  "clocks_before": {
+    "fixed_pll": 2550000000,
+    "vdec_1_sel": 364285714,
+    "vdec_1_1_div": 182142857,
+    "vdec_1": 182142857,
+    "vdec_hevc": 255000000,
+    "vdec_hcodec": 318750000,
+    "mpll2": 499996410,
+    "c9410000.ethernet#rgmii_tx_en": 124999102
+  },
+  "clocks_after": {
+    "fixed_pll": 2550000000,
+    "vdec_1_sel": 364285714,
+    "vdec_1_1_div": 182142857,
+    "vdec_1": 182142857,
+    "vdec_hevc": 255000000,
+    "vdec_hcodec": 318750000,
+    "mpll2": 499996410,
+    "c9410000.ethernet#rgmii_tx_en": 124999102
+  },
+  "clock_rates_unchanged": true,
+  "utc": "2026-11-22T20:03:32Z"
+}

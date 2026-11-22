@@ -1,0 +1,3 @@
+request=182142857 divider=2 selected_parent=fclk_div7 parent_rate=364285714 output=182142857 ethernet_tx_if_mpll2_used=124999102 parent_index=3 encoded_index_with_mask_0x3=3
+request=255000000 divider=1 selected_parent=mpll2 parent_rate=255000000 output=255000000 ethernet_tx_if_mpll2_used=63750000 parent_index=4 encoded_index_with_mask_0x3=0
+Restoring only the decoder module does not restore a previously retuned Ethernet MPLL2.

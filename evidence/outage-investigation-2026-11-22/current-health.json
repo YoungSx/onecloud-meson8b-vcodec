@@ -1,0 +1,16 @@
+{
+  "captured_at_utc": "2026-11-22T19:50:34Z",
+  "boot_id": "15fe77b6-8e46-4c7a-91bf-581e1431cc72",
+  "uptime_seconds": 35201.17,
+  "installed_source": "5fedae9a74d2e6ec03c8fc2f6bf81d011ba82f33",
+  "pool_slots": 0,
+  "http_services": {
+    "openlist": 200,
+    "sublinkpro": 200,
+    "vocat": 200,
+    "homeassistant": 200
+  },
+  "arcane_running": true,
+  "hardware_watchdog": "inactive",
+  "kernel_reboots_during_read_only_investigation": false
+}
