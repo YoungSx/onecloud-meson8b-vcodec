@@ -14,10 +14,13 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 MODULES = ['meson8b_runtime', 'meson_vdec', 'meson_venc']
 MODULE_FILES = ['meson8b-runtime.ko', 'meson-vdec.ko', 'meson-venc.ko']
 PROVIDERS = ['clkc', 'canvas', 'pmu', 'reset']
+FIRMWARE_ROOT = Path('/lib/firmware')
+OVERLAY_FILE = 'meson/vdec/meson8b-runtime.dtbo'
 
 
 def sha(path):
@@ -154,22 +157,34 @@ def unload():
             subprocess.run(['rmmod', module], check=True)
 
 
-def load_package(package):
+def load_package(package, temporary_overlay=False):
     files = checked_package(package)
     check_target(package)
     for name, digest in files.items():
         if name.startswith('firmware/'):
-            deployed = Path('/lib/firmware') / Path(name).relative_to('firmware')
+            if temporary_overlay and name == 'firmware/' + OVERLAY_FILE:
+                continue
+            deployed = FIRMWARE_ROOT / Path(name).relative_to('firmware')
             if not deployed.is_file() or sha(deployed) != digest:
                 raise ValueError('deployed firmware differs from checked package: ' + name)
     if set(MODULES) & loaded():
         raise ValueError('codec modules already loaded')
     started = []
+    overlay_directory = None
     try:
+        overlay_arguments = []
+        if temporary_overlay:
+            # A reboot must still load the installed overlay after a failed test.
+            overlay_directory = tempfile.TemporaryDirectory(
+                prefix='meson8b-runtime-', dir=FIRMWARE_ROOT / 'meson/vdec')
+            overlay = Path(overlay_directory.name) / 'overlay.dtbo'
+            shutil.copyfile(package / 'firmware' / OVERLAY_FILE, overlay)
+            overlay_arguments = ['overlay_file=' + str(overlay.relative_to(FIRMWARE_ROOT))]
         for dependency in ('v4l2_mem2mem', 'videobuf2_dma_contig', 'videobuf2_vmalloc'):
             subprocess.run(['modprobe', dependency], check=True)
         for name, module in zip(MODULE_FILES, MODULES):
-            subprocess.run(['insmod', str(package / 'modules' / name)], check=True)
+            arguments = overlay_arguments if module == 'meson8b_runtime' else []
+            subprocess.run(['insmod', str(package / 'modules' / name), *arguments], check=True)
             started.append(module)
         # insmod may succeed even when a platform probe failed.
         names = {p.read_text().strip() for p in Path('/sys/class/video4linux').glob('*/name')}
@@ -180,6 +195,9 @@ def load_package(package):
             if module in loaded():
                 subprocess.run(['rmmod', module], check=True)
         raise
+    finally:
+        if overlay_directory is not None:
+            overlay_directory.cleanup()
 
 
 def main():
@@ -188,6 +206,10 @@ def main():
     for command in ('apply', 'check', 'load'):
         p = sub.add_parser(command)
         p.add_argument('package', type=Path)
+        if command == 'load':
+            p.add_argument('--temporary-overlay', action='store_true',
+                           help='load the checked overlay without replacing the installed file; '
+                                'requires a runtime module with overlay_file support')
         if command == 'apply':
             p.add_argument('state', type=Path)
     sub.add_parser('rollback').add_argument('state', type=Path)
@@ -199,7 +221,7 @@ def main():
         unload()
         return
     if args.command == 'load':
-        load_package(args.package.resolve())
+        load_package(args.package.resolve(), args.temporary_overlay)
         return
     if args.command == 'rollback':
         if os.geteuid():

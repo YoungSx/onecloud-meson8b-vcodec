@@ -53,6 +53,28 @@ sudo python3 runtime-package/scripts/runtime-device.py apply runtime-package /ro
 sudo python3 runtime-package/scripts/runtime-device.py rollback /root/manual-codec-state
 ```
 
+## 开发 overlay 的临时加载
+
+在役机当前已暂停持续负载实验。以下用于有救援入口的开发设备，不是升级
+流程。不要为一次测试覆盖 `/lib/firmware/meson/vdec/meson8b-runtime.dtbo`：
+异常重启会使原安装包的校验失败，原编解码服务无法自动恢复。
+
+最新开发脚本可从已校验的包生成独立临时 overlay 文件，经 runtime 模块的
+只读 `overlay_file` 参数加载。成功或失败后移除临时文件；突然掉电时即使
+独立文件残留，原 overlay 与原 systemd 安装也不受影响。其他微码必须仍与
+已部署固件一致。此路径要求配套的新 runtime 模块，主机失败清理测试和
+5.15.79 交叉构建通过，尚未做实机重启验收。
+
+```sh
+sudo sh scripts/dev-swap.sh dev --overlay candidate.dtbo \
+  runtime/meson8b-runtime.ko vdec/meson-vdec.ko venc/meson-venc.ko
+sudo sh scripts/dev-swap.sh release
+```
+
+直接使用新版本加载器时，先在空闲设备卸载原模块，然后运行
+`runtime-device.py load CHECKED_PACKAGE --temporary-overlay`；测试结束卸载
+候选模块并启动原服务。此命令不替换原固件或安装自动加载。
+
 ## 完整回滚
 
 结束客户端后执行当前安装中的移除脚本：

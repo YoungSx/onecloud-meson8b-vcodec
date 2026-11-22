@@ -2,6 +2,7 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('runtime_device', ROOT / 'scripts/runtime-device.py')
@@ -10,6 +11,64 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeDeviceTests(unittest.TestCase):
+    def test_temporary_overlay_preserves_installed_file_and_cleans_up_on_failure(self):
+        for fail in (False, True):
+            with self.subTest(fail=fail), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                package, firmware = root / 'package', root / 'firmware'
+                relative = pathlib.Path(runtime.OVERLAY_FILE)
+                candidate = package / 'firmware' / relative
+                deployed = firmware / relative
+                candidate.parent.mkdir(parents=True)
+                deployed.parent.mkdir(parents=True)
+                candidate.write_bytes(b'candidate overlay')
+                deployed.write_bytes(b'installed overlay')
+                codec = 'meson/vdec/meson8b_h264.bin'
+                (firmware / codec).write_bytes(b'installed microcode')
+                files = {'firmware/' + str(relative): runtime.sha(candidate),
+                         'firmware/' + codec: runtime.sha(firmware / codec)}
+                modules = set()
+                overlay_paths = []
+
+                def run(args, check):
+                    self.assertTrue(check)
+                    self.assertEqual(deployed.read_bytes(), b'installed overlay')
+                    if args[0] == 'insmod':
+                        name = runtime.MODULES[runtime.MODULE_FILES.index(pathlib.Path(args[1]).name)]
+                        if name == 'meson8b_runtime':
+                            self.assertEqual(len(args), 3)
+                            self.assertTrue(args[2].startswith('overlay_file='))
+                            overlay = firmware / args[2].split('=', 1)[1]
+                            overlay_paths.append(overlay)
+                            self.assertEqual(overlay.read_bytes(), b'candidate overlay')
+                        elif fail and name == 'meson_venc':
+                            raise runtime.subprocess.CalledProcessError(1, args)
+                        modules.add(name)
+                    elif args[0] == 'rmmod':
+                        modules.remove(args[1])
+
+                nodes = [Mock(), Mock()]
+                nodes[0].read_text.return_value = 'meson-video-decoder'
+                nodes[1].read_text.return_value = 'meson-video-encoder'
+                with patch.object(runtime, 'FIRMWARE_ROOT', firmware), \
+                        patch.object(runtime, 'checked_package', return_value=files), \
+                        patch.object(runtime, 'check_target'), \
+                        patch.object(runtime, 'loaded', side_effect=lambda: modules.copy()), \
+                        patch.object(runtime.subprocess, 'run', side_effect=run), \
+                        patch.object(runtime.Path, 'glob', return_value=nodes):
+                    if fail:
+                        with self.assertRaises(runtime.subprocess.CalledProcessError):
+                            runtime.load_package(package, temporary_overlay=True)
+                        self.assertFalse(modules)
+                    else:
+                        runtime.load_package(package, temporary_overlay=True)
+                        self.assertEqual(modules, set(runtime.MODULES))
+                self.assertEqual(len(overlay_paths), 1)
+                self.assertFalse(overlay_paths[0].exists())
+                self.assertFalse(overlay_paths[0].parent.exists())
+                self.assertEqual(deployed.read_bytes(), b'installed overlay')
+                self.assertEqual((firmware / codec).read_bytes(), b'installed microcode')
+
     def test_bilingual_docs_are_checked_and_omissions_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)

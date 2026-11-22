@@ -4,6 +4,7 @@
 # installed package stay untouched; "release" restores the service.
 #
 #   dev-swap.sh dev DIR/meson-vdec.ko [DIR/meson-venc.ko]
+#   dev-swap.sh dev --overlay FILE.dtbo DIR/meson8b-runtime.ko DIR/meson-vdec.ko
 #   dev-swap.sh release
 #
 # The development package is the installed package with the given modules
@@ -28,6 +29,12 @@ in_use() {
 case ${1:-} in
 dev)
 	shift
+	overlay=
+	if [ "${1:-}" = --overlay ]; then
+		[ $# -ge 3 ] || { echo 'usage: dev-swap.sh dev --overlay FILE.dtbo MODULE.ko...' >&2; exit 2; }
+		overlay=$2
+		shift 2
+	fi
 	[ $# -ge 1 ] || { echo 'usage: dev-swap.sh dev MODULE.ko...' >&2; exit 2; }
 	! in_use || exit 1
 	rm -rf "$dev"
@@ -37,10 +44,21 @@ dev)
 	for module do
 		install -m 644 "$module" "$dev/modules/$(basename "$module")"
 	done
+	if [ -n "$overlay" ]; then
+		install -m 644 "$overlay" "$dev/firmware/meson/vdec/meson8b-runtime.dtbo"
+	fi
 	(cd "$dev" && find . -type f -printf '%P\0' | sort -z | xargs -0 sha256sum) > "$dev.sums"
 	mv "$dev.sums" "$dev/SHA256SUMS"
 	systemctl stop meson8b-vcodec.service
-	python3 "$tool" load "$dev"
+	if [ -n "$overlay" ]; then
+		if ! python3 "$(dirname -- "$0")/runtime-device.py" load "$dev" --temporary-overlay; then
+			systemctl start meson8b-vcodec.service
+			exit 1
+		fi
+	elif ! python3 "$tool" load "$dev"; then
+		systemctl start meson8b-vcodec.service
+		exit 1
+	fi
 	echo "development modules loaded: $(md5sum "$dev"/modules/*.ko | awk '{print $1}' | tr '\n' ' ')"
 	;;
 release)

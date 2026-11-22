@@ -18,6 +18,9 @@ static int overlay_id;
 static bool ready;
 static void __iomem *dos_base;
 static DEFINE_SPINLOCK(dos_lock);
+static char *overlay_file = OVERLAY_FILE;
+module_param(overlay_file, charp, 0444);
+MODULE_PARM_DESC(overlay_file, "Firmware name of the runtime device-tree overlay");
 
 void __iomem *meson8b_runtime_dos_base(void)
 {
@@ -99,7 +102,7 @@ static int __init meson8b_runtime_init(void)
 		of_node_put(np);
 		return -EEXIST;
 	}
-	ret = request_firmware_direct(&fw, OVERLAY_FILE, NULL);
+	ret = request_firmware_direct(&fw, overlay_file, NULL);
 	if (ret)
 		return ret;
 	if (fw->size > SZ_64K) {
