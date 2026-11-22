@@ -6,7 +6,7 @@
 
 | Priority | Work | Current result and remaining boundary |
 | --- | --- | --- |
-| 1 | Decoder integrity and recovery | Immediate parser completion ordering has a deterministic host reproducer; the candidate passed 15 complete 300-picture H.264 hash runs with official FFmpeg and bounded rawvideo output threads. Delayed-EOS/LAST experiments were rejected. Rare H.264 short output and older-codec tails are not declared solved. |
+| 1 | Decoder integrity and recovery | Immediate parser completion ordering has a deterministic host reproducer; the candidate passed 15 complete 300-picture H.264 hash runs with official FFmpeg and bounded rawvideo output threads. Custom drains now own LAST completion, and parser terminator failures abort rather than schedule success. Separate marker experiments were rejected; rare H.264 short output and older-codec tails are not declared solved. |
 | 2 | 1080p performance | Write-combined staging and bulk row copies reduce one 8 s 1080p case from 29.527 s to 10.098 s. Still below the original 1.3× realtime target; scaling is expensive on Cortex-A5. |
 | 3 | Rate control and quality | Standard official bitrate/QP/GOP works. Keep the silicon-tested P-QP ceiling rather than trading more bits and worse quality at QP >32. Nine 90-picture static/motion/scene PSNR cases and a 30-minute, 11880-picture official-FFmpeg encoder regression passed; low targets still saturate. No strict CBR or arbitrary-target promise. |
 | 4 | Standard controls | Baseline/Level 4.0 controls match observed SPS; reject unsupported profiles/levels. Standard contiguous NV12 accepts official software-scaled input. |
@@ -50,3 +50,12 @@ H.264 acceptance is 15 × 300 complete picture hashes. Do not describe this
 as a 30-minute soak of the new decoder. Default multithreaded checksum output
 can hold every capture buffer; standard single-thread filter/rawvideo options
 avoid the reproduced truncation without changing FFmpeg.
+
+## Drain follow-up
+
+[Drain ownership and failure propagation](../evidence/drain-2026-11-22/README.md)
+records the next decoder fix: custom drains finish LAST themselves, and a
+failed parser terminator fails the queues. The final candidate passed 900
+H.264 and 90 HEVC picture hashes and legacy completion with CAPTURE 1/8,
+then restored the original module. MPEG tail counts/content still expose
+missing pictures. Marker reordering produced wrong pictures and was removed.

@@ -7,6 +7,11 @@ changed.
 
 ## Unreleased
 
+- Let custom decoder drains own LAST completion and propagate failed EOS
+  parser writes through queue errors and STOP returns. Cover the failure
+  paths with extracted-function tests and retain actual tail/content limits
+  in [drain regression](evidence/drain-2026-11-22/README.md).
+
 - Target unmodified official FFmpeg by default; remove the private peak/CPB
   option and retain only optional reproducible bug fixes.
 - Accept standard contiguous NV12 on MPLANE queues alongside NV12M so official
