@@ -1,6 +1,6 @@
 {
   "kernel": "7.3.4",
-  "patches": 26,
+  "patches": 27,
   "formats": [
     "H.264",
     "HEVC Main 8-bit",
@@ -9,7 +9,7 @@
     "VC-1 advanced",
     "MJPEG"
   ],
-  "module_sha256": "2a5b39a6d1933849847d5e0d45ab8932d2f258f6237377ae1bd5dafd51096794",
+  "module_sha256": "bae442f7d943b817cf25758eb069ba49935501a0fe55ed83c10ae482e0c1e11e",
   "module_build": "pass",
   "full_vmlinux_modules": "pass",
   "arm_dtbs_schema": "pass",

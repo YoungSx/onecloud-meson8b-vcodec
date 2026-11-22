@@ -57,7 +57,7 @@ bash scripts/package-release.sh v0.1.0 build/release-v0.1.0
 
 ## 当前开发部署
 
-2026-11-22 按用户明确授权部署 source `3ee2fb1`，保留原 v0.4.0 包、固件、
+2026-11-22 按用户明确授权部署 source `5fedae9`，保留原 v0.4.0 包、固件、
 unit 与 state。新 IRQ/EOS、转换、VUI、DMA 防护的有界实机结果和未完成稳定性
 边界见[本轮部署](../evidence/development-2026-11-22/README.md)。研究线未部署。
 本轮没有创建稳定版标签或发布，不能由 CI 全绿推出长期稳定性通过。

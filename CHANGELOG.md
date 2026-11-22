@@ -13,7 +13,7 @@ changed.
   while IRQs queue other pictures; preserve STREAMOFF/reconfiguration lifetime.
 - Publish H.264 crop/color/timing VUI, keep the streaming frame period stable,
   and order/cancel firmware DMA before releasing staging memory.
-- Port runtime decode formats and completion fixes to the 26-patch Linux7.3.4
+- Port runtime decode formats and completion fixes to the 27-patch Linux7.3.4
   research series with shared DOS syscon and genpd bridge ownership.
 - Deploy new modules with the official-FFmpeg OpenList image, retain original
   v0.4.0 rollback data, and record bounded browser/content/recovery evidence.

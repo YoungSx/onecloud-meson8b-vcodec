@@ -1,7 +1,7 @@
 # Deployed development work,2026-11-22
 
 The user explicitly requested the new driver on WanOS. Installed runtime source
-is `3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066`. Original boot kernel,
+is `5fedae9a74d2e6ec03c8fc2f6bf81d011ba82f33`. Original boot kernel,
 boot DT,CMA,business container settings and the original v0.4.0 rollback
 installation remain preserved. The overall development goal is not complete.
 
@@ -24,6 +24,11 @@ installation remain preserved. The overall development goal is not complete.
   [build tail](research-build.log),[ODROID check](research-odroid.log): full
   Linux7.3.4 kernel/modules and ARM binding checks. Runtime formats are ported,
   but no research-kernel/static-DT or second-board hardware is available.
+- [Resolution-switch regression](resolution-switch-regression.json): after
+  H.264 shrank back to320×240,first pictures matched later ones.
+  [Mailbox isolation fix](resolution-switch-fix.json) restored all130 picture
+  signatures at CAPTURE1/4; [deployed switch checks](deployed-resolution-switch.log)
+  also pass H.264130 and HEVC50 pictures at CAPTURE1.
 - [Decoder exclusivity](decoder-exclusivity.log): two open handles, QUERYCAP
   succeeds while busy, second STREAMON returns EBUSY, takeover after release.
 - [Final deployed regression](final-regression.json): four H.264 runs match

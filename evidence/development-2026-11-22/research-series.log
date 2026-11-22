@@ -113,4 +113,8 @@ applied 0024-vdec1-firmware-dma-ordering.patch
 patching file drivers/staging/media/meson/vdec/vdec.c
 patching file drivers/staging/media/meson/vdec/vdec.h
 applied 0025-decoder-session-ownership.patch
-PASS: 26 patches apply to pristine-mainline in order
+patching file drivers/staging/media/meson/vdec/vdec.c
+patching file drivers/staging/media/meson/vdec/codec_h264.c
+patching file drivers/staging/media/meson/vdec/vdec.h
+applied 0026-h264-recycle-stream-boundary.patch
+PASS: 27 patches apply to pristine-mainline in order

@@ -1,7 +1,7 @@
 # Current development and acceptance status
 
 Official unmodified FFmpeg remains the compatibility target. Current deployed
-runtime source is `3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066`; production OpenList
+runtime source is `5fedae9a74d2e6ec03c8fc2f6bf81d011ba82f33`; production OpenList
 uses `v4.2.10-official-ffmpeg-a845b34-clean`. New driver deployment was explicitly
 authorized. [Current evidence](../evidence/development-2026-11-22/README.md)
 records tested module hashes and bounded acceptance. **The whole development
@@ -14,8 +14,8 @@ list is not complete.**
 | P1 playback | Clean image and latest frontend played real HLS in a browser, sought forward into uncached content, backward, and to the end; no MediaError. Cached seeked events hit 12 and 50 exactly; cancel released hardware in 0.242s. | Buffering occurred. This is bounded playback, not a realtime or multi-browser guarantee. |
 | P1 performance | Run conversion on the existing pool worker outside the firmware IRQ. A copying slot remains queued and protected while IRQs queue other slots; separate delivery/reconfiguration locking protects lifetime. | Production CPU/memory load causes large timing variation; 1.3× realtime remains unmet. A high-priority queue experiment had no stable gain and was rejected. No higher clock retained. |
 | P2 encoder | Add SPS/VUI crop, negotiated color range/known colorimetry and coded-picture period. Reject frame-period changes while streaming. Stock `h264_metadata` can supply explicit color tags after an actual colorspace conversion. 30,30000/1001,24 fps MP4 duration/count/softdecode pass. | Official V4L2 wrappers do not forward every color option; unknown V4L2 colorimetry stays unspecified. Rate control is VBR; low targets may saturate at the validated QP32 ceiling. Strict CBR,HRD and pacing are absent. |
-| P2 research | 26 patches port all existing runtime decode formats to Linux 7.3.4: independent pool, IRQ/EOS ordering, VDEC1 legacy formats and HEVC Main 8. Shared DOS uses syscon; genpd owns VDEC1/HEVC AO bridge power; fixed clock parents avoid MPLL retuning. Full kernel/modules,ARM DTBs,bindings and ODROID checks pass locally. | No second board or serial test device exists. Research kernel is not booted on production; cross-board/static-DT runtime acceptance remains open. |
-| P3 formats | H.264/HEVC direct-client CAPTURE 1/2/4/20/32,full-range MJPEG and six early STREAMOFF/reopen cases passed with new conversion/EOS paths. Firmware and budget errors have bounded recovery. | MPEG/VC-1 tails and particular MPEG-4 B-picture content remain incomplete. Official FFmpeg checksum output with CAPTURE2 has a separate retention boundary. No guessed/replayed-picture drain fix is merged. |
+| P2 research | 27 patches port all existing runtime decode formats to Linux 7.3.4: independent pool, IRQ/EOS ordering, VDEC1 legacy formats and HEVC Main 8. Shared DOS uses syscon; genpd owns VDEC1/HEVC AO bridge power; fixed clock parents avoid MPLL retuning. Full kernel/modules,ARM DTBs,bindings and ODROID checks pass locally. | No second board or serial test device exists. Research kernel is not booted on production; cross-board/static-DT runtime acceptance remains open. |
+| P3 formats | H.264/HEVC direct-client CAPTURE 1/2/4/20/32,full-range MJPEG and six early STREAMOFF/reopen cases passed with new conversion/EOS paths. Firmware and budget errors have bounded recovery. H.264 stream changes pause recycling and clear old slot mailboxes; joined130-picture content checks pass at CAPTURE1/4. | MPEG/VC-1 tails and particular MPEG-4 B-picture content remain incomplete. Official FFmpeg checksum output with CAPTURE2 has a separate retention boundary. No guessed/replayed-picture drain fix is merged. |
 
 ## Production recovery and diagnostics
 
