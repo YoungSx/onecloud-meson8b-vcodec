@@ -11869,7 +11869,7 @@
 +obj-m += meson-venc.o
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/h264-sps.h
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,188 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Add a right-edge crop to the microcode's SPS. The microcode writes
@@ -11883,6 +11883,12 @@
 +#define MESON_VENC_H264_SPS_H
 +
 +#define VENC_SPS_MAX		64	/* bytes of one SPS NAL unit */
++
++struct venc_vui {
++	u32 tick, scale;
++	u8 primaries, transfer, matrix;
++	bool full_range;
++};
 +
 +struct venc_bits {
 +	u8 *data;
@@ -11976,10 +11982,11 @@
 +/*
 + * Rewrite SPS NAL unit @nal (header byte, no start code) with
 + * frame_crop_right_offset @crop_right, in chroma samples, keeping the
-+ * other offsets. @out holds 2 * VENC_SPS_MAX bytes. Returns the new NAL
++ * other offsets and optional VUI. @out holds 2 * VENC_SPS_MAX bytes. Returns the new NAL
 + * unit length, or 0 if the SPS is not of the expected form.
 + */
-+static inline u32 venc_sps_crop_right(const u8 *nal, u32 len, u32 crop_right, u8 *out)
++static inline u32 venc_sps_rewrite(const u8 *nal, u32 len, u32 crop_right,
++				   const struct venc_vui *vui, u8 *out)
 +{
 +	u8 in[VENC_SPS_MAX], rbsp[VENC_SPS_MAX] = { 0 };
 +	struct venc_bits r = { in, 0, 0, false }, w = { rbsp, VENC_SPS_MAX, 0, false };
@@ -12018,7 +12025,29 @@
 +	venc_put_bits(&w, !!value, 1);
 +	for (i = 0; value && i < 4; i++)
 +		venc_put_ue(&w, crop[i]);
-+	venc_put_bits(&w, 0, 1);			/* vui_parameters_present_flag */
++	venc_put_bits(&w, !!vui, 1);		/* vui_parameters_present_flag */
++	if (vui) {
++		venc_put_bits(&w, 0, 1);		/* aspect_ratio_info_present */
++		venc_put_bits(&w, 0, 1);		/* overscan_info_present */
++		venc_put_bits(&w, 1, 1);		/* video_signal_type_present */
++		venc_put_bits(&w, 5, 3);		/* unspecified video format */
++		venc_put_bits(&w, vui->full_range, 1);
++		venc_put_bits(&w, 1, 1);		/* colour_description_present */
++		venc_put_bits(&w, vui->primaries, 8);
++		venc_put_bits(&w, vui->transfer, 8);
++		venc_put_bits(&w, vui->matrix, 8);
++		venc_put_bits(&w, 0, 1);		/* chroma_loc_info_present */
++		venc_put_bits(&w, !!(vui->tick && vui->scale), 1);
++		if (vui->tick && vui->scale) {
++			venc_put_bits(&w, vui->tick, 32);
++			venc_put_bits(&w, vui->scale, 32);
++			venc_put_bits(&w, 0, 1);	/* timestamps may be variable */
++		}
++		venc_put_bits(&w, 0, 1);		/* nal_hrd_parameters_present */
++		venc_put_bits(&w, 0, 1);		/* vcl_hrd_parameters_present */
++		venc_put_bits(&w, 0, 1);		/* pic_struct_present */
++		venc_put_bits(&w, 0, 1);		/* bitstream_restriction */
++	}
 +	venc_put_bits(&w, 1, 1);			/* rbsp_stop_one_bit */
 +	while (w.bit % 8)
 +		venc_put_bits(&w, 0, 1);
@@ -13004,7 +13033,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2372 @@
+@@ -0,0 +1,2443 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -13928,21 +13957,92 @@
 +
 +/*
 + * The SEQUENCE command leaves "00 00 00 01 SPS 00 00 00 01 PPS". Crop the
-+ * padding columns when the coded width differs from the visible one.
++ * padding columns and publish negotiated colorimetry and nominal timing.
 + */
-+static int venc_crop_sps(struct venc_ctx *ctx)
++static int venc_update_sps(struct venc_ctx *ctx)
 +{
 +	u8 sps[2 * VENC_SPS_MAX], *headers = ctx->sps_pps, *merged;
 +	u32 size = ctx->sps_pps_size, end, len;
++	struct v4l2_pix_format_mplane pix = {};
++	struct venc_vui vui = { .primaries = 2, .transfer = 2, .matrix = 2 };
++	u32 transfer, matrix, quantization;
 +
-+	if (ctx->coded_width == ctx->width)
-+		return 0;
++	venc_fill_cap_fmt(ctx, &pix, V4L2_PIX_FMT_H264);
++	switch (pix.colorspace) {
++	case V4L2_COLORSPACE_REC709:
++	case V4L2_COLORSPACE_SRGB:
++	case V4L2_COLORSPACE_JPEG:
++		vui.primaries = 1;
++		break;
++	case V4L2_COLORSPACE_SMPTE170M:
++		vui.primaries = 6;
++		break;
++	case V4L2_COLORSPACE_470_SYSTEM_BG:
++		vui.primaries = 5;
++		break;
++	case V4L2_COLORSPACE_SMPTE240M:
++		vui.primaries = 7;
++		break;
++	case V4L2_COLORSPACE_BT2020:
++		vui.primaries = 9;
++		break;
++	}
++	transfer = pix.xfer_func == V4L2_XFER_FUNC_DEFAULT ?
++		V4L2_MAP_XFER_FUNC_DEFAULT(pix.colorspace) : pix.xfer_func;
++	if (pix.colorspace != V4L2_COLORSPACE_DEFAULT || pix.xfer_func) {
++		switch (transfer) {
++		case V4L2_XFER_FUNC_709:
++			vui.transfer = 1;
++			break;
++		case V4L2_XFER_FUNC_SRGB:
++			vui.transfer = 13;
++			break;
++		case V4L2_XFER_FUNC_SMPTE240M:
++			vui.transfer = 7;
++			break;
++		case V4L2_XFER_FUNC_NONE:
++			vui.transfer = 8;
++			break;
++		case V4L2_XFER_FUNC_SMPTE2084:
++			vui.transfer = 16;
++			break;
++		}
++	}
++	matrix = pix.ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT ?
++		V4L2_MAP_YCBCR_ENC_DEFAULT(pix.colorspace) : pix.ycbcr_enc;
++	if (pix.colorspace != V4L2_COLORSPACE_DEFAULT || pix.ycbcr_enc) {
++		switch (matrix) {
++		case V4L2_YCBCR_ENC_709:
++			vui.matrix = 1;
++			break;
++		case V4L2_YCBCR_ENC_601:
++			vui.matrix = 6;
++			break;
++		case V4L2_YCBCR_ENC_SMPTE240M:
++			vui.matrix = 7;
++			break;
++		case V4L2_YCBCR_ENC_BT2020:
++			vui.matrix = 9;
++			break;
++		case V4L2_YCBCR_ENC_BT2020_CONST_LUM:
++			vui.matrix = 10;
++			break;
++		}
++	}
++	quantization = pix.quantization == V4L2_QUANTIZATION_DEFAULT ?
++		V4L2_MAP_QUANTIZATION_DEFAULT(false, pix.colorspace, matrix) :
++		pix.quantization;
++	vui.full_range = quantization == V4L2_QUANTIZATION_FULL_RANGE;
++	mutex_lock(ctx->ctrl_handler.lock);
++	vui.tick = ctx->timeperframe.numerator;
++	vui.scale = ctx->timeperframe.denominator * 2;
++	mutex_unlock(ctx->ctrl_handler.lock);
 +	for (end = 4; end + 4 <= size && memcmp(headers + end, "\0\0\0\1", 4); end++)
 +		;
 +	if (size < 4 || memcmp(headers, "\0\0\0\1", 4) || end + 4 > size)
 +		return -EINVAL;
-+	len = venc_sps_crop_right(headers + 4, end - 4,
-+				  (ctx->coded_width - ctx->width) / 2, sps);
++	len = venc_sps_rewrite(headers + 4, end - 4,
++				  (ctx->coded_width - ctx->width) / 2, &vui, sps);
 +	if (!len)
 +		return -EINVAL;
 +	merged = kmalloc(4 + len + size - end, GFP_KERNEL);
@@ -14025,7 +14125,7 @@
 +		       ctx->sps_pps_size + pps);
 +		ctx->sps_pps_size += pps;
 +		ctx->sps_pps_valid = true;
-+		ret = venc_crop_sps(ctx);
++		ret = venc_update_sps(ctx);
 +	}
 +	if (ret) {
 +		dev_err(core->dev, "SPS/PPS generation failed (%d), hw_status %u\n",

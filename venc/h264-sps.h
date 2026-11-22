@@ -12,6 +12,12 @@
 
 #define VENC_SPS_MAX		64	/* bytes of one SPS NAL unit */
 
+struct venc_vui {
+	u32 tick, scale;
+	u8 primaries, transfer, matrix;
+	bool full_range;
+};
+
 struct venc_bits {
 	u8 *data;
 	u32 size, bit;
@@ -104,10 +110,11 @@ static inline u32 venc_ebsp(const u8 *in, u32 len, u8 *out)
 /*
  * Rewrite SPS NAL unit @nal (header byte, no start code) with
  * frame_crop_right_offset @crop_right, in chroma samples, keeping the
- * other offsets. @out holds 2 * VENC_SPS_MAX bytes. Returns the new NAL
+ * other offsets and optional VUI. @out holds 2 * VENC_SPS_MAX bytes. Returns the new NAL
  * unit length, or 0 if the SPS is not of the expected form.
  */
-static inline u32 venc_sps_crop_right(const u8 *nal, u32 len, u32 crop_right, u8 *out)
+static inline u32 venc_sps_rewrite(const u8 *nal, u32 len, u32 crop_right,
+				   const struct venc_vui *vui, u8 *out)
 {
 	u8 in[VENC_SPS_MAX], rbsp[VENC_SPS_MAX] = { 0 };
 	struct venc_bits r = { in, 0, 0, false }, w = { rbsp, VENC_SPS_MAX, 0, false };
@@ -146,7 +153,29 @@ static inline u32 venc_sps_crop_right(const u8 *nal, u32 len, u32 crop_right, u8
 	venc_put_bits(&w, !!value, 1);
 	for (i = 0; value && i < 4; i++)
 		venc_put_ue(&w, crop[i]);
-	venc_put_bits(&w, 0, 1);			/* vui_parameters_present_flag */
+	venc_put_bits(&w, !!vui, 1);		/* vui_parameters_present_flag */
+	if (vui) {
+		venc_put_bits(&w, 0, 1);		/* aspect_ratio_info_present */
+		venc_put_bits(&w, 0, 1);		/* overscan_info_present */
+		venc_put_bits(&w, 1, 1);		/* video_signal_type_present */
+		venc_put_bits(&w, 5, 3);		/* unspecified video format */
+		venc_put_bits(&w, vui->full_range, 1);
+		venc_put_bits(&w, 1, 1);		/* colour_description_present */
+		venc_put_bits(&w, vui->primaries, 8);
+		venc_put_bits(&w, vui->transfer, 8);
+		venc_put_bits(&w, vui->matrix, 8);
+		venc_put_bits(&w, 0, 1);		/* chroma_loc_info_present */
+		venc_put_bits(&w, !!(vui->tick && vui->scale), 1);
+		if (vui->tick && vui->scale) {
+			venc_put_bits(&w, vui->tick, 32);
+			venc_put_bits(&w, vui->scale, 32);
+			venc_put_bits(&w, 0, 1);	/* timestamps may be variable */
+		}
+		venc_put_bits(&w, 0, 1);		/* nal_hrd_parameters_present */
+		venc_put_bits(&w, 0, 1);		/* vcl_hrd_parameters_present */
+		venc_put_bits(&w, 0, 1);		/* pic_struct_present */
+		venc_put_bits(&w, 0, 1);		/* bitstream_restriction */
+	}
 	venc_put_bits(&w, 1, 1);			/* rbsp_stop_one_bit */
 	while (w.bit % 8)
 		venc_put_bits(&w, 0, 1);

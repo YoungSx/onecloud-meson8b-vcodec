@@ -13,7 +13,7 @@ typedef uint32_t u32;
 static const u8 sps854[] = { 0x67, 0x42, 0x00, 0x28, 0xf4, 0x06, 0xc1, 0xec, 0x80 };
 static const u8 sps1080[] = { 0x67, 0x42, 0x00, 0x28, 0xf4, 0x03, 0xc0, 0x11, 0x3f, 0x2a };
 
-struct fields { u32 width_mbs, height_mbs, crop[4]; };
+struct fields { u32 width_mbs, height_mbs, crop[4]; bool has_vui; struct venc_vui vui; };
 
 static struct fields parse(const u8 *nal, u32 len)
 {
@@ -31,7 +31,24 @@ static struct fields parse(const u8 *nal, u32 len)
 	if (venc_get_bits(&b, 1))
 		for (int i = 0; i < 4; i++)
 			f.crop[i] = venc_get_ue(&b);
-	assert(venc_get_bits(&b, 1) == 0 && venc_get_bits(&b, 1) == 1 && !b.error);
+	f.has_vui = venc_get_bits(&b, 1);
+	if (f.has_vui) {
+		assert(venc_get_bits(&b, 2) == 0); /* aspect ratio, overscan absent */
+		assert(venc_get_bits(&b, 1) == 1 && venc_get_bits(&b, 3) == 5);
+		f.vui.full_range = venc_get_bits(&b, 1);
+		assert(venc_get_bits(&b, 1) == 1);
+		f.vui.primaries = venc_get_bits(&b, 8);
+		f.vui.transfer = venc_get_bits(&b, 8);
+		f.vui.matrix = venc_get_bits(&b, 8);
+		assert(venc_get_bits(&b, 1) == 0); /* chroma location absent */
+		if (venc_get_bits(&b, 1)) {
+			f.vui.tick = venc_get_bits(&b, 32);
+			f.vui.scale = venc_get_bits(&b, 32);
+			assert(venc_get_bits(&b, 1) == 0); /* variable timestamps allowed */
+		}
+		assert(venc_get_bits(&b, 4) == 0); /* no HRD, pic_struct, restriction */
+	}
+	assert(venc_get_bits(&b, 1) == 1 && !b.error);
 	return f;
 }
 
@@ -45,24 +62,38 @@ int main(void)
 	f = parse(sps854, sizeof(sps854));
 	assert(f.width_mbs == 54 && f.height_mbs == 30 && !f.crop[1]);
 	/* an unchanged window reproduces the microcode's bytes exactly */
-	len = venc_sps_crop_right(sps1080, sizeof(sps1080), 0, out);
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 0, NULL, out);
 	assert(len == sizeof(sps1080) && !memcmp(out, sps1080, len));
-	len = venc_sps_crop_right(sps854, sizeof(sps854), 0, out);
+	len = venc_sps_rewrite(sps854, sizeof(sps854), 0, NULL, out);
 	assert(len == sizeof(sps854) && !memcmp(out, sps854, len));
 	/* 864 coded, 854 visible: right offset 5 chroma samples */
-	len = venc_sps_crop_right(sps854, sizeof(sps854), 5, out);
+	len = venc_sps_rewrite(sps854, sizeof(sps854), 5, NULL, out);
 	f = parse(out, len);
 	assert(f.width_mbs == 54 && f.height_mbs == 30 && f.crop[0] == 0 &&
 	       f.crop[1] == 5 && f.crop[2] == 0 && f.crop[3] == 0);
 	/* the bottom crop survives a right crop */
-	len = venc_sps_crop_right(sps1080, sizeof(sps1080), 8, out);
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 8, NULL, out);
 	f = parse(out, len);
 	assert(f.width_mbs == 120 && f.height_mbs == 68 && f.crop[1] == 8 && f.crop[3] == 4);
+	/* Fractional frame period and BT.709 metadata coexist with cropping. */
+	struct venc_vui vui = { .tick = 1001, .scale = 60000,
+		.primaries = 1, .transfer = 1, .matrix = 1 };
+	len = venc_sps_rewrite(sps854, sizeof(sps854), 5, &vui, out);
+	f = parse(out, len);
+	assert(f.has_vui && f.crop[1] == 5 && !f.vui.full_range &&
+	       f.vui.primaries == 1 && f.vui.transfer == 1 && f.vui.matrix == 1 &&
+	       f.vui.tick == 1001 && f.vui.scale == 60000);
+	vui.full_range = true; vui.transfer = 13; vui.matrix = 6;
+	vui.tick = vui.scale = 0;
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out);
+	f = parse(out, len);
+	assert(f.has_vui && f.crop[3] == 4 && f.vui.full_range &&
+	       f.vui.transfer == 13 && f.vui.matrix == 6 && !f.vui.tick);
 	/* anything else is refused */
 	memcpy(out, sps854, sizeof(sps854));
 	out[1] = 100;	/* High profile carries chroma_format_idc */
-	assert(!venc_sps_crop_right(out, sizeof(sps854), 5, out + VENC_SPS_MAX));
-	assert(!venc_sps_crop_right(sps854 + 1, sizeof(sps854) - 1, 5, out));
+	assert(!venc_sps_rewrite(out, sizeof(sps854), 5, NULL, out + VENC_SPS_MAX));
+	assert(!venc_sps_rewrite(sps854 + 1, sizeof(sps854) - 1, 5, NULL, out));
 	/* emulation prevention round trip */
 	len = venc_ebsp(padded, sizeof(padded), escaped);
 	assert(len == 10 && escaped[2] == 3 && escaped[8] == 3);

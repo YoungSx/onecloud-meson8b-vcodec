@@ -921,21 +921,92 @@ static u32 venc_coded_width(struct venc_ctx *ctx)
 
 /*
  * The SEQUENCE command leaves "00 00 00 01 SPS 00 00 00 01 PPS". Crop the
- * padding columns when the coded width differs from the visible one.
+ * padding columns and publish negotiated colorimetry and nominal timing.
  */
-static int venc_crop_sps(struct venc_ctx *ctx)
+static int venc_update_sps(struct venc_ctx *ctx)
 {
 	u8 sps[2 * VENC_SPS_MAX], *headers = ctx->sps_pps, *merged;
 	u32 size = ctx->sps_pps_size, end, len;
+	struct v4l2_pix_format_mplane pix = {};
+	struct venc_vui vui = { .primaries = 2, .transfer = 2, .matrix = 2 };
+	u32 transfer, matrix, quantization;
 
-	if (ctx->coded_width == ctx->width)
-		return 0;
+	venc_fill_cap_fmt(ctx, &pix, V4L2_PIX_FMT_H264);
+	switch (pix.colorspace) {
+	case V4L2_COLORSPACE_REC709:
+	case V4L2_COLORSPACE_SRGB:
+	case V4L2_COLORSPACE_JPEG:
+		vui.primaries = 1;
+		break;
+	case V4L2_COLORSPACE_SMPTE170M:
+		vui.primaries = 6;
+		break;
+	case V4L2_COLORSPACE_470_SYSTEM_BG:
+		vui.primaries = 5;
+		break;
+	case V4L2_COLORSPACE_SMPTE240M:
+		vui.primaries = 7;
+		break;
+	case V4L2_COLORSPACE_BT2020:
+		vui.primaries = 9;
+		break;
+	}
+	transfer = pix.xfer_func == V4L2_XFER_FUNC_DEFAULT ?
+		V4L2_MAP_XFER_FUNC_DEFAULT(pix.colorspace) : pix.xfer_func;
+	if (pix.colorspace != V4L2_COLORSPACE_DEFAULT || pix.xfer_func) {
+		switch (transfer) {
+		case V4L2_XFER_FUNC_709:
+			vui.transfer = 1;
+			break;
+		case V4L2_XFER_FUNC_SRGB:
+			vui.transfer = 13;
+			break;
+		case V4L2_XFER_FUNC_SMPTE240M:
+			vui.transfer = 7;
+			break;
+		case V4L2_XFER_FUNC_NONE:
+			vui.transfer = 8;
+			break;
+		case V4L2_XFER_FUNC_SMPTE2084:
+			vui.transfer = 16;
+			break;
+		}
+	}
+	matrix = pix.ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT ?
+		V4L2_MAP_YCBCR_ENC_DEFAULT(pix.colorspace) : pix.ycbcr_enc;
+	if (pix.colorspace != V4L2_COLORSPACE_DEFAULT || pix.ycbcr_enc) {
+		switch (matrix) {
+		case V4L2_YCBCR_ENC_709:
+			vui.matrix = 1;
+			break;
+		case V4L2_YCBCR_ENC_601:
+			vui.matrix = 6;
+			break;
+		case V4L2_YCBCR_ENC_SMPTE240M:
+			vui.matrix = 7;
+			break;
+		case V4L2_YCBCR_ENC_BT2020:
+			vui.matrix = 9;
+			break;
+		case V4L2_YCBCR_ENC_BT2020_CONST_LUM:
+			vui.matrix = 10;
+			break;
+		}
+	}
+	quantization = pix.quantization == V4L2_QUANTIZATION_DEFAULT ?
+		V4L2_MAP_QUANTIZATION_DEFAULT(false, pix.colorspace, matrix) :
+		pix.quantization;
+	vui.full_range = quantization == V4L2_QUANTIZATION_FULL_RANGE;
+	mutex_lock(ctx->ctrl_handler.lock);
+	vui.tick = ctx->timeperframe.numerator;
+	vui.scale = ctx->timeperframe.denominator * 2;
+	mutex_unlock(ctx->ctrl_handler.lock);
 	for (end = 4; end + 4 <= size && memcmp(headers + end, "\0\0\0\1", 4); end++)
 		;
 	if (size < 4 || memcmp(headers, "\0\0\0\1", 4) || end + 4 > size)
 		return -EINVAL;
-	len = venc_sps_crop_right(headers + 4, end - 4,
-				  (ctx->coded_width - ctx->width) / 2, sps);
+	len = venc_sps_rewrite(headers + 4, end - 4,
+				  (ctx->coded_width - ctx->width) / 2, &vui, sps);
 	if (!len)
 		return -EINVAL;
 	merged = kmalloc(4 + len + size - end, GFP_KERNEL);
@@ -1018,7 +1089,7 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		       ctx->sps_pps_size + pps);
 		ctx->sps_pps_size += pps;
 		ctx->sps_pps_valid = true;
-		ret = venc_crop_sps(ctx);
+		ret = venc_update_sps(ctx);
 	}
 	if (ret) {
 		dev_err(core->dev, "SPS/PPS generation failed (%d), hw_status %u\n",
