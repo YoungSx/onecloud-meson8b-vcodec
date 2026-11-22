@@ -1,0 +1,1725 @@
+Subject: [PATCH RFC] media: meson: port completion ordering and Meson8b VDEC1 formats
+
+Keep DOS syscon and genpd/runtime PM. Transfer the runtime IRQ completion,
+async capture conversion and EOS ownership fixes. Add the existing vendor
+MPEG-1/2, MPEG-4, VC-1 advanced and MJPEG VDEC1 paths to the research
+platform. Known codec tail/content limits remain. HEVC needs separate
+power-domain plumbing and is not advertised. Compile checks are not board
+acceptance.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/Makefile b/drivers/staging/media/meson/vdec/Makefile
+--- a/drivers/staging/media/meson/vdec/Makefile
++++ b/drivers/staging/media/meson/vdec/Makefile
+@@ -4,7 +4,7 @@
+ meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o
+ meson-vdec-objs += meson8b-capture.o
+ meson-vdec-objs += vdec_1.o vdec_hevc.o
+-meson-vdec-objs += codec_mpeg12.o codec_h264.o codec_hevc_common.o codec_vp9.o
++meson-vdec-objs += codec_mpeg12.o codec_mpeg4.o codec_vc1.o codec_mjpeg.o codec_h264.o codec_hevc_common.o codec_vp9.o
+ 
+ obj-$(CONFIG_VIDEO_MESON_VDEC) += meson-vdec.o
+ 
+diff --git a/drivers/staging/media/meson/vdec/codec_mjpeg.c b/drivers/staging/media/meson/vdec/codec_mjpeg.c
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_mjpeg.c
+@@ -0,0 +1,293 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ * Copyright (C) 2026 meson8b-vcodec port from the Hardkernel 3.10
++ * vendor vmjpeg.c (Tim Yao <timyao@amlogic.com>)
++ */
++
++#include <media/v4l2-mem2mem.h>
++#include <media/videobuf2-dma-contig.h>
++
++#include "codec_mjpeg.h"
++#include "dos_regs.h"
++#include "esparser.h"
++#include "vdec_helpers.h"
++
++/* MJPEG needs no workspace: unlike mpeg12/mpeg4/vc1 the microcode keeps
++ * all its state in scratch registers and LMEM (vendor vmjpeg.c).
++ */
++
++/* map firmware registers to known MJPEG functions (vendor vmjpeg.c) */
++#define MREG_DECODE_PARAM	AV_SCRATCH_2
++#define MREG_TO_AMRISC		AV_SCRATCH_8
++#define MREG_FROM_AMRISC	AV_SCRATCH_9
++#define MREG_FRAME_OFFSET	AV_SCRATCH_A
++
++/* canvas snapshot table: one packed Y/U/V canvas id per slot,
++ * written as v<<16 | v<<8 | y by set_canvas_nv12m
++ */
++#define MJPEG_CANVAS_TABLE	AV_SCRATCH_4
++
++#define PICINFO_BUF_IDX_MASK	0x0007
++#define PICINFO_INTERLACE	0x0020
++#define PICINFO_INTERLACE_FIRST	0x0010
++
++#define MJPEG_NUM_BUFFERS	4
++
++struct codec_mjpeg {
++	struct amvdec_session *sess;
++	struct delayed_work drain_work;
++	bool draining;
++};
++
++static int codec_mjpeg_can_recycle(struct amvdec_core *core)
++{
++	return !amvdec_read_dos(core, MREG_TO_AMRISC);
++}
++
++static void codec_mjpeg_recycle(struct amvdec_core *core, u32 buf_idx)
++{
++	amvdec_write_dos(core, MREG_TO_AMRISC, buf_idx + 1);
++}
++
++static void codec_mjpeg_drain_work(struct work_struct *work);
++
++static int codec_mjpeg_start(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	struct codec_mjpeg *mjpeg;
++
++	/* Vendor vmjpeg_prot_init() reset sequence for M8B */
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++	}
++
++	mjpeg = kzalloc(sizeof(*mjpeg), GFP_KERNEL);
++	if (!mjpeg)
++		return -ENOMEM;
++
++	INIT_DELAYED_WORK(&mjpeg->drain_work, codec_mjpeg_drain_work);
++	mjpeg->sess = sess;
++
++	sess->keyframe_found = 1;
++	sess->priv = mjpeg;
++
++	return 0;
++}
++
++/* Same firmware behaviour as MPEG1/2 and MPEG-4: the firmware snapshots
++ * the AV_SCRATCH canvas table when its processor is released, so program
++ * the four decode slots and restart it at the first capture STREAMON
++ * (vendor amvdec_start sequence).
++ *
++ * MJPEG register setup that must precede the restart (vendor
++ * vmjpeg_prot_init()):
++ * - MREG_DECODE_PARAM = (height << 4) | 0x8000: the ucode gets the frame
++ *   height and its buffer address mode from the host, there is no
++ *   in-stream size like MPEG sequence headers.
++ * - The PSCALE triangle filter table: the ucode runs every picture
++ *   through the post-scaler, an unprogrammed BMEM yields corrupt output.
++ */
++static void codec_mjpeg_init_hw(struct amvdec_session *sess)
++{
++	static const u32 filt_coef[33] = {
++		0x20402000, 0x20402000, 0x1f3f2101, 0x1f3f2101,
++		0x1e3e2202, 0x1e3e2202, 0x1d3d2303, 0x1d3d2303,
++		0x1c3c2404, 0x1c3c2404, 0x1b3b2505, 0x1b3b2505,
++		0x1a3a2606, 0x1a3a2606, 0x19392707, 0x19392707,
++		0x18382808, 0x18382808, 0x17372909, 0x17372909,
++		0x16362a0a, 0x16362a0a, 0x15352b0b, 0x15352b0b,
++		0x14342c0c, 0x14342c0c, 0x13332d0d, 0x13332d0d,
++		0x12322e0e, 0x12322e0e, 0x11312f0f, 0x11312f0f,
++		0x10303010,
++	};
++	struct amvdec_core *core = sess->core;
++	int i;
++
++	/* initial display-buffer fifo depth and pointer (vendor
++	 * vmjpeg_prot_init: AV_SCRATCH_0/1)
++	 */
++	amvdec_write_dos(core, AV_SCRATCH_0, 12);
++	amvdec_write_dos(core, AV_SCRATCH_1, 0x031a);
++
++	/* tell the ucode the frame geometry (no stream headers to parse) */
++	amvdec_write_dos(core, MREG_DECODE_PARAM,
++			 (sess->height << 4) | 0x8000);
++
++	/* pscale enable + PSCALE cbus bmem enable; 4-point triangle */
++	amvdec_write_dos(core, PSCALE_CTRL, 0xc000);
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 0);
++	for (i = 0; i < 33; i++) {
++		amvdec_write_dos(core, PSCALE_BMEM_DAT, 0);
++		amvdec_write_dos(core, PSCALE_BMEM_DAT, filt_coef[i]);
++	}
++
++	/* Y/C horizontal + vertical initial info (vendor init_scaler) */
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 37 * 2);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x0008);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x60000000);
++
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 41 * 2);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x0008);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x60000000);
++
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 39 * 2);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x0008);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x60000000);
++
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 43 * 2);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x0008);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x60000000);
++
++	/* Y/C horizontal + vertical phase steps: 1:1 scaling */
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 36 * 2 + 1);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x10000);
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 40 * 2 + 1);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x10000);
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 38 * 2 + 1);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x10000);
++	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 42 * 2 + 1);
++	amvdec_write_dos(core, PSCALE_BMEM_DAT, 0x10000);
++
++	/* reset pscaler */
++	amvdec_write_dos(core, DOS_SW_RESET0, BIT(10));
++	amvdec_write_dos(core, DOS_SW_RESET0, 0);
++	amvdec_write_dos(core, PSCALE_RST, 0x7);
++	amvdec_write_dos(core, PSCALE_RST, 0x0);
++
++	amvdec_write_dos(core, MREG_TO_AMRISC, 0);
++	amvdec_write_dos(core, MREG_FROM_AMRISC, 0);
++	amvdec_write_dos(core, MCPU_INTR_MSK, 0xffff);
++	/* set interrupt mapping for vld */
++	amvdec_write_dos(core, VDEC_ASSIST_AMR1_INT8, 8);
++}
++
++static void codec_mjpeg_resume(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++
++	if (amvdec_set_canvases(sess, (u32[]){ MJPEG_CANVAS_TABLE, 0 },
++				(u32[]){ MJPEG_NUM_BUFFERS, 0 })) {
++		amvdec_abort(sess);
++		return;
++	}
++	codec_mjpeg_init_hw(sess);
++
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, MPSR, 0);
++		amvdec_write_dos(core, CPSR, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, MPSR, 1);
++	}
++}
++
++/* The next JPEG start releases the final picture without decoding a copy. */
++static const u8 eos_sequence[] = { 0xff, 0xd8, 0xff };
++
++static void codec_mjpeg_drain_work(struct work_struct *work)
++{
++	struct codec_mjpeg *mjpeg =
++		container_of(work, struct codec_mjpeg, drain_work.work);
++	struct amvdec_session *sess = mjpeg->sess;
++	static const u32 max_polls = 150; /* 3 s at 20 ms */
++	u32 polls = 0;
++
++	while (polls++ < max_polls) {
++		bool irq_quiet = !READ_ONCE(sess->irq_active) &&
++			!time_is_after_jiffies64(
++			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
++		int in_flight = atomic_read(&sess->esparser_queued_bufs);
++
++		if (irq_quiet && in_flight <= 1)
++			break;
++
++		msleep(20);
++	}
++
++	mjpeg->draining = false;
++	if (polls > max_polls) {
++		amvdec_abort(sess);
++		return;
++	}
++	amvdec_flush_capture_buffers(sess);
++}
++
++static void codec_mjpeg_drain(struct amvdec_session *sess)
++{
++	struct codec_mjpeg *mjpeg = sess->priv;
++
++	if (mjpeg->draining)
++		return;
++
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
++	mjpeg->draining = true;
++	schedule_delayed_work(&mjpeg->drain_work, 0);
++}
++
++static int codec_mjpeg_stop(struct amvdec_session *sess)
++{
++	struct codec_mjpeg *mjpeg = sess->priv;
++
++	cancel_delayed_work_sync(&mjpeg->drain_work);
++
++	return 0;
++}
++
++static irqreturn_t codec_mjpeg_threaded_isr(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	u32 reg;
++	u32 buffer_index;
++	u32 field = V4L2_FIELD_NONE;
++	u32 offset;
++
++	amvdec_write_dos(core, ASSIST_MBOX1_CLR_REG, 1);
++	reg = amvdec_read_dos(core, MREG_FROM_AMRISC);
++	if (!(reg & PICINFO_BUF_IDX_MASK))
++		return IRQ_HANDLED;
++
++	buffer_index = ((reg & PICINFO_BUF_IDX_MASK) - 1) & (MJPEG_NUM_BUFFERS - 1);
++	offset = amvdec_read_dos(core, MREG_FRAME_OFFSET);
++
++	if (reg & PICINFO_INTERLACE)
++		field = (reg & PICINFO_INTERLACE_FIRST) ?
++			V4L2_FIELD_INTERLACED_TB :
++			V4L2_FIELD_INTERLACED_BT;
++
++	amvdec_dst_buf_done_idx(sess, buffer_index, offset, field);
++
++	/* the ucode raises the next picinfo only once this is cleared
++	 * (vendor vmjpeg_isr)
++	 */
++	amvdec_write_dos(core, MREG_FROM_AMRISC, 0);
++
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t codec_mjpeg_isr(struct amvdec_session *sess)
++{
++	return IRQ_WAKE_THREAD;
++}
++
++struct amvdec_codec_ops codec_mjpeg_ops = {
++	.start = codec_mjpeg_start,
++	.stop = codec_mjpeg_stop,
++	.isr = codec_mjpeg_isr,
++	.threaded_isr = codec_mjpeg_threaded_isr,
++	.can_recycle = codec_mjpeg_can_recycle,
++	.recycle = codec_mjpeg_recycle,
++	.drain = codec_mjpeg_drain,
++	.resume = codec_mjpeg_resume,
++};
+diff --git a/drivers/staging/media/meson/vdec/codec_mjpeg.h b/drivers/staging/media/meson/vdec/codec_mjpeg.h
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_mjpeg.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ */
++
++#ifndef __MESON_VDEC_CODEC_MJPEG_H_
++#define __MESON_VDEC_CODEC_MJPEG_H_
++
++#include "vdec.h"
++
++extern struct amvdec_codec_ops codec_mjpeg_ops;
++
++#endif
+diff --git a/drivers/staging/media/meson/vdec/codec_mpeg12.c b/drivers/staging/media/meson/vdec/codec_mpeg12.c
+--- a/drivers/staging/media/meson/vdec/codec_mpeg12.c
++++ b/drivers/staging/media/meson/vdec/codec_mpeg12.c
+@@ -9,10 +9,11 @@
+ 
+ #include "codec_mpeg12.h"
+ #include "dos_regs.h"
++#include "esparser.h"
+ #include "vdec_helpers.h"
+ 
+ #define SIZE_WORKSPACE		SZ_128K
+-/* Offset subtracted by the firmware from the workspace paddr */
++/* Offset substracted by the firmware from the workspace paddr */
+ #define WORKSPACE_OFFSET	(5 * SZ_1K)
+ 
+ /* map firmware registers to known MPEG1/2 functions */
+@@ -40,15 +41,22 @@
+ 	/* Buffer for the MPEG1/2 Workspace */
+ 	void	  *workspace_vaddr;
+ 	dma_addr_t workspace_paddr;
++
++	struct amvdec_session *sess;
++	struct delayed_work drain_work;
++	bool draining;
+ };
+ 
+-static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB7 };
+-
+-static const u8 *codec_mpeg12_eos_sequence(u32 *len)
+-{
+-	*len = ARRAY_SIZE(eos_sequence);
+-	return eos_sequence;
+-}
++/* Sequence end, then one picture start. The m8 firmware completes a
++ * picture only when the next one starts, so the sequence end alone leaves
++ * the final picture pending; the extra start code releases it. A second
++ * start code would release the empty picture the first one began, which
++ * reaches userspace as a stale canvas, so exactly one is sent.
++ */
++static const u8 eos_sequence[SZ_1K] = {
++	0x00, 0x00, 0x01, 0xB7,
++	0x00, 0x00, 0x01, 0x00, 0x00, 0x08, 0x00, 0x00,
++};
+ 
+ static int codec_mpeg12_can_recycle(struct amvdec_core *core)
+ {
+@@ -59,6 +67,8 @@
+ {
+ 	amvdec_write_dos(core, MREG_BUFFERIN, buf_idx + 1);
+ }
++
++static void codec_mpeg12_drain_work(struct work_struct *work);
+ 
+ static int codec_mpeg12_start(struct amvdec_session *sess)
+ {
+@@ -66,7 +76,19 @@
+ 	struct codec_mpeg12 *mpeg12;
+ 	int ret;
+ 
+-	mpeg12 = kzalloc_obj(*mpeg12);
++	/* Match the vendor vmpeg12_prot_init() reset sequence: GXL
++	 * resets the decode blocks inside its own power-up path,
++	 * while M8B needs the explicit DOS_SW_RESET0/MDEC_SW_RESET pulses
++	 * before the firmware processor runs.
++	 */
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6) | BIT(4));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_write_dos(core, MDEC_SW_RESET, BIT(7));
++		amvdec_write_dos(core, MDEC_SW_RESET, 0);
++	}
++
++	mpeg12 = kzalloc(sizeof(*mpeg12), GFP_KERNEL);
+ 	if (!mpeg12)
+ 		return -ENOMEM;
+ 
+@@ -79,11 +101,6 @@
+ 		ret = -ENOMEM;
+ 		goto free_mpeg12;
+ 	}
+-
+-	ret = amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
+-					(u32[]){ 8, 0 });
+-	if (ret)
+-		goto free_workspace;
+ 
+ 	amvdec_write_dos(core, POWER_CTL_VLD, BIT(4));
+ 	amvdec_write_dos(core, MREG_CO_MV_START,
+@@ -100,24 +117,116 @@
+ 	amvdec_write_dos(core, MREG_FATAL_ERROR, 0);
+ 	amvdec_write_dos(core, MREG_WAIT_BUFFER, 0);
+ 
++	INIT_DELAYED_WORK(&mpeg12->drain_work, codec_mpeg12_drain_work);
++	mpeg12->sess = sess;
++
+ 	sess->keyframe_found = 1;
+ 	sess->priv = mpeg12;
+ 
+ 	return 0;
+ 
+-free_workspace:
+-	dma_free_coherent(core->dev, SIZE_WORKSPACE, mpeg12->workspace_vaddr,
+-			  mpeg12->workspace_paddr);
++
+ free_mpeg12:
+ 	kfree(mpeg12);
+ 
+ 	return ret;
+ }
+ 
++/* The canvas list must be programmed only once userspace has allocated
++ * and queued its capture buffers (stateful m2m: that happens after
++ * STREAMON(OUTPUT)). Unlike H.264, the firmware raises no source-change
++ * event, so this runs from the first STREAMON(CAPTURE) via the resume
++ * gate in vdec_start_streaming.
++ *
++ * The firmware snapshots the AV_SCRATCH canvas table when its processor
++ * is released (MPSR = 1), which already happened at STREAMON(OUTPUT)
++ * with the table still empty. No ES data is fed before this point
++ * (esparser gate in esparser_queue_all), so restarting the processor
++ * re-runs the snapshot against the table programmed above without
++ * losing decode state. Vendor amvdec_start() restart sequence.
++ */
++static void codec_mpeg12_resume(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++
++	if (amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
++				(u32[]){ 8, 0 })) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, MPSR, 0);
++		amvdec_write_dos(core, CPSR, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, MPSR, 1);
++	}
++}
++
++/* The m8 firmware emits a picture only once the next one starts, so at
++ * end of stream the final picture is never completed by hardware.
++ * Watch from a work context (the drain ioctl must not block: while it
++ * slept, userspace could not recycle capture buffers and the 8 decode
++ * canvases ran dry). Once IRQs go quiet and no input remains in flight,
++ * hand the queued capture buffers back as an empty LAST frame + EOS.
++ */
++static void codec_mpeg12_drain_work(struct work_struct *work)
++{
++	struct codec_mpeg12 *mpeg12 =
++		container_of(work, struct codec_mpeg12, drain_work.work);
++	struct amvdec_session *sess = mpeg12->sess;
++	static const u32 max_polls = 150; /* 3 s at 20 ms */
++	u32 polls = 0;
++
++	while (polls++ < max_polls) {
++		bool irq_quiet = !READ_ONCE(sess->irq_active) &&
++			!time_is_after_jiffies64(
++			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
++		int in_flight = atomic_read(&sess->esparser_queued_bufs);
++
++		if (irq_quiet && in_flight <= 1)
++			break;
++
++		msleep(20);
++	}
++
++	mpeg12->draining = false;
++	if (polls > max_polls) {
++		amvdec_abort(sess);
++		return;
++	}
++	amvdec_flush_capture_buffers(sess);
++}
++
++static void codec_mpeg12_drain(struct amvdec_session *sess)
++{
++	struct codec_mpeg12 *mpeg12 = sess->priv;
++
++	if (mpeg12->draining)
++		return;
++
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	mpeg12->draining = true;
++	schedule_delayed_work(&mpeg12->drain_work, 0);
++}
++
+ static int codec_mpeg12_stop(struct amvdec_session *sess)
+ {
+ 	struct codec_mpeg12 *mpeg12 = sess->priv;
+ 	struct amvdec_core *core = sess->core;
++
++	cancel_delayed_work_sync(&mpeg12->drain_work);
+ 
+ 	if (mpeg12->workspace_vaddr)
+ 		dma_free_coherent(core->dev, SIZE_WORKSPACE,
+@@ -206,5 +315,6 @@
+ 	.threaded_isr = codec_mpeg12_threaded_isr,
+ 	.can_recycle = codec_mpeg12_can_recycle,
+ 	.recycle = codec_mpeg12_recycle,
+-	.eos_sequence = codec_mpeg12_eos_sequence,
++	.drain = codec_mpeg12_drain,
++	.resume = codec_mpeg12_resume,
+ };
+diff --git a/drivers/staging/media/meson/vdec/codec_mpeg4.c b/drivers/staging/media/meson/vdec/codec_mpeg4.c
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_mpeg4.c
+@@ -0,0 +1,257 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ * Copyright (C) 2026 meson8b-vcodec port from the Hardkernel 3.10
++ * vendor vmpeg4.c (Tim Yao <timyao@amlogic.com>)
++ */
++
++#include <media/v4l2-mem2mem.h>
++#include <media/videobuf2-dma-contig.h>
++
++#include "codec_mpeg4.h"
++#include "dos_regs.h"
++#include "esparser.h"
++#include "vdec_helpers.h"
++
++/* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
++#define SIZE_WORKSPACE		SZ_1M
++
++/*
++ * The ucode addresses its workspace at ORI_BUFFER_START_ADDR + 4 MB
++ * (the slot after the four SD decode buffers of the vendor memory map)
++ * and translates to a physical address by adding MEM_OFFSET_REG.
++ */
++#define UCODE_WORKSPACE_BASE	0x01400000
++
++/* map firmware registers to known MPEG4 functions (vendor vmpeg4.c) */
++#define MP4_RATE		AV_SCRATCH_3
++#define MP4_PIC_RATIO		AV_SCRATCH_5
++#define MP4_ERR_COUNT		AV_SCRATCH_6
++#define MP4_PIC_WH		AV_SCRATCH_7
++#define MREG_BUFFERIN		AV_SCRATCH_8
++#define MREG_BUFFEROUT		AV_SCRATCH_9
++#define MP4_NOT_CODED_CNT	AV_SCRATCH_A
++#define MP4_VOP_TIME_INC	AV_SCRATCH_B
++#define MP4_OFFSET_REG		AV_SCRATCH_C
++#define MEM_OFFSET_REG		AV_SCRATCH_F
++
++#define INTERLACE_FLAG		BIT(7)
++#define BOTTOM_FIELD_FIRST_FLAG	BIT(6)
++
++#define MP4_NUM_BUFFERS		4
++
++struct codec_mpeg4 {
++	/* Buffer for the MPEG4 decoder's state */
++	void	  *workspace_vaddr;
++	dma_addr_t workspace_paddr;
++
++	struct amvdec_session *sess;
++	struct delayed_work drain_work;
++	bool draining;
++};
++
++static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
++
++static int codec_mpeg4_can_recycle(struct amvdec_core *core)
++{
++	return !amvdec_read_dos(core, MREG_BUFFERIN);
++}
++
++static void codec_mpeg4_recycle(struct amvdec_core *core, u32 buf_idx)
++{
++	amvdec_write_dos(core, MREG_BUFFERIN, ~(1 << buf_idx));
++}
++
++static void codec_mpeg4_drain_work(struct work_struct *work);
++
++static int codec_mpeg4_start(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	struct codec_mpeg4 *mpeg4;
++	int ret;
++
++	/* Vendor vmpeg4_prot_init() reset sequence for M8B */
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++	}
++
++	mpeg4 = kzalloc(sizeof(*mpeg4), GFP_KERNEL);
++	if (!mpeg4)
++		return -ENOMEM;
++
++	mpeg4->workspace_vaddr = dma_alloc_coherent(core->dev, SIZE_WORKSPACE,
++						    &mpeg4->workspace_paddr,
++						    GFP_KERNEL);
++	if (!mpeg4->workspace_vaddr) {
++		dev_err(core->dev, "Failed to request MPEG4 workspace\n");
++		ret = -ENOMEM;
++		goto free_mpeg4;
++	}
++
++	amvdec_write_dos(core, POWER_CTL_VLD, BIT(4));
++	amvdec_write_dos(core, M4_CONTROL_REG, 0);
++	amvdec_write_dos(core, PSCALE_CTRL, 0);
++	amvdec_write_dos(core, MREG_BUFFERIN, 0);
++	amvdec_write_dos(core, MREG_BUFFEROUT, 0);
++	amvdec_write_dos(core, MP4_NOT_CODED_CNT, 0);
++	amvdec_write_dos(core, MP4_PIC_WH,
++			 (sess->width << 16) | sess->height);
++	amvdec_write_dos(core, MDEC_PIC_DC_THRESH, 0x404038aa);
++
++	INIT_DELAYED_WORK(&mpeg4->drain_work, codec_mpeg4_drain_work);
++	mpeg4->sess = sess;
++
++	sess->keyframe_found = 1;
++	sess->priv = mpeg4;
++
++	return 0;
++
++free_mpeg4:
++	kfree(mpeg4);
++
++	return ret;
++}
++
++/* Like MPEG1/2: the firmware snapshots the AV_SCRATCH canvas table
++ * when its processor is released, so program the canvases and restart
++ * it at the first capture STREAMON (vendor amvdec_start sequence).
++ * See codec_mpeg12_resume for the full rationale.
++ */
++static void codec_mpeg4_resume(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	struct codec_mpeg4 *mpeg4 = sess->priv;
++
++	if (amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
++				(u32[]){ MP4_NUM_BUFFERS, 0 })) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	/* tell the ucode where its workspace really lives */
++	amvdec_write_dos(core, MEM_OFFSET_REG,
++			 mpeg4->workspace_paddr - UCODE_WORKSPACE_BASE);
++
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, MPSR, 0);
++		amvdec_write_dos(core, CPSR, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, MPSR, 1);
++	}
++}
++
++/* Same firmware behaviour as MPEG1/2: the last picture completes only
++ * when the next one starts. Visual object sequence end code (0xB1),
++ * then flush once IRQs go quiet. See codec_mpeg12_drain_work.
++ */
++static void codec_mpeg4_drain_work(struct work_struct *work)
++{
++	struct codec_mpeg4 *mpeg4 =
++		container_of(work, struct codec_mpeg4, drain_work.work);
++	struct amvdec_session *sess = mpeg4->sess;
++	static const u32 max_polls = 150; /* 3 s at 20 ms */
++	u32 polls = 0;
++
++	while (polls++ < max_polls) {
++		bool irq_quiet = !READ_ONCE(sess->irq_active) &&
++			!time_is_after_jiffies64(
++			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
++		int in_flight = atomic_read(&sess->esparser_queued_bufs);
++
++		if (irq_quiet && in_flight <= 1)
++			break;
++
++		msleep(20);
++	}
++
++	mpeg4->draining = false;
++	if (polls > max_polls) {
++		amvdec_abort(sess);
++		return;
++	}
++	amvdec_flush_capture_buffers(sess);
++}
++
++static void codec_mpeg4_drain(struct amvdec_session *sess)
++{
++	struct codec_mpeg4 *mpeg4 = sess->priv;
++
++	if (mpeg4->draining)
++		return;
++
++	/* Visual object sequence end */
++	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	mpeg4->draining = true;
++	schedule_delayed_work(&mpeg4->drain_work, 0);
++}
++
++static int codec_mpeg4_stop(struct amvdec_session *sess)
++{
++	struct codec_mpeg4 *mpeg4 = sess->priv;
++	struct amvdec_core *core = sess->core;
++
++	cancel_delayed_work_sync(&mpeg4->drain_work);
++
++	if (mpeg4->workspace_vaddr)
++		dma_free_coherent(core->dev, SIZE_WORKSPACE,
++				  mpeg4->workspace_vaddr,
++				  mpeg4->workspace_paddr);
++
++	return 0;
++}
++
++static irqreturn_t codec_mpeg4_threaded_isr(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	u32 reg;
++	u32 buffer_index;
++	u32 field = V4L2_FIELD_NONE;
++	u32 offset;
++
++	amvdec_write_dos(core, ASSIST_MBOX1_CLR_REG, 1);
++	reg = amvdec_read_dos(core, MREG_BUFFEROUT);
++	if (!reg)
++		return IRQ_HANDLED;
++
++	buffer_index = ((reg & 0x7) - 1) & (MP4_NUM_BUFFERS - 1);
++	offset = amvdec_read_dos(core, MP4_OFFSET_REG);
++
++	if (reg & INTERLACE_FLAG)
++		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?
++			V4L2_FIELD_INTERLACED_BT :
++			V4L2_FIELD_INTERLACED_TB;
++
++	amvdec_dst_buf_done_idx(sess, buffer_index, offset, field);
++
++	amvdec_write_dos(core, MREG_BUFFEROUT, 0);
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t codec_mpeg4_isr(struct amvdec_session *sess)
++{
++	return IRQ_WAKE_THREAD;
++}
++
++struct amvdec_codec_ops codec_mpeg4_ops = {
++	.start = codec_mpeg4_start,
++	.stop = codec_mpeg4_stop,
++	.isr = codec_mpeg4_isr,
++	.threaded_isr = codec_mpeg4_threaded_isr,
++	.can_recycle = codec_mpeg4_can_recycle,
++	.recycle = codec_mpeg4_recycle,
++	.drain = codec_mpeg4_drain,
++	.resume = codec_mpeg4_resume,
++};
+diff --git a/drivers/staging/media/meson/vdec/codec_mpeg4.h b/drivers/staging/media/meson/vdec/codec_mpeg4.h
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_mpeg4.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ */
++
++#ifndef __MESON_VDEC_CODEC_MPEG4_H_
++#define __MESON_VDEC_CODEC_MPEG4_H_
++
++#include "vdec.h"
++
++extern struct amvdec_codec_ops codec_mpeg4_ops;
++
++#endif
+diff --git a/drivers/staging/media/meson/vdec/codec_vc1.c b/drivers/staging/media/meson/vdec/codec_vc1.c
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_vc1.c
+@@ -0,0 +1,275 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ * Copyright (C) 2026 meson8b-vcodec port from the Hardkernel 3.10
++ * vendor vvc1.c (Qi Wang <qi.wang@amlogic.com>)
++ */
++
++#include <media/v4l2-mem2mem.h>
++#include <media/videobuf2-dma-contig.h>
++
++#include "codec_vc1.h"
++#include "dos_regs.h"
++#include "esparser.h"
++#include "vdec_helpers.h"
++
++/*
++ * The ucode addresses its workspace at DCAC_BUFF_START_ADDR and
++ * translates to a physical address by adding MEM_OFFSET_REG
++ * (GXL vvc1.c model; the M8 vendor driver instead packs the
++ * workspace behind the four decode slots inside the reserved
++ * video region).
++ */
++#define UCODE_WORKSPACE_BASE	0x01f00000
++
++/* Vendor GXL vvc1.c: 2 MB workspace, unlike MPEG-4's 1 MB */
++#define SIZE_WORKSPACE		(2 * SZ_1M)
++
++/* map firmware registers to known VC1 functions (vendor vvc1.c) */
++#define VC1_PIC_RATIO		AV_SCRATCH_0
++#define VC1_ERROR_COUNT		AV_SCRATCH_6
++#define VC1_SOS_COUNT		AV_SCRATCH_7
++#define VC1_BUFFERIN		AV_SCRATCH_8
++#define VC1_BUFFEROUT		AV_SCRATCH_9
++#define VC1_REPEAT_COUNT	AV_SCRATCH_A
++#define VC1_TIME_STAMP		AV_SCRATCH_B
++#define VC1_OFFSET_REG		AV_SCRATCH_C
++#define MEM_OFFSET_REG		AV_SCRATCH_F
++
++/* WMV3 (simple/main profile) = 0, WVC1 (advanced profile) = 1 */
++#define VC1_FORMAT_REG		AV_SCRATCH_4
++
++#define INTERLACE_FLAG		BIT(7)
++#define BOTTOM_FIELD_FIRST_FLAG	BIT(6)
++
++#define VC1_NUM_BUFFERS		4
++
++struct codec_vc1 {
++	/* Buffer for the VC1 decoder's state */
++	void	  *workspace_vaddr;
++	dma_addr_t workspace_paddr;
++
++	struct amvdec_session *sess;
++	struct delayed_work drain_work;
++	bool draining;
++};
++
++/* End of sequence, then one frame start. Same firmware rule as MPEG1/2:
++ * a picture completes only when the next one starts, so the end code alone
++ * leaves the last picture pending. Exactly one start is sent; a second
++ * would release the empty picture the first began.
++ */
++static const u8 eos_sequence[SZ_1K] = {
++	0x00, 0x00, 0x01, 0x0A,
++	0x00, 0x00, 0x01, 0x0D,
++};
++
++static int codec_vc1_can_recycle(struct amvdec_core *core)
++{
++	return !amvdec_read_dos(core, VC1_BUFFERIN);
++}
++
++static void codec_vc1_recycle(struct amvdec_core *core, u32 buf_idx)
++{
++	amvdec_write_dos(core, VC1_BUFFERIN, ~(1 << buf_idx));
++}
++
++static void codec_vc1_drain_work(struct work_struct *work);
++
++static int codec_vc1_start(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	struct codec_vc1 *vc1;
++	int ret;
++
++	/* Vendor vvc1_prot_init() reset sequence for M8B */
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6) | BIT(4));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(7) | BIT(6) | BIT(4));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(9) | BIT(8));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++	}
++
++	vc1 = kzalloc(sizeof(*vc1), GFP_KERNEL);
++	if (!vc1)
++		return -ENOMEM;
++
++	vc1->workspace_vaddr = dma_alloc_coherent(core->dev, SIZE_WORKSPACE,
++						  &vc1->workspace_paddr,
++						  GFP_KERNEL);
++	if (!vc1->workspace_vaddr) {
++		dev_err(core->dev, "Failed to request VC1 workspace\n");
++		ret = -ENOMEM;
++		goto free_vc1;
++	}
++
++	amvdec_write_dos(core, POWER_CTL_VLD, BIT(4));
++	/* vendor vvc1 raises the VIFIFO fill level (2/8) unlike mpeg12/4 */
++	amvdec_write_dos_bits(core, VLD_MEM_VIFIFO_CONTROL,
++			      (2 << MEM_FIFO_CNT_BIT) | (8 << 18));
++	amvdec_write_dos(core, PSCALE_CTRL, 0);
++	/* advanced profile (WVC1) stream format; 0 would select WMV3 */
++	amvdec_write_dos(core, VC1_FORMAT_REG, 1);
++	amvdec_write_dos(core, VC1_SOS_COUNT, 0);
++	amvdec_write_dos(core, VC1_BUFFERIN, 0);
++	amvdec_write_dos(core, VC1_BUFFEROUT, 0);
++
++	INIT_DELAYED_WORK(&vc1->drain_work, codec_vc1_drain_work);
++	vc1->sess = sess;
++
++	sess->keyframe_found = 1;
++	sess->priv = vc1;
++
++	return 0;
++
++free_vc1:
++	kfree(vc1);
++
++	return ret;
++}
++
++/* Like MPEG1/2 and MPEG-4: the firmware snapshots the AV_SCRATCH canvas
++ * table when its processor is released, so program the canvases and
++ * restart it at the first capture STREAMON (vendor amvdec_start
++ * sequence). See codec_mpeg12_resume for the full rationale.
++ */
++static void codec_vc1_resume(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	struct codec_vc1 *vc1 = sess->priv;
++
++	if (amvdec_set_canvases(sess, (u32[]){ AV_SCRATCH_0, 0 },
++				(u32[]){ VC1_NUM_BUFFERS, 0 })) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	/* tell the ucode where its workspace really lives */
++	amvdec_write_dos(core, MEM_OFFSET_REG,
++			 vc1->workspace_paddr - UCODE_WORKSPACE_BASE);
++
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		amvdec_write_dos(core, MPSR, 0);
++		amvdec_write_dos(core, CPSR, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, DOS_SW_RESET0, BIT(12) | BIT(11));
++		amvdec_write_dos(core, DOS_SW_RESET0, 0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_read_dos(core, DOS_SW_RESET0);
++		amvdec_write_dos(core, MPSR, 1);
++	}
++}
++
++/* Same firmware behaviour as MPEG1/2 and MPEG-4: the last picture
++ * completes only when the next one starts. End-of-sequence code
++ * (0x0A), then flush once IRQs go quiet. See codec_mpeg12_drain_work.
++ */
++static void codec_vc1_drain_work(struct work_struct *work)
++{
++	struct codec_vc1 *vc1 =
++		container_of(work, struct codec_vc1, drain_work.work);
++	struct amvdec_session *sess = vc1->sess;
++	static const u32 max_polls = 150; /* 3 s at 20 ms */
++	u32 polls = 0;
++
++	while (polls++ < max_polls) {
++		bool irq_quiet = !READ_ONCE(sess->irq_active) &&
++			!time_is_after_jiffies64(
++			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
++		int in_flight = atomic_read(&sess->esparser_queued_bufs);
++
++		if (irq_quiet && in_flight <= 1)
++			break;
++
++		msleep(20);
++	}
++
++	vc1->draining = false;
++	if (polls > max_polls) {
++		amvdec_abort(sess);
++		return;
++	}
++	amvdec_flush_capture_buffers(sess);
++}
++
++static void codec_vc1_drain(struct amvdec_session *sess)
++{
++	struct codec_vc1 *vc1 = sess->priv;
++
++	if (vc1->draining)
++		return;
++
++	/* VC1 end-of-sequence */
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
++
++	vc1->draining = true;
++	schedule_delayed_work(&vc1->drain_work, 0);
++}
++
++static int codec_vc1_stop(struct amvdec_session *sess)
++{
++	struct codec_vc1 *vc1 = sess->priv;
++	struct amvdec_core *core = sess->core;
++
++	cancel_delayed_work_sync(&vc1->drain_work);
++
++	if (vc1->workspace_vaddr)
++		dma_free_coherent(core->dev, SIZE_WORKSPACE,
++				  vc1->workspace_vaddr,
++				  vc1->workspace_paddr);
++
++	return 0;
++}
++
++static irqreturn_t codec_vc1_threaded_isr(struct amvdec_session *sess)
++{
++	struct amvdec_core *core = sess->core;
++	u32 reg;
++	u32 buffer_index;
++	u32 field = V4L2_FIELD_NONE;
++	u32 offset;
++
++	amvdec_write_dos(core, ASSIST_MBOX1_CLR_REG, 1);
++	reg = amvdec_read_dos(core, VC1_BUFFEROUT);
++	if (!reg)
++		return IRQ_HANDLED;
++
++	buffer_index = ((reg & 0x7) - 1) & (VC1_NUM_BUFFERS - 1);
++	offset = amvdec_read_dos(core, VC1_OFFSET_REG);
++
++	if (reg & INTERLACE_FLAG)
++		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?
++			V4L2_FIELD_INTERLACED_BT :
++			V4L2_FIELD_INTERLACED_TB;
++
++	amvdec_dst_buf_done_idx(sess, buffer_index, offset, field);
++
++	amvdec_write_dos(core, VC1_BUFFEROUT, 0);
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t codec_vc1_isr(struct amvdec_session *sess)
++{
++	return IRQ_WAKE_THREAD;
++}
++
++struct amvdec_codec_ops codec_vc1_ops = {
++	.start = codec_vc1_start,
++	.stop = codec_vc1_stop,
++	.isr = codec_vc1_isr,
++	.threaded_isr = codec_vc1_threaded_isr,
++	.can_recycle = codec_vc1_can_recycle,
++	.recycle = codec_vc1_recycle,
++	.drain = codec_vc1_drain,
++	.resume = codec_vc1_resume,
++};
+diff --git a/drivers/staging/media/meson/vdec/codec_vc1.h b/drivers/staging/media/meson/vdec/codec_vc1.h
+--- /dev/null
++++ b/drivers/staging/media/meson/vdec/codec_vc1.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Copyright (C) 2018 BayLibre, SAS
++ * Author: Maxime Jourdan <mjourdan@baylibre.com>
++ * Copyright (C) 2026 meson8b-vcodec port from the Hardkernel 3.10
++ * vendor vvc1.c (Qi Wang <qi.wang@amlogic.com>)
++ */
++
++#ifndef __MESON_VCODEC_CODEC_VC1_H_
++#define __MESON_VCODEC_CODEC_VC1_H_
++
++#include "vdec.h"
++
++extern struct amvdec_codec_ops codec_vc1_ops;
++
++#endif
+diff --git a/drivers/staging/media/meson/vdec/dos_regs.h b/drivers/staging/media/meson/vdec/dos_regs.h
+--- a/drivers/staging/media/meson/vdec/dos_regs.h
++++ b/drivers/staging/media/meson/vdec/dos_regs.h
+@@ -12,6 +12,8 @@
+ 
+ #define ASSIST_MBOX1_CLR_REG	0x01d4
+ #define ASSIST_MBOX1_MASK	0x01d8
++
++#define MDEC_SW_RESET		0x2610
+ 
+ #define MPSR			0x0c04
+ #define MCPU_INTR_MSK		0x0c10
+diff --git a/drivers/staging/media/meson/vdec/meson8b-capture.c b/drivers/staging/media/meson/vdec/meson8b-capture.c
+--- a/drivers/staging/media/meson/vdec/meson8b-capture.c
++++ b/drivers/staging/media/meson/vdec/meson8b-capture.c
+@@ -258,6 +258,7 @@
+ void amvdec_pool_init(struct amvdec_session *sess)
+ {
+ 	mutex_init(&sess->pool.lock);
++	mutex_init(&sess->pool.delivery_lock);
+ 	INIT_WORK(&sess->pool.work, amvdec_pool_work);
+ }
+ 
+@@ -277,6 +278,7 @@
+ 	if (!count || count > MESON8B_POOL_MAX)
+ 		return -EINVAL;
+ 
++	mutex_lock(&pool->delivery_lock);
+ 	mutex_lock(&pool->lock);
+ 	fresh = !pool->state.count || pool->slot[0].luma != luma;
+ 	if (fresh) {
+@@ -298,13 +300,13 @@
+ 		sess->core->pool_bytes += pool->slot[i].size;
+ 	}
+ 
+-	/* New slots start free; the ones kept hold what they held.
+-	 */
++	/* New slots start free; the ones kept hold what they held. */
+ 	pool->state.count = count;
+ 	sess->core->pool_slots = count;
+ 	ret = fresh;
+ unlock:
+ 	mutex_unlock(&pool->lock);
++	mutex_unlock(&pool->delivery_lock);
+ 	return ret;
+ }
+ 
+@@ -314,10 +316,10 @@
+ {
+ 	struct amvdec_frame_pool *pool = &sess->pool;
+ 
++	mutex_lock(&pool->delivery_lock);
+ 	mutex_lock(&pool->lock);
+ 	if (pool->state.len) {
+-		/* A table reset lets the firmware overwrite any slot.
+-		 */
++		/* A table reset lets the firmware overwrite any slot. */
+ 		dev_warn(sess->core->dev,
+ 			 "dropping %u undelivered pictures at a parameter change\n",
+ 			 pool->state.len);
+@@ -325,6 +327,7 @@
+ 	}
+ 	meson8b_pool_give_all(&pool->state);
+ 	mutex_unlock(&pool->lock);
++	mutex_unlock(&pool->delivery_lock);
+ }
+ 
+ u32 amvdec_pool_count(struct amvdec_session *sess)
+@@ -360,7 +363,6 @@
+ 
+ static void amvdec_pool_end_locked(struct amvdec_session *sess)
+ {
+-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+ 	struct amvdec_frame_pool *pool = &sess->pool;
+ 	struct vb2_v4l2_buffer *vbuf, *last = NULL;
+ 	unsigned int i;
+@@ -380,7 +382,7 @@
+ 		if (!last)
+ 			return;
+ 		last->flags = V4L2_BUF_FLAG_LAST;
+-		v4l2_event_queue_fh(&sess->fh, &eos);
++		container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
+ 		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+ 		break;
+ 	case AMVDEC_POOL_LAST:
+@@ -390,6 +392,7 @@
+ 		sess->should_stop = 1;
+ 		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
+ 			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
++		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = true;
+ 		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
+ 		break;
+ 	}
+@@ -400,7 +403,6 @@
+  */
+ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
+ {
+-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+ 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+ 	struct amvdec_frame_pool *pool = &sess->pool;
+ 	int slot;
+@@ -415,11 +417,13 @@
+ 		if (!vbuf)
+ 			return;
+ 
++		/* Keep the slot queued until copying ends; IRQs may queue other slots. */
++		mutex_unlock(&pool->lock);
+ 		ret = amvdec_meson8b_copy_capture(sess, &pic->geo, &pool->slot[slot],
+ 						  &vbuf->vb2_buf);
++		mutex_lock(&pool->lock);
+ 		meson8b_pool_pop(&pool->state);
+-		/* The picture is out of the slot; the firmware may reuse it.
+-		 */
++		/* The picture is out of the slot; the firmware may reuse it. */
+ 		if (codec_ops->recycle)
+ 			amvdec_recycle(sess, slot);
+ 		if (ret) {
+@@ -442,8 +446,7 @@
+ 		vbuf->field = pic->field;
+ 		if (pic->restart)
+ 			sess->sequence_cap = 0;
+-		if (pic->eos)
+-			v4l2_event_queue_fh(&sess->fh, &eos);
++		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
+ 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
+ 	}
+ 
+@@ -467,8 +470,9 @@
+ 	pool->picture[slot] = *pic;
+ 	sess->core->pool_waiting_peak = max(sess->core->pool_waiting_peak,
+ 					    pool->state.len);
+-	amvdec_pool_deliver_locked(sess);
+ 	mutex_unlock(&pool->lock);
++	/* Let the IRQ acknowledge firmware while conversion runs separately. */
++	schedule_work(&pool->work);
+ }
+ 
+ static void amvdec_pool_work(struct work_struct *work)
+@@ -477,13 +481,16 @@
+ 		container_of(work, struct amvdec_session, pool.work);
+ 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+ 
++	if (!READ_ONCE(sess->streamon_cap))
++		return;
++	mutex_lock(&sess->pool.delivery_lock);
+ 	mutex_lock(&sess->pool.lock);
+ 	amvdec_pool_deliver_locked(sess);
+ 	mutex_unlock(&sess->pool.lock);
+-
+-	/* Slots may be free again: let a codec waiting for one continue.
+-	 */
+-	if (codec_ops->capture_queued)
++	mutex_unlock(&sess->pool.delivery_lock);
++
++	/* Slots may be free again: let a codec waiting for one continue. */
++	if (READ_ONCE(sess->streamon_cap) && codec_ops->capture_queued)
+ 		codec_ops->capture_queued(sess);
+ }
+ 
+@@ -501,8 +508,8 @@
+ {
+ 	mutex_lock(&sess->pool.lock);
+ 	sess->pool.end = end;
+-	amvdec_pool_deliver_locked(sess);
+ 	mutex_unlock(&sess->pool.lock);
++	schedule_work(&sess->pool.work);
+ }
+ 
+ /*
+@@ -516,19 +523,23 @@
+ 	struct vb2_v4l2_buffer *buf;
+ 
+ 	cancel_work_sync(&sess->pool.work);
++	mutex_lock(&sess->pool.delivery_lock);
+ 	mutex_lock(&sess->pool.lock);
+ 	meson8b_pool_drop(&sess->pool.state);
+ 	sess->pool.end = AMVDEC_POOL_RUNNING;
+ 	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
+ 		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
+ 	mutex_unlock(&sess->pool.lock);
++	mutex_unlock(&sess->pool.delivery_lock);
+ }
+ 
+ void amvdec_pool_free(struct amvdec_session *sess)
+ {
+ 	cancel_work_sync(&sess->pool.work);
++	mutex_lock(&sess->pool.delivery_lock);
+ 	mutex_lock(&sess->pool.lock);
+ 	amvdec_pool_free_slots(sess);
+ 	sess->pool.end = AMVDEC_POOL_RUNNING;
+ 	mutex_unlock(&sess->pool.lock);
+-}
++	mutex_unlock(&sess->pool.delivery_lock);
++}
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -27,11 +27,6 @@
+ #include "esparser.h"
+ #include "vdec_helpers.h"
+ 
+-struct dummy_buf {
+-	struct vb2_v4l2_buffer vb;
+-	struct list_head list;
+-};
+-
+ /* 16 MiB for parsed bitstream swap exchange */
+ #define SIZE_VIFIFO SZ_16M
+ 
+@@ -67,6 +62,10 @@
+ 	struct amvdec_buffer *tmp, *n;
+ 
+ 	while (!kthread_should_stop()) {
++		wait_event_interruptible(sess->recycle_wq,
++			kthread_should_stop() || READ_ONCE(sess->recycle_pending));
++		if (kthread_should_stop())
++			break;
+ 		mutex_lock(&sess->bufs_recycle_lock);
+ 		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
+ 			if (!codec_ops->can_recycle(core))
+@@ -74,11 +73,15 @@
+ 
+ 			codec_ops->recycle(core, tmp->fw_idx);
+ 			list_del(&tmp->list);
++			sess->recycle_pending--;
+ 			kfree(tmp);
+ 		}
+ 		mutex_unlock(&sess->bufs_recycle_lock);
+ 
+-		usleep_range(5000, 10000);
++		/* Wait only while the firmware's recycle mailbox is occupied. */
++		wait_event_interruptible_timeout(sess->recycle_wq,
++			kthread_should_stop() || codec_ops->can_recycle(core),
++			msecs_to_jiffies(5));
+ 	}
+ 
+ 	return 0;
+@@ -129,7 +132,8 @@
+ 	u64 deadline = get_jiffies_64() + msecs_to_jiffies(3000);
+ 
+ 	/* A broken stream must not keep STOP or close waiting forever. */
+-	while (time_is_after_jiffies64(sess->last_irq_jiffies +
++	while (READ_ONCE(sess->irq_active) ||
++	       time_is_after_jiffies64(READ_ONCE(sess->last_irq_jiffies) +
+ 				       msecs_to_jiffies(50))) {
+ 		if (!time_is_after_jiffies64(deadline))
+ 			return -ETIMEDOUT;
+@@ -141,12 +145,9 @@
+ static void vdec_poweroff(struct amvdec_session *sess)
+ {
+ 	struct amvdec_ops *vdec_ops = sess->fmt_out->vdec_ops;
+-	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+ 
+ 	sess->should_stop = 1;
+ 	vdec_wait_inactive(sess);
+-	if (codec_ops->drain)
+-		codec_ops->drain(sess);
+ 
+ 	vdec_ops->stop(sess);
+ 	clk_disable_unprepare(sess->core->dos_clk);
+@@ -159,13 +160,17 @@
+ 	struct amvdec_buffer *new_buf;
+ 
+ 	new_buf = kmalloc_obj(*new_buf);
+-	if (!new_buf)
++	if (!new_buf) {
++		amvdec_abort(sess);
+ 		return;
++	}
+ 	new_buf->fw_idx = fw_idx;
+ 
+ 	mutex_lock(&sess->bufs_recycle_lock);
+ 	list_add_tail(&new_buf->list, &sess->bufs_recycle);
++	sess->recycle_pending++;
+ 	mutex_unlock(&sess->bufs_recycle_lock);
++	wake_up_interruptible(&sess->recycle_wq);
+ }
+ 
+ /* Without a frame pool the firmware writes into the CAPTURE buffers, so a
+@@ -553,6 +558,8 @@
+ {
+ 	struct amvdec_buffer *tmp, *n;
+ 
++	sess->recycle_pending = 0;
++
+ 	list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
+ 		list_del(&tmp->list);
+ 		kfree(tmp);
+@@ -570,13 +577,13 @@
+ 	    sess->status == STATUS_INIT ||
+ 	    (sess->status == STATUS_NEEDS_RESUME &&
+ 	     (!sess->streamon_out || !sess->streamon_cap))) {
++		disable_irq(core->vdec_irq);
+ 		if (vdec_codec_needs_recycle(sess))
+ 			kthread_stop(sess->recycle_thread);
+ 		/* No delivery may run into the codec being stopped. */
+ 		if (amvdec_has_pool(sess))
+ 			cancel_work_sync(&sess->pool.work);
+ 
+-		disable_irq(core->vdec_irq);
+ 		vdec_poweroff(sess);
+ 		WRITE_ONCE(core->cur_sess, NULL);
+ 		enable_irq(core->vdec_irq);
+@@ -615,8 +622,11 @@
+ static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
+ {
+ 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
++	struct amvdec_vb2_buffer *buf =
++		container_of(vbuf, struct amvdec_vb2_buffer, vb);
+ 
+ 	vbuf->field = V4L2_FIELD_NONE;
++	buf->eos = false;
+ 	return 0;
+ }
+ 
+@@ -624,14 +634,18 @@
+ {
+ 	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
+ 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
++	struct amvdec_vb2_buffer *buf =
++		container_of(vbuf, struct amvdec_vb2_buffer, vb);
+ 	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+ 
+ 	/* Publish EOS after userspace consumes LAST, preserving queued pictures
+ 	 * for clients that stop reading immediately upon the event.
+ 	 */
+-	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->fmt_out->codec_ops->firmware_eos &&
+-	    (vbuf->flags & V4L2_BUF_FLAG_LAST))
++	if (V4L2_TYPE_IS_CAPTURE(vb->type) && buf->eos &&
++	    (vbuf->flags & V4L2_BUF_FLAG_LAST)) {
++		buf->eos = false;
+ 		v4l2_event_queue_fh(&sess->fh, &eos);
++	}
+ }
+ 
+ static const struct vb2_ops vdec_vb2_ops = {
+@@ -1046,7 +1060,7 @@
+ 	src_vq->ops = &vdec_vb2_ops;
+ 	src_vq->mem_ops = &vb2_dma_contig_memops;
+ 	src_vq->drv_priv = sess;
+-	src_vq->buf_struct_size = sizeof(struct dummy_buf);
++	src_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
+ 	src_vq->min_queued_buffers = 1;
+ 	src_vq->dev = sess->core->dev;
+ 	src_vq->lock = &sess->lock;
+@@ -1064,7 +1078,7 @@
+ 		dst_vq->io_modes = VB2_MMAP;
+ 	}
+ 	dst_vq->drv_priv = sess;
+-	dst_vq->buf_struct_size = sizeof(struct dummy_buf);
++	dst_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
+ 	dst_vq->min_queued_buffers = 1;
+ 	dst_vq->dev = sess->core->dev;
+ 	dst_vq->lock = &sess->lock;
+@@ -1139,6 +1153,7 @@
+ 	INIT_WORK(&sess->esparser_queue_work, esparser_queue_all_src);
+ 	mutex_init(&sess->lock);
+ 	mutex_init(&sess->bufs_recycle_lock);
++	init_waitqueue_head(&sess->recycle_wq);
+ 	amvdec_pool_init(sess);
+ 	spin_lock_init(&sess->ts_spinlock);
+ 
+@@ -1174,6 +1189,7 @@
+ 	mutex_destroy(&sess->lock);
+ 	mutex_destroy(&sess->bufs_recycle_lock);
+ 	mutex_destroy(&sess->pool.lock);
++	mutex_destroy(&sess->pool.delivery_lock);
+ 
+ 	kfree(sess);
+ 
+@@ -1193,24 +1209,35 @@
+ {
+ 	struct amvdec_core *core = data;
+ 	struct amvdec_session *sess = READ_ONCE(core->cur_sess);
++	irqreturn_t ret;
+ 
+ 	if (!sess)
+ 		return IRQ_NONE;
+ 
+-	sess->last_irq_jiffies = get_jiffies_64();
+-
+-	return sess->fmt_out->codec_ops->isr(sess);
++	WRITE_ONCE(sess->irq_active, true);
++	WRITE_ONCE(sess->last_irq_jiffies, get_jiffies_64());
++	wake_up_interruptible(&sess->recycle_wq);
++
++	ret = sess->fmt_out->codec_ops->isr(sess);
++	if (ret != IRQ_WAKE_THREAD)
++		WRITE_ONCE(sess->irq_active, false);
++	return ret;
+ }
+ 
+ static irqreturn_t vdec_threaded_isr(int irq, void *data)
+ {
+ 	struct amvdec_core *core = data;
+ 	struct amvdec_session *sess = READ_ONCE(core->cur_sess);
++	irqreturn_t ret;
+ 
+ 	if (!sess)
+ 		return IRQ_NONE;
+ 
+-	return sess->fmt_out->codec_ops->threaded_isr(sess);
++	ret = sess->fmt_out->codec_ops->threaded_isr(sess);
++	/* Conversion in the threaded handler can outlast the inactivity window. */
++	WRITE_ONCE(sess->last_irq_jiffies, get_jiffies_64());
++	WRITE_ONCE(sess->irq_active, false);
++	return ret;
+ }
+ 
+ static const struct of_device_id vdec_dt_match[] = {
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -76,6 +76,12 @@
+ 	bool restart;	/* restart the CAPTURE sequence after this picture */
+ };
+ 
++struct amvdec_vb2_buffer {
++	struct vb2_v4l2_buffer vb;
++	struct list_head list;
++	bool eos;
++};
++
+ enum amvdec_pool_end {
+ 	AMVDEC_POOL_RUNNING,
+ 	/* return every queued CAPTURE buffer empty, the last one LAST + EOS */
+@@ -100,7 +106,8 @@
+  * @work: delivers waiting pictures after userspace queued a buffer
+  */
+ struct amvdec_frame_pool {
+-	struct mutex lock; /* pool slots and delivery */
++	struct mutex lock;
++	struct mutex delivery_lock; /* pool slots and delivery */
+ 	struct meson8b_pool state;
+ 	struct amvdec_shadow slot[MESON8B_POOL_MAX];
+ 	struct amvdec_picture picture[MESON8B_POOL_MAX];
+@@ -360,11 +367,14 @@
+ 	struct list_head bufs_recycle;
+ 	struct mutex bufs_recycle_lock; /* bufs_recycle list lock */
+ 	struct task_struct *recycle_thread;
++	wait_queue_head_t recycle_wq;
++	u32 recycle_pending;
+ 
+ 	struct list_head timestamps;
+ 	spinlock_t ts_spinlock; /* timestamp list lock */
+ 
+ 	u64 last_irq_jiffies;
++	bool irq_active;
+ 	u32 last_offset;
+ 	u32 wrap_count;
+ 	u32 fw_idx_to_vb2_idx[32];
+diff --git a/drivers/staging/media/meson/vdec/vdec_helpers.c b/drivers/staging/media/meson/vdec/vdec_helpers.c
+--- a/drivers/staging/media/meson/vdec/vdec_helpers.c
++++ b/drivers/staging/media/meson/vdec/vdec_helpers.c
+@@ -554,7 +554,6 @@
+ 			 struct vb2_v4l2_buffer *vbuf,
+ 			 const struct amvdec_picture *pic)
+ {
+-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
+ 	struct device *dev = sess->core->dev_dec;
+ 	u32 output_size = amvdec_get_output_size(sess);
+ 
+@@ -574,8 +573,7 @@
+ 	vbuf->sequence = sess->sequence_cap++;
+ 	vbuf->flags = pic->flags;
+ 	vbuf->timecode = pic->timecode;
+-	if (pic->eos)
+-		v4l2_event_queue_fh(&sess->fh, &eos);
++	container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
+ 	if (pic->restart)
+ 		sess->sequence_cap = 0;
+ 
+@@ -713,7 +711,6 @@
+  */
+ void amvdec_flush_capture_buffers(struct amvdec_session *sess)
+ {
+-	static const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
+ 	struct vb2_v4l2_buffer *vbuf, *last = NULL;
+ 	unsigned int i;
+ 
+@@ -736,7 +733,7 @@
+ 		return;
+ 
+ 	last->flags = V4L2_BUF_FLAG_LAST;
+-	v4l2_event_queue_fh(&sess->fh, &ev);
++	container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
+ 	v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
+ }
+ EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);
+diff --git a/drivers/staging/media/meson/vdec/vdec_platform.c b/drivers/staging/media/meson/vdec/vdec_platform.c
+--- a/drivers/staging/media/meson/vdec/vdec_platform.c
++++ b/drivers/staging/media/meson/vdec/vdec_platform.c
+@@ -15,25 +15,87 @@
+ #include "codec_h264.h"
+ #include "codec_vp9.h"
+ 
++#include "codec_mpeg4.h"
++#include "codec_vc1.h"
++#include "codec_mjpeg.h"
++
+ static const struct amvdec_format vdec_formats_meson8b[] = {
+ 	{
+ 		.pixfmt = V4L2_PIX_FMT_H264,
+ 		.min_buffers = 2,
+-		/*
+-		 * Each capture buffer also owns a conversion block of 1.5x
+-		 * the luma size, so the GX buffer count does not fit in the
+-		 * 64 MiB CMA of the boards this platform ships on.
++		.max_buffers = 12,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_h264_ops,
++		.firmware_path = "meson/vdec/meson8b_h264.bin",
++		/* SWAP64 exposes the vendor two-plane output in NV12 byte order. */
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED |
++			 V4L2_FMT_FLAG_DYN_RESOLUTION,
++	}, {
++		.pixfmt = V4L2_PIX_FMT_MPEG1,
++		.min_buffers = 8,
++		.max_buffers = 8,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_mpeg12_ops,
++		.firmware_path = "meson/vdec/meson8b_mpeg12.bin",
++		/* The M8B shadow-canvas capture path only supports NV12M. */
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
++	}, {
++		.pixfmt = V4L2_PIX_FMT_MPEG2,
++		.min_buffers = 8,
++		.max_buffers = 8,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_mpeg12_ops,
++		.firmware_path = "meson/vdec/meson8b_mpeg12.bin",
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
++	}, {
++		.pixfmt = V4L2_PIX_FMT_MPEG4,
++		/* the ucode has exactly four decode canvas slots */
++		.min_buffers = 4,
++		.max_buffers = 4,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_mpeg4_ops,
++		.firmware_path = "meson/vdec/meson8b_mpeg4.bin",
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
++	}, {
++		/* advanced profile (WVC1); simple/main (WMV3) would need
++		 * the VC1_FORMAT_REG select left at 0
+ 		 */
+-		.max_buffers = 12,
+-		.max_width = 1920,
+-		.max_height = 1080,
+-		.vdec_ops = &vdec_1_ops,
+-		.codec_ops = &codec_h264_ops,
+-		.firmware_path = "meson/vdec/meson8b_h264.bin",
+-		/* The capture conversion path writes NV12M only. */
+-		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+-		.flags = V4L2_FMT_FLAG_COMPRESSED |
+-			 V4L2_FMT_FLAG_DYN_RESOLUTION,
++		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_G,
++		.min_buffers = 4,
++		.max_buffers = 4,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_vc1_ops,
++		.firmware_path = "meson/vdec/meson8b_vc1.bin",
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
++	}, {
++		/* Motion JPEG; the ucode learns frame height from the
++		 * MREG_DECODE_PARAM write, not from stream headers
++		 */
++		.pixfmt = V4L2_PIX_FMT_MJPEG,
++		.min_buffers = 4,
++		.max_buffers = 4,
++		.max_width = 1920,
++		.max_height = 1080,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_mjpeg_ops,
++		.firmware_path = "meson/vdec/meson8b_mjpeg.bin",
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
+ 	},
+ };
+ 
