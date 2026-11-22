@@ -67,7 +67,7 @@ decode() {
 	[ "$buffers" = default ] || opt="-num_capture_buffers $buffers"
 	# shellcheck disable=SC2086 # the count option is split on purpose
 	timeout -k 5 120 "$FF" -nostdin -v error -c:v "${format}_v4l2m2m" $opt -i "$input" \
-		-pix_fmt nv12 -f framemd5 -y "$result.raw" || { rm -f "$result.raw"; return 1; }
+		-pix_fmt nv12 -filter_threads 1 -threads:v 1 -f framemd5 -y "$result.raw" || { rm -f "$result.raw"; return 1; }
 	if [ -n "$prefix" ]; then
 		grep -v '^#' "$result.raw" | head -n "$prefix"
 	else

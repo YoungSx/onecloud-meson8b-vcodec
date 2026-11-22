@@ -26,12 +26,12 @@ try:
   assert json.loads(log)['streams'][0]['nb_read_frames']=='60'
   command(['/usr/local/bin/ffmpeg','-v','error','-i',f'/tmp/bframe-long-{i}.h264','-f','null','-'],f'bframe-long-decode-{i}')
  for i in range(10):
-  command([str(D/'ffmpeg'),'-nostdin','-v','info','-c:v','hevc_v4l2m2m','-num_capture_buffers','8','-i',str(D/'1080p.mp4'),'-pix_fmt','nv12','-f','framemd5','-y',f'/tmp/hevc-final-{i}.md5'],f'hevc-final-{i}')
+  command([str(D/'ffmpeg'),'-nostdin','-v','info','-c:v','hevc_v4l2m2m','-num_capture_buffers','8','-i',str(D/'1080p.mp4'),'-pix_fmt','nv12','-filter_threads','1','-threads:v','1','-f','framemd5','-y',f'/tmp/hevc-final-{i}.md5'],f'hevc-final-{i}')
   h=[s.rsplit(',',1)[-1].strip() for s in pathlib.Path(f'/tmp/hevc-final-{i}.md5').read_text().splitlines() if s and not s.startswith('#')]
   assert len(h)==30
   if i:assert h==previous
   previous=h
- command([str(D/'ffmpeg'),'-nostdin','-v','info','-c:v','hevc_v4l2m2m','-num_capture_buffers','8','-i',str(D/'crop.mp4'),'-pix_fmt','nv12','-f','framemd5','-y','/tmp/hevc-crop.md5'],'hevc-crop')
+ command([str(D/'ffmpeg'),'-nostdin','-v','info','-c:v','hevc_v4l2m2m','-num_capture_buffers','8','-i',str(D/'crop.mp4'),'-pix_fmt','nv12','-filter_threads','1','-threads:v','1','-f','framemd5','-y','/tmp/hevc-crop.md5'],'hevc-crop')
  print('DONE',flush=True)
 finally:
  for module in ['meson_venc','meson_vdec','meson8b_runtime']:subprocess.run(['rmmod',module])

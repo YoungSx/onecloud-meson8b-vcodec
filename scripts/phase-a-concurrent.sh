@@ -26,7 +26,7 @@ case_run() {
 	(
 		timeout -k 5 900 "$FF" -nostdin -v error -c:v "${codec}_v4l2m2m" \
 			-i "$input" -map 0:v -pix_fmt nv12 \
-			-f framemd5 -y "/tmp/pa-$label.md5"
+			-filter_threads 1 -threads:v 1 -f framemd5 -y "/tmp/pa-$label.md5"
 		echo "decode rc=$?"
 	) > "/tmp/pa-$label.log" 2>&1 &
 	decode=$!

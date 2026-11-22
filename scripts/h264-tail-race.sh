@@ -15,7 +15,7 @@ grep "^0," "$REF" | cut -d, -f2- > /tmp/race-ref.txt
 for i in $(seq 1 "$N"); do
     timeout -k 5 90 "$D/ffmpeg" -nostdin -v error -c:v h264_v4l2m2m \
         -num_capture_buffers 10 -i "$D/p5/h264-1080p-baseline.mp4" \
-        -pix_fmt nv12 -f framemd5 -y /tmp/race.md5 2>/dev/null
+        -pix_fmt nv12 -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/race.md5 2>/dev/null
     rc=$?
     n=$(grep -c "^0," /tmp/race.md5)
     if [ "$n" -eq 300 ]; then

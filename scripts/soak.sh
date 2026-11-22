@@ -42,7 +42,7 @@ while [ "$(date +%s)" -lt "$end" ]; do
     rm -f /tmp/soak-hevc.md5 /tmp/soak-h264.md5
     if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v hevc_v4l2m2m \
         -i "$D/1080p.mp4" -pix_fmt nv12 \
-        -f framemd5 -y /tmp/soak-hevc.md5 > /tmp/soak-hevc.log 2>&1; then
+        -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/soak-hevc.md5 > /tmp/soak-hevc.log 2>&1; then
         say "iter=$iter FAIL hevc decode"; FAILS=$((FAILS + 1)); keep_failure; break
     fi
     if ! python3 "$D/p5/verify-hashes.py" "$D/p5/software-1080.md5" \
@@ -52,7 +52,7 @@ while [ "$(date +%s)" -lt "$end" ]; do
     if [ $((iter % 5)) -eq 0 ]; then
         if ! timeout -k 5 90 "$FF" -nostdin -v error -c:v h264_v4l2m2m \
             -i "$D/p5/h264-1080p-baseline.mp4" \
-            -pix_fmt nv12 -f framemd5 -y /tmp/soak-h264.md5 \
+            -pix_fmt nv12 -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/soak-h264.md5 \
             > /tmp/soak-h264.log 2>&1; then
             say "iter=$iter FAIL h264 decode"; FAILS=$((FAILS + 1)); keep_failure; break
         fi

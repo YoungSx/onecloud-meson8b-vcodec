@@ -18,12 +18,12 @@ say() { echo "$(date -Iseconds) $*" >> "$LOG"; }
 say "== start rounds=$ROUNDS extra_buffers=$(cat /sys/module/meson_vdec/parameters/h264_extra_buffers)"
 for i in $(seq 1 "$ROUNDS"); do
 	timeout -k 5 90 "$FF" -nostdin -v error -c:v hevc_v4l2m2m \
-		-i "$D/1080p.mp4" -pix_fmt nv12 -f framemd5 -y /tmp/hr-hevc.md5 \
+		-i "$D/1080p.mp4" -pix_fmt nv12 -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/hr-hevc.md5 \
 		> /dev/null 2>&1
 	rm -f /tmp/hr-h264.md5
 	timeout -k 5 90 "$FF" -nostdin -v error -c:v h264_v4l2m2m \
 		-i "$D/p5/h264-1080p-baseline.mp4" -pix_fmt nv12 \
-		-f framemd5 -y /tmp/hr-h264.md5 > /tmp/hr-h264.log 2>&1
+		-filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/hr-h264.md5 > /tmp/hr-h264.log 2>&1
 	rc=$?
 	n=$(grep -c '^0,' /tmp/hr-h264.md5 2>/dev/null)
 	if [ "$rc" -ne 0 ] || [ "$n" -ne 300 ]; then

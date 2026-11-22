@@ -33,12 +33,12 @@ for i in $(seq 1 "$ROUNDS"); do
     # Same order as the soak: HEVC first, then the H.264 decode under test.
     timeout -k 5 90 "$FF" -nostdin -v error -c:v hevc_v4l2m2m \
         -num_capture_buffers 8 -i "$D/1080p.mp4" -pix_fmt nv12 \
-        -f framemd5 -y /tmp/sl-hevc.md5 > /dev/null 2>&1
+        -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/sl-hevc.md5 > /dev/null 2>&1
 
     rm -f /tmp/sl-h264.md5
     timeout -k 5 90 "$FF" -nostdin -v error -c:v h264_v4l2m2m \
         -num_capture_buffers 10 -i "$D/p5/h264-1080p-baseline.mp4" \
-        -pix_fmt nv12 -f framemd5 -y /tmp/sl-h264.md5 2>/dev/null
+        -pix_fmt nv12 -filter_threads 1 -threads:v 1 -f framemd5 -y /tmp/sl-h264.md5 2>/dev/null
     n=$(grep -c '^0,' /tmp/sl-h264.md5)
 
     if [ "$n" -ne 300 ]; then
