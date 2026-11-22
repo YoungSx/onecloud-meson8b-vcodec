@@ -7,6 +7,11 @@ Hardware video decoding and H.264/JPEG encoding for the OneCloud S805
 modules expose standard V4L2 Memory-to-Memory devices using a removable
 runtime device-tree overlay. Build externally for ARMv7 hard-float.
 
+Production was restored to the installed v0.4.0 stack after two outages during
+the latest development pass. The new candidate has not passed stability
+acceptance; sustained production tests are paused. See
+[current results and recovery](docs/next-development-status.md).
+
 The [2026-11-14 hardware acceptance](docs/validation.md) covers H.264 and
 HEVC picture comparisons, ten 1080p B-frame transcode sessions, 900 JPEG
 images, firmware error recovery and reversible installation. All five

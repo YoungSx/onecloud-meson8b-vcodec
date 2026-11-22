@@ -1,0 +1,28 @@
+{
+  "kernel": "5.15.79-meson",
+  "installed_source": "89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f",
+  "overlay_before_sha256": "72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e",
+  "overlay_after_sha256": "a5201a696e369f62aecb5d220feab313ca8b83d062d7ba03aaf66a8cb9f9d95d",
+  "restarted_original_containers": [
+    "openlist"
+  ],
+  "services": {
+    "openlist": 200,
+    "sublinkpro": 200,
+    "vocat": 200,
+    "homeassistant": 200
+  },
+  "production_image": "youngsx/openlist-onecloud:v4.2.10-v4l2m2m-29c7842",
+  "production_running": true,
+  "production_started_at": "2026-11-22T10:16:27.161221915Z",
+  "production_restart_count": 0,
+  "arcane_running": true,
+  "codec_service": "active",
+  "video_devices": [
+    "meson-video-decoder",
+    "meson-video-encoder"
+  ],
+  "pool_slots": 0,
+  "utc": "2026-11-22T10:16:40Z",
+  "status": "restored"
+}

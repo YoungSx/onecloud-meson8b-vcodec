@@ -7,6 +7,10 @@
 Overlay 暴露标准 V4L2 Memory-to-Memory 设备，构建在外部机器完成，目标为
 ARMv7 hard-float。
 
+最新开发验证期间设备两次离线，生产环境已恢复原安装的 v0.4.0。新候选版本
+尚未通过稳定性验收，生产机持续负载实验暂停，详见
+[当前结果与恢复记录](docs/next-development-status.md)。
+
 [2026-11-14 实机验收](docs/validation.md)覆盖 H.264/HEVC 图像比对、十轮
 1080p B 帧输入转码、900 帧 JPEG、固件错误恢复及可回滚安装。最终检查时
 五项原有服务均运行，原启动内核、设备树和生产 FFmpeg 保留。

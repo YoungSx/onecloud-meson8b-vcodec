@@ -1,0 +1,65 @@
+{
+  "status": "observed-pass",
+  "source_sha256": "de7da72f6b5e8cffc2c09cad549e325c7f5471107a535d9ba295aa7ac3113840",
+  "source": "six seconds, 640x360, generated from Blender Big Buck Bunny trailer, start 10s",
+  "frames_per_case": 90,
+  "method": "same fps filter in encoding and PSNR reference",
+  "provenance": "Scalar values transcribed from remote run output; complete remote JSON could not be retrieved after connectivity loss",
+  "remote_restored_reported": true,
+  "cases": [
+    {
+      "fps": "30",
+      "target_bps": 800000,
+      "actual_bps": 819741,
+      "mean_luma_psnr_db": 44.742
+    },
+    {
+      "fps": "30",
+      "target_bps": 1600000,
+      "actual_bps": 1586776,
+      "mean_luma_psnr_db": 51.723
+    },
+    {
+      "fps": "30",
+      "target_bps": 3000000,
+      "actual_bps": 2694539,
+      "mean_luma_psnr_db": 57.098
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 800000,
+      "actual_bps": 819096,
+      "mean_luma_psnr_db": 44.741
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 1600000,
+      "actual_bps": 1585196,
+      "mean_luma_psnr_db": 51.723
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 3000000,
+      "actual_bps": 2693251,
+      "mean_luma_psnr_db": 56.983
+    },
+    {
+      "fps": "24",
+      "target_bps": 800000,
+      "actual_bps": 1026172,
+      "mean_luma_psnr_db": 45.121
+    },
+    {
+      "fps": "24",
+      "target_bps": 1600000,
+      "actual_bps": 1827012,
+      "mean_luma_psnr_db": 51.312
+    },
+    {
+      "fps": "24",
+      "target_bps": 3000000,
+      "actual_bps": 2815232,
+      "mean_luma_psnr_db": 58.823
+    }
+  ]
+}

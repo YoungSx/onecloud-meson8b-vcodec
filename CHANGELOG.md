@@ -7,6 +7,24 @@ changed.
 
 ## Unreleased
 
+- Serialize parser writes, stop timed-out fetches and prevent further feeds
+  after abort; bound decoder inactivity waits and drain queued input for
+  custom codecs before STOP.
+- Validate YUV420M chroma capacities; test early queue shutdown and reopen.
+- Wake frame recycling on queued slots/IRQs rather than unconditional sleeps.
+- Port independent Meson8b frame pool to the Linux 7.3 research series, keep
+  syscon/runtime PM and GX behavior, add explicit divider clock binding/DT
+  and a dedicated research build workflow.
+- Guard VDEC1 rate changes against shared parent retuning; bounded hardware
+  checks preserve fixed PLL and MPLL2. Complete the small-buffer H.264/HEVC,
+  full-range MJPEG, JPEG and error/reopen matrices; retain legacy tail limits.
+- Isolate temporary development overlays from the installed firmware path;
+  clean up successful/failed loads and restore the original service on failure.
+  The runtime isolation parameter has host/build coverage, not board acceptance.
+- Record two device outages, original production recovery and an interrupted
+  19-minute mixed load at 182 MHz. Pause sustained production tests; stability
+  remains open. See [P0–P3 status](docs/next-development-status.md).
+
 - Let custom decoder drains own LAST completion and propagate failed EOS
   parser writes through queue errors and STOP returns. Cover the failure
   paths with extracted-function tests and retain actual tail/content limits

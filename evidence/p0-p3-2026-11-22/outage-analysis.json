@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-11-22T10:23:41Z",
+  "production_recovered": true,
+  "production_source": "89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f",
+  "previous_boot_journal_available": false,
+  "pstore_files": 0,
+  "retained_previous_kernel_segment_lines": 667,
+  "retained_panic_oom_lockup_events": 0,
+  "last_retained_previous_kernel_uptime": 6913.549001,
+  "last_successful_test_uptime": 7259.413,
+  "cause": "undetermined; retained logs stop before the last successful test sample",
+  "sustained_production_tests": "paused",
+  "private_log_archive_sha256": "79add433e2a3049f71ecb127f77d3d7f2413b4e2dbf1e7e0aa9117db90f08387",
+  "raw_device_logs_published": false
+}

@@ -1,0 +1,16 @@
+{
+  "kernel": "7.3.4",
+  "research_patches": 19,
+  "module_sha256": "86a5a039de5c0a6cc35410d633f33779176e3cf85de28b9dd694939651b9bc78",
+  "module_build": "pass against full vmlinux symbols",
+  "binding_schema": "pass",
+  "odroid_schema": "pass",
+  "cross_board_hardware_tested": false,
+  "frame_pool": "independent slots for Meson8b; GX buffer path retained",
+  "runtime_divider_clock": "vdec_1_div",
+  "clock_255_experiment_accepted": false,
+  "fixed_parent_clock": "vdec_1_parent=fclk_div7",
+  "ci_source_commit": "80f589f9fc2d79b6e8b9ec22fe1c3d0c7269ad1d",
+  "ci_conclusion": "success",
+  "ci_url": "https://github.com/YoungSx/onecloud-meson8b-vcodec/actions/runs/45008497420"
+}

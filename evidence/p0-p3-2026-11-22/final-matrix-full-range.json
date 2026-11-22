@@ -1,0 +1,292 @@
+{
+  "status": "pass-with-legacy-tail-limits",
+  "cases": [
+    {
+      "case": "direct-capture",
+      "codec": "H264",
+      "capture_requested": 1,
+      "frames": 120,
+      "expected": 120,
+      "signature_sha256": "3c075d1efe322761cbb9e7062ca3522a3c8e10dd99c56a1a0e42edaff3a733c1",
+      "rc": 0,
+      "log": "EOS frames=120 resolutions=1\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "H264",
+      "capture_requested": 2,
+      "frames": 120,
+      "expected": 120,
+      "signature_sha256": "3c075d1efe322761cbb9e7062ca3522a3c8e10dd99c56a1a0e42edaff3a733c1",
+      "rc": 0,
+      "log": "EOS frames=120 resolutions=1\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "H264",
+      "capture_requested": 4,
+      "frames": 120,
+      "expected": 120,
+      "signature_sha256": "3c075d1efe322761cbb9e7062ca3522a3c8e10dd99c56a1a0e42edaff3a733c1",
+      "rc": 0,
+      "log": "EOS frames=120 resolutions=1\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "H264",
+      "capture_requested": 20,
+      "frames": 120,
+      "expected": 120,
+      "signature_sha256": "3c075d1efe322761cbb9e7062ca3522a3c8e10dd99c56a1a0e42edaff3a733c1",
+      "rc": 0,
+      "log": "EOS frames=120 resolutions=1\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "H264",
+      "capture_requested": 32,
+      "frames": 120,
+      "expected": 120,
+      "signature_sha256": "3c075d1efe322761cbb9e7062ca3522a3c8e10dd99c56a1a0e42edaff3a733c1",
+      "rc": 0,
+      "log": "EOS frames=120 resolutions=1\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "HEVC",
+      "capture_requested": 1,
+      "frames": 30,
+      "expected": 30,
+      "signature_sha256": "975b898b084fb3f9dac3499d4b7f17633c51f3edc2a8d05e082d0ac36ef5ac4e",
+      "rc": 0,
+      "log": "SRC_CHANGE 1864x1080\nEOS frames=30 resolutions=2\ndrain: no picture within 5s\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "HEVC",
+      "capture_requested": 2,
+      "frames": 30,
+      "expected": 30,
+      "signature_sha256": "975b898b084fb3f9dac3499d4b7f17633c51f3edc2a8d05e082d0ac36ef5ac4e",
+      "rc": 0,
+      "log": "SRC_CHANGE 1864x1080\nEOS frames=30 resolutions=2\ndrain: no picture within 5s\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "HEVC",
+      "capture_requested": 4,
+      "frames": 30,
+      "expected": 30,
+      "signature_sha256": "975b898b084fb3f9dac3499d4b7f17633c51f3edc2a8d05e082d0ac36ef5ac4e",
+      "rc": 0,
+      "log": "SRC_CHANGE 1864x1080\nEOS frames=30 resolutions=2\ndrain: no picture within 5s\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "HEVC",
+      "capture_requested": 20,
+      "frames": 30,
+      "expected": 30,
+      "signature_sha256": "975b898b084fb3f9dac3499d4b7f17633c51f3edc2a8d05e082d0ac36ef5ac4e",
+      "rc": 0,
+      "log": "SRC_CHANGE 1864x1080\nEOS frames=30 resolutions=2\ndrain: no picture within 5s\n"
+    },
+    {
+      "case": "direct-capture",
+      "codec": "HEVC",
+      "capture_requested": 32,
+      "frames": 30,
+      "expected": 30,
+      "signature_sha256": "975b898b084fb3f9dac3499d4b7f17633c51f3edc2a8d05e082d0ac36ef5ac4e",
+      "rc": 0,
+      "log": "SRC_CHANGE 1864x1080\nEOS frames=30 resolutions=2\ndrain: no picture within 5s\n"
+    },
+    {
+      "case": "legacy-capture",
+      "codec": "MJPG",
+      "sample": "mjpeg-24.mjpg",
+      "capture_requested": 1,
+      "frames": 24,
+      "expected": 24,
+      "rc": 0,
+      "last_hashes": [
+        "21 196608 864744539605f3b7",
+        "22 196608 8ee8d8aa39afa6a5",
+        "23 196608 de20503ed22ef47f"
+      ],
+      "log": "EOS frames=24 resolutions=1\n",
+      "visible_md5": "bb810d05e59985e04973ea702fa140dc",
+      "psnr_frames": 24,
+      "mean_luma_psnr_db": 31.741249999999997,
+      "minimum_luma_psnr_db": 31.57,
+      "content_match": true
+    },
+    {
+      "case": "legacy-capture",
+      "codec": "MJPG",
+      "sample": "mjpeg-24.mjpg",
+      "capture_requested": 4,
+      "frames": 24,
+      "expected": 24,
+      "rc": 0,
+      "last_hashes": [
+        "21 196608 864744539605f3b7",
+        "22 196608 8ee8d8aa39afa6a5",
+        "23 196608 de20503ed22ef47f"
+      ],
+      "log": "EOS frames=24 resolutions=1\n",
+      "visible_md5": "bb810d05e59985e04973ea702fa140dc",
+      "psnr_frames": 24,
+      "mean_luma_psnr_db": 31.741249999999997,
+      "minimum_luma_psnr_db": 31.57,
+      "content_match": true
+    },
+    {
+      "case": "legacy-capture",
+      "codec": "MJPG",
+      "sample": "mjpeg-24.mjpg",
+      "capture_requested": 20,
+      "frames": 24,
+      "expected": 24,
+      "rc": 0,
+      "last_hashes": [
+        "21 196608 864744539605f3b7",
+        "22 196608 8ee8d8aa39afa6a5",
+        "23 196608 de20503ed22ef47f"
+      ],
+      "log": "EOS frames=24 resolutions=1\n",
+      "visible_md5": "bb810d05e59985e04973ea702fa140dc",
+      "psnr_frames": 24,
+      "mean_luma_psnr_db": 31.741249999999997,
+      "minimum_luma_psnr_db": 31.57,
+      "content_match": true
+    },
+    {
+      "case": "legacy-capture",
+      "codec": "MJPG",
+      "sample": "mjpeg-24.mjpg",
+      "capture_requested": 32,
+      "frames": 24,
+      "expected": 24,
+      "rc": 0,
+      "last_hashes": [
+        "21 196608 864744539605f3b7",
+        "22 196608 8ee8d8aa39afa6a5",
+        "23 196608 de20503ed22ef47f"
+      ],
+      "log": "EOS frames=24 resolutions=1\n",
+      "visible_md5": "bb810d05e59985e04973ea702fa140dc",
+      "psnr_frames": 24,
+      "mean_luma_psnr_db": 31.741249999999997,
+      "minimum_luma_psnr_db": 31.57,
+      "content_match": true
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "H264",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "H264",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "MPG2",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "MPG2",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "MPG4",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    },
+    {
+      "case": "early-streamoff",
+      "codec": "MPG4",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n"
+    },
+    {
+      "case": "hash-reopen",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0,
+      "stderr": ""
+    }
+  ],
+  "known_legacy_limits": [],
+  "decoder_sha256": "0a3fa95c91ce38a6ce0975a7676d292cad9f01aeb9c8d248bda124c5d91df86b",
+  "restored": true,
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "7575": 200,
+    "8123": 200,
+    "arcane": true
+  },
+  "production_start_unchanged": true
+}

@@ -1,0 +1,25 @@
+{
+  "status": "fail",
+  "cases": [
+    {
+      "codec": "h264",
+      "sample": "h264-4ref-1080p.mp4",
+      "capture_requested": 2,
+      "frames": 2,
+      "expected": 120,
+      "hashes_match": false,
+      "rc": 0,
+      "stderr": ""
+    }
+  ],
+  "error": "{'codec': 'h264', 'sample': 'h264-4ref-1080p.mp4', 'capture_requested': 2, 'frames': 2, 'expected': 120, 'hashes_match': False, 'rc': 0, 'stderr': ''}",
+  "restored": true,
+  "production_start_unchanged": true,
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "7575": 200,
+    "8123": 200,
+    "arcane": true
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "rc": 0,
+      "hashes_match": true,
+      "stderr": ""
+    },
+    {
+      "codec": "hevc",
+      "frames": 30,
+      "expected": 30,
+      "rc": 0,
+      "hashes_match": true,
+      "stderr": ""
+    },
+    {
+      "codec": "h264",
+      "frames": 120,
+      "expected": 120,
+      "rc": 0,
+      "hashes_match": true,
+      "stderr": ""
+    }
+  ],
+  "clocks_before": {
+    "fixed_pll": 2550000000,
+    "fclk_div7": 364285714,
+    "vdec_1_sel": 637500000,
+    "vdec_1_1_div": 637500000,
+    "vdec_1": 637500000,
+    "mpll2": 499996410
+  },
+  "overlay_original_sha256": "a5201a696e369f62aecb5d220feab313ca8b83d062d7ba03aaf66a8cb9f9d95d",
+  "decoder_sha256": "2a6052b70d47eaee0159c07483310585ff8730e6d892ed099e0f726a5a87cb8b",
+  "clocks_after_h264": {
+    "fixed_pll": 2550000000,
+    "fclk_div7": 364285714,
+    "vdec_1_sel": 364285714,
+    "vdec_1_1_div": 182142857,
+    "vdec_1": 182142857,
+    "mpll2": 499996410
+  },
+  "restored": true,
+  "overlay_restored_sha256": "a5201a696e369f62aecb5d220feab313ca8b83d062d7ba03aaf66a8cb9f9d95d",
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "7575": 200,
+    "8123": 200,
+    "arcane": true
+  },
+  "production_start_unchanged": true
+}

@@ -66,3 +66,11 @@ Release 包（CI 从 `abee6f6` 构建，驱动代码相同）并重新回归，�
 [v0.4.0 deploy](../evidence/p6-2026-11-20/v040-deploy.md)。`bd1cb79` 是
 2026-11-14 完整硬件验收对应的版本。后续 CI/Release 产物不自动部署，新版本
 需要按安装指南明确升级，生产原内核和原 FFmpeg 保留。
+
+## Research checks
+
+The separate Research kernel workflow pins Linux 7.3.4, checks every research
+patch, builds vmlinux/modules and validates the board binding. Its artifact
+is for compile review; it is not a production-kernel upgrade or hardware
+acceptance. Production recovery and pending runtime gates are in
+[next-development-status.md](next-development-status.md).

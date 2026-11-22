@@ -29,12 +29,18 @@ each supported SoC. Retain the runtime loader as the old-kernel deployment
 adapter. See [shared ownership](power-domain-design.md) and the
 [research port](../evidence/mainline-2026-11-16/PORT.md).
 
-The research port's patch 0013 still allocates a shadow per CAPTURE buffer.
-It predates the v0.4 independent frame pool and does not inherit its memory
-and lifetime acceptance. Before using it, port the pool and its source-change
-and STREAMOFF ordering, then repeat frame counts, CAPTURE 1/2/4/20/32, dynamic
-resolution and concurrent encode checks. Another board/kernel needs hardware
-validation; current v0.4 results cannot be copied onto that research series.
+Research patch 0016 now replaces per-CAPTURE shadows with the independent
+frame pool and its source-change/STREAMOFF lifetime ordering. It preserves
+DOS syscon and runtime PM and adapts current vb2 interfaces. Patches 0017/0018
+add the explicit VDEC1 divider binding and board clock. All 19 patches apply
+and build on pinned Linux 7.3.4; schema checks pass. Meson8b research platform
+data still advertises H.264 only. Runtime HEVC/legacy support has not been
+transferred wholesale or tested on this research kernel.
+
+Another board/kernel still requires hardware validation, CAPTURE and dynamic
+resolution tests and a rescue route. [P0–P3 results](../evidence/p0-p3-2026-11-22/README.md)
+separate the build from hardware acceptance. CI now rebuilds this research
+series independently; it does not prove a board's decode or power behavior.
 
 Encoder standard H.264 profile/level controls expose only the firmware's
 verified Baseline/Level 4.0 values. Do not claim

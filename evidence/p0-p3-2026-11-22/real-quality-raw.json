@@ -1,0 +1,105 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "fps": "30",
+      "target_bps": 800000,
+      "frames": 90,
+      "actual_bps": 819741,
+      "psnr_y_mean": 44.742,
+      "psnr_y_min": 38.96,
+      "psnr_avg_mean": 45.412,
+      "rate_stats": "frames 90\nbytes 307403\ntarget_bps 800000\ncurrent_bps 665396\npeak_bps 5404560\nwindow_ns 1033333323\nqp 19\nsaturated_frames 16\nsaturated_ns 533333328\novershoots 52\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "30",
+      "target_bps": 1600000,
+      "frames": 90,
+      "actual_bps": 1586776,
+      "psnr_y_mean": 51.723,
+      "psnr_y_min": 40.09,
+      "psnr_avg_mean": 51.926,
+      "rate_stats": "frames 90\nbytes 595041\ntarget_bps 1600000\ncurrent_bps 1323569\npeak_bps 5404560\nwindow_ns 1033333323\nqp 6\nsaturated_frames 6\nsaturated_ns 199999998\novershoots 39\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "30",
+      "target_bps": 3000000,
+      "frames": 90,
+      "actual_bps": 2694539,
+      "psnr_y_mean": 57.098,
+      "psnr_y_min": 40.09,
+      "psnr_avg_mean": 57.199,
+      "rate_stats": "frames 90\nbytes 1010452\ntarget_bps 3000000\ncurrent_bps 2195752\npeak_bps 5404560\nwindow_ns 1033333323\nqp 0\nsaturated_frames 1\nsaturated_ns 33333333\novershoots 30\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 800000,
+      "frames": 90,
+      "actual_bps": 819096,
+      "psnr_y_mean": 44.741,
+      "psnr_y_min": 38.96,
+      "psnr_avg_mean": 45.414,
+      "rate_stats": "frames 90\nbytes 307468\ntarget_bps 800000\ncurrent_bps 672271\npeak_bps 5399160\nwindow_ns 1000999980\nqp 19\nsaturated_frames 16\nsaturated_ns 533866656\novershoots 49\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 1600000,
+      "frames": 90,
+      "actual_bps": 1585196,
+      "psnr_y_mean": 51.723,
+      "psnr_y_min": 40.09,
+      "psnr_avg_mean": 51.927,
+      "rate_stats": "frames 90\nbytes 595043\ntarget_bps 1600000\ncurrent_bps 1338269\npeak_bps 5399160\nwindow_ns 1000999980\nqp 6\nsaturated_frames 6\nsaturated_ns 200199996\novershoots 37\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "30000/1001",
+      "target_bps": 3000000,
+      "frames": 90,
+      "actual_bps": 2693251,
+      "psnr_y_mean": 56.983,
+      "psnr_y_min": 40.09,
+      "psnr_avg_mean": 57.082,
+      "rate_stats": "frames 90\nbytes 1010979\ntarget_bps 3000000\ncurrent_bps 2213978\npeak_bps 5399160\nwindow_ns 1000999980\nqp 0\nsaturated_frames 1\nsaturated_ns 33366666\novershoots 29\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "24",
+      "target_bps": 800000,
+      "frames": 90,
+      "actual_bps": 1026172,
+      "psnr_y_mean": 45.121,
+      "psnr_y_min": 37.42,
+      "psnr_avg_mean": 45.802,
+      "rate_stats": "frames 90\nbytes 481018\ntarget_bps 800000\ncurrent_bps 1528965\npeak_bps 4323648\nwindow_ns 1041666650\nqp 32\nsaturated_frames 23\nsaturated_ns 958333318\novershoots 53\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "24",
+      "target_bps": 1600000,
+      "frames": 90,
+      "actual_bps": 1827012,
+      "psnr_y_mean": 51.312,
+      "psnr_y_min": 37.8,
+      "psnr_avg_mean": 51.707,
+      "rate_stats": "frames 90\nbytes 856412\ntarget_bps 1600000\ncurrent_bps 2474211\npeak_bps 4323648\nwindow_ns 1041666650\nqp 32\nsaturated_frames 16\nsaturated_ns 666666656\novershoots 42\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    },
+    {
+      "fps": "24",
+      "target_bps": 3000000,
+      "frames": 90,
+      "actual_bps": 2815232,
+      "psnr_y_mean": 58.823,
+      "psnr_y_min": 40.09,
+      "psnr_avg_mean": 58.837,
+      "rate_stats": "frames 90\nbytes 1319640\ntarget_bps 3000000\ncurrent_bps 3588541\npeak_bps 4323648\nwindow_ns 1041666650\nqp 15\nsaturated_frames 0\nsaturated_ns 0\novershoots 32\noverflows 0\npeak_limit_bps 0\ncpb_bytes 0\ncredit_bits 0\nbudget_violations 0\nlimit_terminal 0\n"
+    }
+  ],
+  "source_sha256": "de7da72f6b5e8cffc2c09cad549e325c7f5471107a535d9ba295aa7ac3113840",
+  "restored": true,
+  "production_start_unchanged": true,
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "7575": 200,
+    "8123": 200,
+    "arcane": true
+  }
+}

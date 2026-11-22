@@ -1,0 +1,57 @@
+{
+  "status": "pass",
+  "cases": [
+    {
+      "codec": "H264",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n",
+      "reopen_h264_frames": 300
+    },
+    {
+      "codec": "H264",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n",
+      "reopen_h264_frames": 300
+    },
+    {
+      "codec": "MPG2",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n",
+      "reopen_h264_frames": 300
+    },
+    {
+      "codec": "MPG2",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n",
+      "reopen_h264_frames": 300
+    },
+    {
+      "codec": "MPG4",
+      "capture_first": false,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=0\n",
+      "reopen_h264_frames": 300
+    },
+    {
+      "codec": "MPG4",
+      "capture_first": true,
+      "rc": 0,
+      "log": "STREAMOFF frames=5 capture_first=1\n",
+      "reopen_h264_frames": 300
+    }
+  ],
+  "hevc_frames": 30,
+  "restored": true,
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "7575": 200,
+    "8123": 200,
+    "arcane": true
+  },
+  "production_start_unchanged": true
+}
