@@ -200,9 +200,10 @@ static void codec_mjpeg_drain_work(struct work_struct *work)
 	struct amvdec_session *sess = mjpeg->sess;
 	static const u32 max_polls = 150; /* 3 s at 20 ms */
 	u32 polls = 0;
+	bool irq_quiet = false;
 
 	while (polls++ < max_polls) {
-		bool irq_quiet = !READ_ONCE(sess->irq_active) &&
+		irq_quiet = !READ_ONCE(sess->irq_active) &&
 			!time_is_after_jiffies64(
 			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
 		int in_flight = atomic_read(&sess->esparser_queued_bufs);
@@ -214,7 +215,8 @@ static void codec_mjpeg_drain_work(struct work_struct *work)
 	}
 
 	mjpeg->draining = false;
-	if (polls > max_polls) {
+	/* Submission count is not a picture count for legacy firmware. */
+	if (!irq_quiet) {
 		amvdec_abort(sess);
 		return;
 	}

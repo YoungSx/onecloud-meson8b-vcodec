@@ -93,7 +93,7 @@ static void amvdec_flush_capture_buffers(struct amvdec_session *s){(void)s;flush
 """.replace("CODEC", "codec_" + codec)
                 body += source[start:end]
                 body += r"""
-int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&s;state.draining=true;now=200;DRAIN(&w);assert(flushes==1 && !aborts && !state.draining);state.draining=true;s.irq_active=true;finish_irq=400;DRAIN(&w);assert(now==500 && flushes==2 && !aborts);state.draining=true;s.last_irq_jiffies=now;continuous=1;DRAIN(&w);assert(aborts==1 && flushes==2 && !state.draining);continuous=0;s.esparser_queued_bufs=2;state.draining=true;DRAIN(&w);assert(aborts==2 && flushes==2 && !state.draining);return 0;}
+int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&s;state.draining=true;now=200;DRAIN(&w);assert(flushes==1 && !aborts && !state.draining);state.draining=true;s.irq_active=true;finish_irq=400;DRAIN(&w);assert(now==500 && flushes==2 && !aborts);state.draining=true;s.last_irq_jiffies=now;continuous=1;DRAIN(&w);assert(aborts==1 && flushes==2 && !state.draining);continuous=0;s.esparser_queued_bufs=2;state.draining=true;DRAIN(&w);assert(aborts==1 && flushes==3 && !state.draining);return 0;}
 """.replace("DRAIN", "codec_" + codec + "_drain_work")
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory)
