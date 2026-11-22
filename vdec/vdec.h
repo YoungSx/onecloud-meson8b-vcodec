@@ -143,6 +143,7 @@ struct amvdec_core {
 	struct clk *dos_clk;
 	struct clk *vdec_1_clk;
 	struct clk *vdec_1_div_clk;
+	struct clk *vdec_1_parent_clk;
 	struct clk *vdec_hevc_clk;
 	struct clk *hevc_parent_clk;
 	struct clk *vdec_hevcf_clk;

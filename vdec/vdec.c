@@ -1311,6 +1311,9 @@ static int vdec_probe(struct platform_device *pdev)
 		core->vdec_1_div_clk = devm_clk_get(dev, "vdec_1_div");
 		if (IS_ERR(core->vdec_1_div_clk))
 			return PTR_ERR(core->vdec_1_div_clk);
+		core->vdec_1_parent_clk = devm_clk_get(dev, "vdec_1_parent");
+		if (IS_ERR(core->vdec_1_parent_clk))
+			return PTR_ERR(core->vdec_1_parent_clk);
 	}
 
 	core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");

@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).parents[1]
 
 class DecoderDrainTests(unittest.TestCase):
     def test_terminator_failure_aborts_without_flush(self):
-        for codec in ("mpeg12", "mpeg4", "vc1"):
+        for codec in ("mpeg12", "mpeg4", "vc1", "mjpeg"):
             with self.subTest(codec=codec):
                 source = (ROOT / ("vdec/codec_" + codec + ".c")).read_text()
                 start = source.index("static void codec_" + codec + "_drain(struct")

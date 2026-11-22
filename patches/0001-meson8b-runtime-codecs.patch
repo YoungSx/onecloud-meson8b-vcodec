@@ -2903,7 +2903,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mjpeg.c
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,288 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3096,9 +3096,9 @@
 +	}
 +}
 +
-+/* Motion JPEG carry no inter-stream end marker: just flush once IRQs
-+ * go quiet. See codec_mpeg12_drain_work for the shared rationale.
-+ */
++/* The next JPEG start releases the final picture without decoding a copy. */
++static const u8 eos_sequence[] = { 0xff, 0xd8, 0xff };
++
 +static void codec_mjpeg_drain_work(struct work_struct *work)
 +{
 +	struct codec_mjpeg *mjpeg =
@@ -3129,6 +3129,10 @@
 +	if (mjpeg->draining)
 +		return;
 +
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
 +	mjpeg->draining = true;
 +	schedule_delayed_work(&mjpeg->drain_work, 0);
 +}
@@ -8082,7 +8086,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1428 @@
+@@ -0,0 +1,1431 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9396,6 +9400,9 @@
 +		core->vdec_1_div_clk = devm_clk_get(dev, "vdec_1_div");
 +		if (IS_ERR(core->vdec_1_div_clk))
 +			return PTR_ERR(core->vdec_1_div_clk);
++		core->vdec_1_parent_clk = devm_clk_get(dev, "vdec_1_parent");
++		if (IS_ERR(core->vdec_1_parent_clk))
++			return PTR_ERR(core->vdec_1_parent_clk);
 +	}
 +
 +	core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");
@@ -9513,7 +9520,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,371 @@
+@@ -0,0 +1,372 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9659,6 +9666,7 @@
 +	struct clk *dos_clk;
 +	struct clk *vdec_1_clk;
 +	struct clk *vdec_1_div_clk;
++	struct clk *vdec_1_parent_clk;
 +	struct clk *vdec_hevc_clk;
 +	struct clk *hevc_parent_clk;
 +	struct clk *vdec_hevcf_clk;
@@ -9887,7 +9895,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_1.c
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,318 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10087,18 +10095,23 @@
 +	struct clk *divider = core->vdec_1_div_clk;
 +	struct clk *selector;
 +	unsigned long parent_rate;
++	int ret;
 +
 +	if (core->platform->revision != VDEC_REVISION_MESON8B)
 +		return clk_set_rate(core->vdec_1_clk, rate);
 +
 +	selector = divider ? clk_get_parent(divider) : NULL;
-+	parent_rate = selector ? clk_get_rate(selector) : 0;
-+	if (parent_rate != 2 * rate) {
++	parent_rate = core->vdec_1_parent_clk ?
++		clk_get_rate(core->vdec_1_parent_clk) : 0;
++	if (!selector || parent_rate != 2 * rate) {
 +		dev_err(core->dev,
 +			"VDEC1 parent at %lu Hz cannot provide %lu Hz without retuning; refusing\n",
 +			parent_rate, rate);
 +		return -EINVAL;
 +	}
++	ret = clk_set_parent(selector, core->vdec_1_parent_clk);
++	if (ret)
++		return ret;
 +	return clk_set_rate(divider, rate);
 +}
 +

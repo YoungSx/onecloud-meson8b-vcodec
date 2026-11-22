@@ -190,9 +190,9 @@ static void codec_mjpeg_resume(struct amvdec_session *sess)
 	}
 }
 
-/* Motion JPEG carry no inter-stream end marker: just flush once IRQs
- * go quiet. See codec_mpeg12_drain_work for the shared rationale.
- */
+/* The next JPEG start releases the final picture without decoding a copy. */
+static const u8 eos_sequence[] = { 0xff, 0xd8, 0xff };
+
 static void codec_mjpeg_drain_work(struct work_struct *work)
 {
 	struct codec_mjpeg *mjpeg =
@@ -223,6 +223,10 @@ static void codec_mjpeg_drain(struct amvdec_session *sess)
 	if (mjpeg->draining)
 		return;
 
+	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
+		amvdec_abort(sess);
+		return;
+	}
 	mjpeg->draining = true;
 	schedule_delayed_work(&mjpeg->drain_work, 0);
 }

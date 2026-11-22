@@ -27,7 +27,7 @@ class OverlayTests(unittest.TestCase):
             root = pathlib.Path(d)
             self.fixture(root)
             text = overlay.render(root)
-            self.assertIn('clocks = <1 54>, <1 17>, <1 196>, <1 206>, <1 8>, <1 192>;', text)
+            self.assertIn('clocks = <1 54>, <1 17>, <1 196>, <1 206>, <1 8>, <1 192>, <1 9>;', text)
             self.assertIn('amlogic,canvas = <2>;', text)
             self.assertIn('amlogic,ao-sysctrl = <3>;', text)
             self.assertEqual(text.count('amlogic,ao-sysctrl = <3>;'), 2)
