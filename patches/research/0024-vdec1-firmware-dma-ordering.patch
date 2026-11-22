@@ -1,0 +1,24 @@
+Subject: [PATCH RFC] media: meson: order VDEC1 microcode DMA and cancel on timeout
+
+Mirror the runtime DMA lifetime protection in the research port.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/vdec_1.c b/drivers/staging/media/meson/vdec/vdec_1.c
+--- a/drivers/staging/media/meson/vdec/vdec_1.c
++++ b/drivers/staging/media/meson/vdec/vdec_1.c
+@@ -60,6 +60,7 @@
+ 
+ 	amvdec_clear_dos_bits(core, MDEC_PIC_DC_CTRL, BIT(31));
+ 
++	dma_wmb();
+ 	amvdec_write_dos(core, IMEM_DMA_ADR, mc_addr_map);
+ 	amvdec_write_dos(core, IMEM_DMA_COUNT, MC_SIZE / 4);
+ 	amvdec_write_dos(core, IMEM_DMA_CTRL, (0x8000 | (7 << 16)));
+@@ -69,6 +70,7 @@
+ 	if (ret) {
+ 		dev_err(dev, "Firmware load fail (DMA hang?)\n");
+ 		amvdec_write_dos(core, IMEM_DMA_CTRL, 0);
++		amvdec_read_dos(core, IMEM_DMA_CTRL);
+ 		goto free_mc;
+ 	}
+ 
