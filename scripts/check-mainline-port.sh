@@ -4,7 +4,7 @@
 # Only the touched files are copied, so the tree itself is never modified.
 set -euo pipefail
 
-tree=${1:?usage: $0 <pristine kernel source tree>}
+tree=$(realpath "${1:?usage: $0 <pristine kernel source tree>}")
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 [[ -x $tree/scripts/checkpatch.pl ]] ||
     { echo "no scripts/checkpatch.pl in $tree" >&2; exit 1; }

@@ -51,7 +51,7 @@ static FILE *dumpf;
 static FILE *hashf;
 static unsigned long pictures;
 
-static void dump_frame(struct v4l2_buffer *b)
+static int dump_frame(struct v4l2_buffer *b)
 {
 	unsigned long long hash = 0xcbf29ce484222325ULL;
 	size_t bytes = 0;
@@ -69,6 +69,7 @@ static void dump_frame(struct v4l2_buffer *b)
 	}
 	if (hashf && bytes)
 		fprintf(hashf, "%lu %zu %016llx\n", pictures++, bytes, hash);
+	return bytes != 0;
 }
 
 static void xioctl(int req, void *arg, const char *what)
@@ -197,7 +198,6 @@ static void drain_capture(enum v4l2_buf_type type)
 			fprintf(stderr, "drain DQBUF: %s\n", strerror(errno));
 			return;
 		}
-		pictures++;
 		dump_frame(&b);
 		if (b.flags & V4L2_BUF_FLAG_LAST)
 			return;
@@ -476,8 +476,7 @@ int main(int argc, char **argv)
 			b.length = VIDEO_MAX_PLANES;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
-				frames++;
-				dump_frame(&b);
+				frames += dump_frame(&b);
 				if (b.flags & V4L2_BUF_FLAG_LAST) {
 					printf("EOS frames=%lu resolutions=%lu\n",
 					       frames, resolutions);
@@ -519,8 +518,7 @@ int main(int argc, char **argv)
 					b.m.planes = planes;
 					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
 						break;
-					frames++;
-					dump_frame(&b);
+					frames += dump_frame(&b);
 					xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 				}
 			}

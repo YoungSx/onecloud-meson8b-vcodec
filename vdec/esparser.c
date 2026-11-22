@@ -69,7 +69,7 @@ static irqreturn_t esparser_isr(int irq, void *dev)
 	if (int_status & PARSER_INTSTAT_SC_FOUND) {
 		amvdec_write_parser(core, PFIFO_RD_PTR, 0);
 		amvdec_write_parser(core, PFIFO_WR_PTR, 0);
-		search_done = 1;
+		WRITE_ONCE(search_done, 1);
 		wake_up_interruptible(&wq);
 	}
 
@@ -204,6 +204,8 @@ static int esparser_pad_start_code(struct amvdec_core *core,
 static int
 esparser_write_data(struct amvdec_core *core, dma_addr_t addr, u32 size)
 {
+	/* Clear before the fetch kick: its IRQ may arrive before the wait. */
+	WRITE_ONCE(search_done, 0);
 	amvdec_write_parser(core, PFIFO_RD_PTR, 0);
 	amvdec_write_parser(core, PFIFO_WR_PTR, 0);
 	amvdec_write_parser(core, PARSER_CONTROL,
@@ -217,8 +219,7 @@ esparser_write_data(struct amvdec_core *core, dma_addr_t addr, u32 size)
 			    (7 << FETCH_ENDIAN_BIT) |
 			    (size + SEARCH_PATTERN_LEN));
 
-	search_done = 0;
-	return wait_event_interruptible_timeout(wq, search_done, (HZ / 5));
+	return wait_event_interruptible_timeout(wq, READ_ONCE(search_done), (HZ / 5));
 }
 
 static u32 esparser_vififo_get_free_space(struct amvdec_session *sess)
@@ -373,6 +374,8 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 		return 0;
 	}
+	/* Publish before the kick; the decoder can finish during the wait. */
+	atomic_inc(&sess->esparser_queued_bufs);
 	ret = esparser_write_data(core, phy, payload_size + pad_size);
 
 	if (ret <= 0) {
@@ -380,11 +383,12 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		amvdec_remove_ts(sess, vb->timestamp);
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 		amvdec_write_parser(core, PARSER_FETCH_CMD, 0);
+		/* Consumption is uncertain after a timeout: end this session. */
+		amvdec_abort(sess);
 
-		return 0;
+		return ret ? : -ETIMEDOUT;
 	}
 
-	atomic_inc(&sess->esparser_queued_bufs);
 	v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
 
 	return 0;
