@@ -2192,7 +2192,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/mes
  	{ .compatible = "amlogic,g12a-vdec",
  	  .data = &vdec_platform_g12a },
  	{ .compatible = "amlogic,sm1-vdec",
-@@ -1100,7 +1320,11 @@
+@@ -1100,7 +1320,14 @@
  	if (IS_ERR(core->vdec_1_clk))
  		return -EPROBE_DEFER;
  
@@ -2201,11 +2201,14 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/mes
 +		core->vdec_1_div_clk = devm_clk_get(dev, "vdec_1_div");
 +		if (IS_ERR(core->vdec_1_div_clk))
 +			return PTR_ERR(core->vdec_1_div_clk);
++		core->vdec_1_parent_clk = devm_clk_get(dev, "vdec_1_parent");
++		if (IS_ERR(core->vdec_1_parent_clk))
++			return PTR_ERR(core->vdec_1_parent_clk);
 +	} else {
  		core->vdec_hevc_clk = devm_clk_get(dev, "vdec_hevc");
  		if (IS_ERR(core->vdec_hevc_clk))
  			return PTR_ERR(core->vdec_hevc_clk);
-@@ -1114,6 +1338,7 @@
+@@ -1114,6 +1341,7 @@
  	if (irq < 0)
  		return irq;
  
@@ -2213,7 +2216,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/mes
  	ret = devm_request_threaded_irq(core->dev, irq, vdec_isr,
  					vdec_threaded_isr, IRQF_ONESHOT,
  					"vdec", core);
-@@ -1139,6 +1364,7 @@
+@@ -1139,6 +1367,7 @@
  	core->vdev_dec = vdev;
  	core->dev_dec = dev;
  	mutex_init(&core->lock);
@@ -2221,7 +2224,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/mes
  
  	strscpy(vdev->name, "meson-video-decoder", sizeof(vdev->name));
  	vdev->release = video_device_release;
-@@ -1174,8 +1400,10 @@
+@@ -1174,8 +1403,10 @@
  {
  	struct amvdec_core *core = platform_get_drvdata(pdev);
  
@@ -2351,15 +2354,16 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   */
  struct amvdec_core {
  	void __iomem *dos_base;
-@@ -102,6 +143,7 @@
+@@ -102,6 +143,8 @@
  	struct clk *dos_parser_clk;
  	struct clk *dos_clk;
  	struct clk *vdec_1_clk;
 +	struct clk *vdec_1_div_clk;
++	struct clk *vdec_1_parent_clk;
  	struct clk *vdec_hevc_clk;
  	struct clk *vdec_hevcf_clk;
  
-@@ -112,6 +154,13 @@
+@@ -112,6 +155,13 @@
  
  	struct amvdec_session *cur_sess;
  	struct mutex lock;
@@ -2373,7 +2377,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
  };
  
  /**
-@@ -138,6 +187,7 @@
+@@ -138,6 +188,7 @@
   * @conf_esparser: mandatory call to let the vdec configure the ESPARSER
   * @vififo_level: mandatory call to get the current amount of data
   *		  in the VIFIFO
@@ -2381,7 +2385,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   */
  struct amvdec_ops {
  	int (*start)(struct amvdec_session *sess);
-@@ -153,12 +203,15 @@
+@@ -153,12 +204,15 @@
   * @stop: mandatory call when the codec needs to stop
   * @load_extended_firmware: optional call to load additional firmware bits
   * @num_pending_bufs: optional call to get the number of dst buffers on hold
@@ -2398,7 +2402,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   * @eos_sequence: optional call to get an end sequence to send to esparser
   *		  for flush. Mutually exclusive with @drain.
   * @isr: mandatory call when the ISR triggers
-@@ -170,6 +223,11 @@
+@@ -170,6 +224,11 @@
  	int (*load_extended_firmware)(struct amvdec_session *sess,
  				      const u8 *data, u32 len);
  	u32 (*num_pending_bufs)(struct amvdec_session *sess);
@@ -2410,7 +2414,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
  	int (*can_recycle)(struct amvdec_core *core);
  	void (*recycle)(struct amvdec_core *core, u32 buf_idx);
  	void (*drain)(struct amvdec_session *sess);
-@@ -224,7 +282,6 @@
+@@ -224,7 +283,6 @@
   * @m2m_ctx: v4l2 m2m context
   * @ctrl_handler: V4L2 control handler
   * @ctrl_min_buf_capture: V4L2 control V4L2_CID_MIN_BUFFERS_FOR_CAPTURE
@@ -2418,7 +2422,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   * @fmt_out: vdec pixel format for the OUTPUT queue
   * @pixfmt_cap: V4L2 pixel format for the CAPTURE queue
   * @src_buffer_size: size in bytes of the OUTPUT buffers' only plane
-@@ -240,12 +297,11 @@
+@@ -240,12 +298,11 @@
   * @streamon_cap: stream on flag for capture queue
   * @streamon_out: stream on flag for output queue
   * @sequence_cap: capture sequence counter
@@ -2433,7 +2437,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   * @canvas_alloc: array of all the canvas IDs allocated
   * @canvas_num: number of canvas IDs allocated
   * @vififo_vaddr: virtual address for the VIFIFO
-@@ -257,9 +313,6 @@
+@@ -257,9 +314,6 @@
   * @timestamps: chronological list of src timestamps
   * @ts_spinlock: spinlock for the timestamps list
   * @last_irq_jiffies: tracks last time the vdec triggered an IRQ
@@ -2443,7 +2447,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
   * @status: current decoding status
   * @priv: codec private data
   */
-@@ -271,7 +324,7 @@
+@@ -271,7 +325,7 @@
  	struct v4l2_m2m_ctx *m2m_ctx;
  	struct v4l2_ctrl_handler ctrl_handler;
  	struct v4l2_ctrl *ctrl_min_buf_capture;
@@ -2452,7 +2456,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
  
  	const struct amvdec_format *fmt_out;
  	u32 pixfmt_cap;
-@@ -292,15 +345,12 @@
+@@ -292,15 +346,12 @@
  	unsigned int streamon_cap, streamon_out;
  	unsigned int sequence_cap, sequence_out;
  	unsigned int should_stop;
@@ -2469,7 +2473,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
  
  	void *vififo_vaddr;
  	dma_addr_t vififo_paddr;
-@@ -317,16 +367,17 @@
+@@ -317,16 +368,17 @@
  	u32 last_offset;
  	u32 wrap_count;
  	u32 fw_idx_to_vb2_idx[32];
@@ -2495,7 +2499,7 @@ diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/mes
 diff --git a/drivers/staging/media/meson/vdec/vdec_1.c b/drivers/staging/media/meson/vdec/vdec_1.c
 --- a/drivers/staging/media/meson/vdec/vdec_1.c
 +++ b/drivers/staging/media/meson/vdec/vdec_1.c
-@@ -179,6 +179,27 @@
+@@ -179,6 +179,32 @@
  	return 0;
  }
  
@@ -2505,25 +2509,30 @@ diff --git a/drivers/staging/media/meson/vdec/vdec_1.c b/drivers/staging/media/m
 +	struct clk *divider = core->vdec_1_div_clk;
 +	struct clk *selector;
 +	unsigned long parent_rate;
++	int ret;
 +
 +	if (core->platform->revision != VDEC_REVISION_MESON8B)
 +		return clk_set_rate(core->vdec_1_clk, rate);
 +
 +	selector = divider ? clk_get_parent(divider) : NULL;
-+	parent_rate = selector ? clk_get_rate(selector) : 0;
-+	if (parent_rate != 2 * rate) {
++	parent_rate = core->vdec_1_parent_clk ?
++		clk_get_rate(core->vdec_1_parent_clk) : 0;
++	if (!selector || parent_rate != 2 * rate) {
 +		dev_err(core->dev,
 +			"VDEC1 parent at %lu Hz cannot provide %lu Hz without retuning; refusing\n",
 +			parent_rate, rate);
 +		return -EINVAL;
 +	}
++	ret = clk_set_parent(selector, core->vdec_1_parent_clk);
++	if (ret)
++		return ret;
 +	return clk_set_rate(divider, rate);
 +}
 +
  static int vdec_1_start(struct amvdec_session *sess)
  {
  	int ret;
-@@ -188,7 +209,7 @@
+@@ -188,7 +214,7 @@
  	u32 iso_reg = AO_RTI_GEN_PWR_ISO0 - core->platform->ao_sysctrl_offset;
  	unsigned long rate = core->platform->vdec_1_rate ?: 666666666;
  

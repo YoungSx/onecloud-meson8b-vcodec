@@ -1,37 +1,40 @@
-Subject: [PATCH RFC] media: meson: Describe the explicit Meson8b VDEC1 divider clock
+Subject: [PATCH RFC] media: meson: Describe explicit Meson8b VDEC1 divider and fixed parent clocks
 
-An explicit divider handle avoids deriving clock topology from a fixed
-number of parent links. The decoder refuses rates that would require
+An explicit divider avoids deriving clock topology from fixed parent
+links. The fixed fclk_div7 parent lets the decoder select a mux without
 retuning a shared PLL. No clock is changed at probe time.
 
 ---
 diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
 --- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
 +++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
-@@ -77,7 +77,7 @@
+@@ -77,8 +77,8 @@
        - const: dos_parser
        - const: dos
        - const: vdec_1
 -      - const: vdec_hevc
+-      - const: vdec_hevcf
 +      - enum: [vdec_hevc, vdec_1_div]
-       - const: vdec_hevcf
++      - enum: [vdec_hevcf, vdec_1_parent]
  
    amlogic,ao-sysctrl:
-@@ -112,9 +112,14 @@
+     description: |
+@@ -112,9 +112,15 @@
      then:
        properties:
          clocks:
 -          maxItems: 3
 -        clock-names:
 -          maxItems: 3
-+          minItems: 4
-+          maxItems: 4
++          minItems: 5
++          maxItems: 5
 +        clock-names:
 +          items:
 +            - const: dos_parser
 +            - const: dos
 +            - const: vdec_1
 +            - const: vdec_1_div
++            - const: vdec_1_parent
      else:
        properties:
          clocks:

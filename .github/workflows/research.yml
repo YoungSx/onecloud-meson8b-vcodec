@@ -1,0 +1,68 @@
+name: Research kernel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'patches/research/**'
+      - 'scripts/check-mainline-port.sh'
+      - '.github/workflows/research.yml'
+  pull_request:
+    paths:
+      - 'patches/research/**'
+      - 'scripts/check-mainline-port.sh'
+      - '.github/workflows/research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install compiler and schema tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf build-essential flex bison bc libssl-dev libelf-dev curl xz-utils python3-venv
+          python3 -m venv "$RUNNER_TEMP/schema"
+          "$RUNNER_TEMP/schema/bin/pip" install 'dtschema==2026.9'
+      - name: Verify and apply the research series
+        run: |
+          mkdir -p build/research/logs
+          curl -fsSL --retry 3 --max-time 180 https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.3.4.tar.xz -o build/research/linux-7.3.4.tar.xz
+          printf '%s  %s\n' b11b6df8295e8e991ff040b71aaa4994a8b55caa23b6b092907f195b5840fd1f build/research/linux-7.3.4.tar.xz | sha256sum -c -
+          tar -xJf build/research/linux-7.3.4.tar.xz -C build/research
+          bash scripts/check-mainline-port.sh build/research/linux-7.3.4 | tee build/research/logs/series.log
+          for patch in patches/research/[0-9][0-9][0-9][0-9]-*.patch; do
+            patch -d build/research/linux-7.3.4 -p1 -F0 --batch < "$patch"
+          done
+      - name: Build kernel, modules and board bindings
+        run: |
+          set -o pipefail
+          tree=build/research/linux-7.3.4
+          make -C "$tree" ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- multi_v7_defconfig
+          "$tree/scripts/config" --file "$tree/.config" -e STAGING -e STAGING_MEDIA -m VIDEO_MESON_VDEC -e MESON_CANVAS
+          make -C "$tree" ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- olddefconfig
+          make -C "$tree" ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j4 vmlinux modules 2>&1 | tee build/research/logs/build.log
+          export PATH="$RUNNER_TEMP/schema/bin:$PATH"
+          make -C "$tree" ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- DT_SCHEMA_FILES=media/amlogic,gx-vdec.yaml -j4 dtbs_check 2>&1 | tee build/research/logs/bindings.log
+          cp "$tree/.config" build/research/config
+          sha256sum "$tree/drivers/staging/media/meson/vdec/meson-vdec.ko" > build/research/module-sha256.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: research-build
+          path: |
+            build/research/logs/
+            build/research/config
+            build/research/module-sha256.txt
+            build/research/linux-7.3.4/drivers/staging/media/meson/vdec/meson-vdec.ko
+            build/research/linux-7.3.4/arch/arm/boot/dts/amlogic/meson8b-odroidc1.dtb
+          if-no-files-found: warn

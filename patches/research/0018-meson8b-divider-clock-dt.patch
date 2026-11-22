@@ -1,21 +1,23 @@
-Subject: [PATCH RFC] media: meson: Pass the Meson8b VDEC1 divider to the decoder
+Subject: [PATCH RFC] media: meson: Pass Meson8b VDEC1 divider and fixed parent clocks
 
-An explicit divider handle avoids deriving clock topology from a fixed
-number of parent links. The decoder refuses rates that would require
+An explicit divider avoids deriving clock topology from fixed parent
+links. The fixed fclk_div7 parent lets the decoder select a mux without
 retuning a shared PLL. No clock is changed at probe time.
 
 ---
 diff --git a/arch/arm/boot/dts/amlogic/meson8b.dtsi b/arch/arm/boot/dts/amlogic/meson8b.dtsi
 --- a/arch/arm/boot/dts/amlogic/meson8b.dtsi
 +++ b/arch/arm/boot/dts/amlogic/meson8b.dtsi
-@@ -28,8 +28,8 @@
+@@ -28,8 +28,10 @@
  				     <GIC_SPI 32 IRQ_TYPE_EDGE_RISING>;
  			interrupt-names = "vdec", "esparser";
  			clocks = <&clkc CLKID_DOS_PARSER>, <&clkc CLKID_DOS>,
 -				 <&clkc CLKID_VDEC_1>;
 -			clock-names = "dos_parser", "dos", "vdec_1";
-+				 <&clkc CLKID_VDEC_1>, <&clkc CLKID_VDEC_1_1_DIV>;
-+			clock-names = "dos_parser", "dos", "vdec_1", "vdec_1_div";
++				 <&clkc CLKID_VDEC_1>, <&clkc CLKID_VDEC_1_1_DIV>,
++				 <&clkc CLKID_FCLK_DIV7>;
++			clock-names = "dos_parser", "dos", "vdec_1", "vdec_1_div",
++				      "vdec_1_parent";
  			resets = <&reset RESET_PARSER>;
  			reset-names = "esparser";
  			amlogic,dos = <&dos>;
