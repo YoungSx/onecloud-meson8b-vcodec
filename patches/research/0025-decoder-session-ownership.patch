@@ -1,0 +1,80 @@
+Subject: [PATCH RFC] media: meson: serialize singleton decoder stream ownership
+
+Queue ioctls use per-session locks. Serialize shared hardware startup and
+shutdown across file handles while retaining capability discovery.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -401,7 +401,7 @@
+ 	return true;
+ }
+ 
+-static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
++static int vdec_start_streaming_locked(struct vb2_queue *q, unsigned int count)
+ {
+ 	struct amvdec_session *sess = vb2_get_drv_priv(q);
+ 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+@@ -534,6 +534,17 @@
+ 	return ret;
+ }
+ 
++static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
++{
++	struct amvdec_session *sess = vb2_get_drv_priv(q);
++	int ret;
++
++	mutex_lock(&sess->core->session_lock);
++	ret = vdec_start_streaming_locked(q, count);
++	mutex_unlock(&sess->core->session_lock);
++	return ret;
++}
++
+ static void vdec_free_canvas(struct amvdec_session *sess)
+ {
+ 	int i;
+@@ -566,7 +577,7 @@
+ 	}
+ }
+ 
+-static void vdec_stop_streaming(struct vb2_queue *q)
++static void vdec_stop_streaming_locked(struct vb2_queue *q)
+ {
+ 	struct amvdec_session *sess = vb2_get_drv_priv(q);
+ 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
+@@ -617,6 +628,15 @@
+ 
+ 		sess->streamon_cap = 0;
+ 	}
++}
++
++static void vdec_stop_streaming(struct vb2_queue *q)
++{
++	struct amvdec_session *sess = vb2_get_drv_priv(q);
++
++	mutex_lock(&sess->core->session_lock);
++	vdec_stop_streaming_locked(q);
++	mutex_unlock(&sess->core->session_lock);
+ }
+ 
+ static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
+@@ -1397,6 +1417,7 @@
+ 	core->dev_dec = dev;
+ 	mutex_init(&core->lock);
+ 	mutex_init(&core->esparser_lock);
++	mutex_init(&core->session_lock);
+ 
+ 	strscpy(vdev->name, "meson-video-decoder", sizeof(vdev->name));
+ 	vdev->release = video_device_release;
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -162,6 +162,7 @@
+ 
+ 	struct amvdec_session *cur_sess;
+ 	struct mutex lock;
++	struct mutex session_lock; /* serialize hardware session start/stop */
+ 	struct mutex esparser_lock; /* parser fetch and completion */
+ 	int vdec_irq;
+ 	struct dentry *debugfs;
