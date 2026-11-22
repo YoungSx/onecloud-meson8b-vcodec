@@ -1,0 +1,40 @@
+  CC [M]  drivers/staging/media/meson/vdec/meson8b-capture.o
+  CC [M]  drivers/staging/media/meson/vdec/vdec_1.o
+  CC [M]  drivers/staging/media/meson/vdec/vdec_hevc.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_mpeg12.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_mpeg4.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_vc1.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_mjpeg.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_h264.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_hevc.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_hevc_common.o
+  CC [M]  drivers/staging/media/meson/vdec/codec_vp9.o
+  CC [M]  drivers/staging/media/meson/vdec/meson8b-swap-neon.o
+  LD [M]  drivers/staging/media/meson/vdec/meson-vdec.o
+  AR      drivers/built-in.a
+  AR      built-in.a
+  AR      built-in-fixup.a
+  COPY    vmlinux.a
+  LD      vmlinux.o
+  MODPOST Module.symvers
+  UPD     include/generated/utsversion.h
+  CC      init/version-timestamp.o
+  KSYMS   .tmp_vmlinux0.kallsyms.S
+  AS      .tmp_vmlinux0.kallsyms.o
+  LD      .tmp_vmlinux1
+  CC [M]  drivers/staging/media/meson/vdec/meson-vdec.mod.o
+  LD [M]  drivers/staging/media/meson/vdec/meson-vdec.ko
+  NM      .tmp_vmlinux1.syms
+  KSYMS   .tmp_vmlinux1.kallsyms.S
+  AS      .tmp_vmlinux1.kallsyms.o
+  LD      .tmp_vmlinux2
+  NM      .tmp_vmlinux2.syms
+  KSYMS   .tmp_vmlinux2.kallsyms.S
+  AS      .tmp_vmlinux2.kallsyms.o
+  LD      vmlinux.unstripped
+  NM      System.map
+  SORTTAB vmlinux.unstripped
+  OBJCOPY vmlinux
+  GEN     modules.builtin.modinfo
+  GEN     modules.builtin
+make: Leaving directory '<KERNEL_TREE>'

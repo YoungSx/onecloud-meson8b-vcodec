@@ -1,6 +1,6 @@
 # Portability and the application boundary
 
-The deployed v0.4.0 stack is a compatibility port for OneCloud on the original
+The runtime stack is a compatibility port for OneCloud on the original
 5.15.79-meson kernel. It exposes standard stateful V4L2 M2M devices. FFmpeg and
 applications do not need to know DOS registers, firmware layout, canvas byte
 order or fixed device numbers; they discover supported formats through V4L2.
@@ -29,13 +29,13 @@ each supported SoC. Retain the runtime loader as the old-kernel deployment
 adapter. See [shared ownership](power-domain-design.md) and the
 [research port](../evidence/mainline-2026-11-16/PORT.md).
 
-Research patch 0016 now replaces per-CAPTURE shadows with the independent
-frame pool and its source-change/STREAMOFF lifetime ordering. It preserves
-DOS syscon and runtime PM and adapts current vb2 interfaces. Patches 0017/0018
-add the explicit VDEC1 divider binding and board clock. All 19 patches apply
-and build on pinned Linux 7.3.4; schema checks pass. Meson8b research platform
-data still advertises H.264 only. Runtime HEVC/legacy support has not been
-transferred wholesale or tested on this research kernel.
+Research patches0016–0024 port the independent pool, IRQ/completion/EOS
+ordering, existing VDEC1 formats and HEVC Main8 protocol to Linux 7.3.4.
+The DOS syscon owns shared registers; genpd owns VDEC1/HEVC AO bridge power
+and each engine owns its DOS memory power gates. Fixed clock parents avoid
+MPLL retuning. All25 patches apply without fuzz and pass checkpatch;
+full kernel/modules,ARM DTB/binding and ODROID checks pass locally.
+Research support has not run on a board. Known stream/content limits remain.
 
 Another board/kernel still requires hardware validation, CAPTURE and dynamic
 resolution tests and a rescue route. [P0–P3 results](../evidence/p0-p3-2026-11-22/README.md)
@@ -57,5 +57,6 @@ application improvements, not a new driver hardware acceptance. The
 records its own limits. Browser rendering, sustained playback and arbitrary
 remote sources still need their own evidence.
 
-This phase does not replace the production kernel, DT, firmware or modules,
-submit the research series upstream or claim multi-board support.
+The runtime modules and overlay were upgraded by explicit user request; the
+production boot kernel,boot DT and CMA stay unchanged. Research is not booted
+on production,submitted upstream or claimed as multi-board acceptance.

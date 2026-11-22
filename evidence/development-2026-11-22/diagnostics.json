@@ -1,0 +1,14 @@
+{
+  "capture": "per-line fsync on persistent disk; rotating4MiB files; transient service",
+  "panic_oom_lockup_markers": {
+    "BUG:": 0,
+    "Oops:": 0,
+    "Call Trace:": 0,
+    "Unable to handle kernel": 0,
+    "Out of memory": 0,
+    "soft lockup": 0,
+    "NETDEV WATCHDOG": 0
+  },
+  "cause_of_prior_outages": "unproven; this new log cannot reconstruct an earlier hang",
+  "raw_logs_published": false
+}

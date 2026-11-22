@@ -55,6 +55,13 @@ bash scripts/package-release.sh v0.1.0 build/release-v0.1.0
 内部清单覆盖全部文件，外部清单覆盖归档与来源 JSON。打包规范化 tar 的
 排序、时间和 owner；跨工具链版本仍应比较 provenance，不假定字节一致。
 
+## 当前开发部署
+
+2026-11-22 按用户明确授权部署 source `1a1d1f7`，保留原 v0.4.0 包、固件、
+unit 与 state。新 IRQ/EOS、转换、VUI、DMA 防护的有界实机结果和未完成稳定性
+边界见[本轮部署](../evidence/development-2026-11-22/README.md)。研究线未部署。
+本轮没有创建稳定版标签或发布，不能由 CI 全绿推出长期稳定性通过。
+
 ## 已安装硬件验收版本
 
 在役机 2026-11-15 起安装 `c20a473` 运行包（v0.2.0），2026-11-17 起安装

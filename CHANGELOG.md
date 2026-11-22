@@ -7,6 +7,19 @@ changed.
 
 ## Unreleased
 
+- Defer EOS until its own LAST buffer is dequeued, track complete threaded IRQ
+  activity, and bound/recover drain and recycle allocation failures.
+- Pipeline conversion outside the firmware IRQ, keeping copied slots protected
+  while IRQs queue other pictures; preserve STREAMOFF/reconfiguration lifetime.
+- Publish H.264 crop/color/timing VUI, keep the streaming frame period stable,
+  and order/cancel firmware DMA before releasing staging memory.
+- Port runtime decode formats and completion fixes to the 25-patch Linux7.3.4
+  research series with shared DOS syscon and genpd bridge ownership.
+- Deploy new modules with the official-FFmpeg OpenList image, retain original
+  v0.4.0 rollback data, and record bounded browser/content/recovery evidence.
+  Stability,legacy tails and realtime throughput remain open.
+
+
 - Serialize parser writes, stop timed-out fetches and prevent further feeds
   after abort; bound decoder inactivity waits and drain queued input for
   custom codecs before STOP.

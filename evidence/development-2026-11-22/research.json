@@ -1,0 +1,25 @@
+{
+  "kernel": "7.3.4",
+  "patches": 25,
+  "formats": [
+    "H.264",
+    "HEVC Main 8-bit",
+    "MPEG-1/2",
+    "MPEG-4 Part 2",
+    "VC-1 advanced",
+    "MJPEG"
+  ],
+  "module_sha256": "dccc8cd0323c7534583964313301fdbbfa94019edb93a220728dc2b94e36c7d5",
+  "module_build": "pass",
+  "full_vmlinux_modules": "pass",
+  "arm_dtbs_schema": "pass",
+  "odroid_c1_binding": "pass",
+  "patch_order_checkpatch": "pass: zero errors or warnings in every patch",
+  "runtime_hardware": "not tested; only production OneCloud available",
+  "driver_ownership": "shared DOS syscon, genpd for video engine AO bridges, engine-owned DOS memory power gating",
+  "unresolved": [
+    "cross-board runtime",
+    "static-DT boot on S805",
+    "legacy format tail/content limits"
+  ]
+}

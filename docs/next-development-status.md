@@ -1,59 +1,53 @@
-# P0–P3 development and acceptance status
+# Current development and acceptance status
 
-Official unmodified FFmpeg remains the target. The full P0–P3 goal is **not
-complete**. [Dated evidence](../evidence/p0-p3-2026-11-22/README.md) distinguishes
-hardware results from host tests and compile checks.
+Official unmodified FFmpeg remains the compatibility target. Current deployed
+runtime source is `1a1d1f70ad4f803279ebd1142451f5972abe69d1`; production OpenList
+uses `v4.2.10-official-ffmpeg-a845b34-clean`. New driver deployment was explicitly
+authorized. [Current evidence](../evidence/development-2026-11-22/README.md)
+records tested module hashes and bounded acceptance. **The whole development
+list is not complete.**
 
-| Priority | Delivered and checked | Remaining work |
+| Priority | Implemented and checked | Remaining boundary |
 | --- | --- | --- |
-| P0 | Parser submission mutex, stop timed-out fetches, drain every codec's queued input before STOP, bounded inactivity wait, abort feed stop, YUV420M validation. Final decoder passed six early STREAMOFF/reopen cases and direct H.264/HEVC checks. | Rare H.264 short output and MPEG/VC-1 tail pictures remain. Repeated device outages prevent stability acceptance. |
-| P1 driver | Recycle queue wakes on pending slots/IRQs; two 600-picture transcodes per version completed. VDEC1 fixed-parent test preserved fixed PLL and MPLL2 frequencies. | Improvement is small; 1.3× realtime remains unmet. Sustained production tests are paused. |
-| P1 OpenList | Previous image passed bounded actual browser playback, uncached forward/backward seeks and cancellation; device release took 0.257 s. Latest frontend passed full lint, 72 tests, build and CI, including HLS replacement cleanup. Clean image contains byte-identical official FFmpeg/ffprobe. | Latest clean image has not passed browser/hardware acceptance. Previous playback buffered and does not prove realtime throughput. |
-| P2 quality | Raw nine-case real-content PSNR/rate results retrieved: 90 pictures at 30, 30000/1001, 24 fps. Explicit fps filter aligns the reference. | Low targets can saturate. Strict CBR is not provided; the small set does not justify changing the rate algorithm. |
-| P2 research | Independent Meson8b frame pool, current vb2 API, syscon/genpd/runtime PM and GX behavior preserved. 19 patches, full Linux 7.3.4 build and board schema checks passed dedicated CI. | Research Meson8b remains H.264 only. New-kernel/static-DT and other-board hardware acceptance still require a recoverable test device. |
-| P3 formats | H.264 120 pictures and HEVC 30 at direct CAPTURE counts 1/2/4/20/32; MJPEG 24 at 1/4/20/32; JPEG 40 images across four resolutions and two qualities; firmware/budget errors reopen correctly. | MPEG-2 produces89/90 and 149/150, MPEG-4 88/90,VC-1 6/7 and 14/15. Official FFmpeg checksum output with CAPTURE 2 still truncates despite direct-client success. |
+| P0 reliability | Wait for the threaded IRQ to finish before declaring inactivity; fail drain timeouts and recycle allocation failures; publish EOS once, after its LAST buffer is dequeued; preserve source-change LAST separately. Order firmware DMA writes and cancel timed-out transfers before freeing staging. | Previous two device outages still have no proven cause. Old H.264 short-output race is addressed by concrete ordering fixes, but bounded tests cannot prove elimination. Production sustained load stays paused. |
+| P0 deployment | New modules, matching overlay and autoload package installed; original v0.4.0 installation/firmware/unit/state preserved. Idle checks, checksums, rollback-on-load-failure and service probes used. Production OpenList was not restarted. | New installed package has service restart/short content checks; a new cold boot has not been requested or tested. Temporary overlay isolation also lacks abnormal-reboot acceptance. |
+| P1 playback | Clean image and latest frontend played real HLS in a browser, sought forward into uncached content, backward, and to the end; no MediaError. Cached seeked events hit 12 and 50 exactly; cancel released hardware in 0.242s. | Buffering occurred. This is bounded playback, not a realtime or multi-browser guarantee. |
+| P1 performance | Run conversion on the existing pool worker outside the firmware IRQ. A copying slot remains queued and protected while IRQs queue other slots; separate delivery/reconfiguration locking protects lifetime. | Production CPU/memory load causes large timing variation; 1.3× realtime remains unmet. A high-priority queue experiment had no stable gain and was rejected. No higher clock retained. |
+| P2 encoder | Add SPS/VUI crop, negotiated color range/known colorimetry and coded-picture period. Reject frame-period changes while streaming. Stock `h264_metadata` can supply explicit color tags after an actual colorspace conversion. 30,30000/1001,24 fps MP4 duration/count/softdecode pass. | Official V4L2 wrappers do not forward every color option; unknown V4L2 colorimetry stays unspecified. Rate control is VBR; low targets may saturate at the validated QP32 ceiling. Strict CBR,HRD and pacing are absent. |
+| P2 research | 25 patches port all existing runtime decode formats to Linux 7.3.4: independent pool, IRQ/EOS ordering, VDEC1 legacy formats and HEVC Main 8. Shared DOS uses syscon; genpd owns VDEC1/HEVC AO bridge power; fixed clock parents avoid MPLL retuning. Full kernel/modules,ARM DTBs,bindings and ODROID checks pass locally. | No second board or serial test device exists. Research kernel is not booted on production; cross-board/static-DT runtime acceptance remains open. |
+| P3 formats | H.264/HEVC direct-client CAPTURE 1/2/4/20/32,full-range MJPEG and six early STREAMOFF/reopen cases passed with new conversion/EOS paths. Firmware and budget errors have bounded recovery. | MPEG/VC-1 tails and particular MPEG-4 B-picture content remain incomplete. Official FFmpeg checksum output with CAPTURE2 has a separate retention boundary. No guessed/replayed-picture drain fix is merged. |
 
-## Production recovery and stability gate
+## Production recovery and diagnostics
 
-The device required two local reboots during this development pass. The first
-outage followed a temporary 255 MHz experiment. Retrieved results show that the
-experiment itself completed and restored modules/services; its connection to
-the later outage is unproven. No higher default rate is retained.
+Earlier temporary255MHz and original182MHz mixed-load runs were followed by
+two connectivity failures requiring local reboots. The latter record ended at
+1169.753s with no completed/restored receipt. It is not a passing soak. The
+first experiment's retrieved receipt did report completed restoration; this
+does not establish its relationship to the later outage.
 
-The second outage occurred during mixed load at the original 182 MHz. The last
-saved record contains 30 iterations over 1169.753 s, 3600 transcode pictures, 9000
-H.264 hashes, 900 HEVC hashes, 90 JPEG pictures and 31 service samples. It remains
-`running` with no completed/restored result: **the 30-minute soak failed to
-complete**. The last sampled temperature was 59.062°C; it does not establish a
-thermal cause.
+After the second reboot, the temporary overlay had persisted at the canonical
+firmware path. Its checksum mismatch correctly blocked original autoload;
+original overlay/modules/services were restored before further work. Subsequent
+explicitly authorized upgrades preserved that original installation, boot
+kernel/DT/CMA and business container configuration.
 
-After the second reboot, the temporary overlay still occupied the original
-firmware path. The original autoload checksum correctly rejected it, and
-OpenList was stopped. On 2026-11-22 the original overlay and installed source
-`89dd558` were restored, both codec nodes probed, all four HTTP services returned
-200 and Arcane ran. Production retains the original kernel/boot DT/CMA and
-OpenList image `v4.2.10-v4l2m2m-29c7842`.
+There was no previous-boot journal or pstore record, and retained kernel logs
+ended about346s before the final successful sample. Cause remains undetermined.
+Development uses bounded checks and a transient, rotating, per-line-fsynced
+kernel log on persistent storage. It improves evidence retention but cannot
+capture every CPU/network hang. Raw production logs stay private.
 
-No previous-boot journal or pstore record is available. Retained kernel logs
-end about 346 s before the last successful test sample, with no retained
-panic/OOM/lockup. This does **not** exclude a driver or system fault. Raw device
-logs are retained privately; [sanitized analysis](../evidence/p0-p3-2026-11-22/outage-analysis.json)
-records the evidence limits.
+## Further extensions
 
-Continuous production load tests are paused. Temporary development overlays
-now have a separate checked loading path that preserves the installed file,
-cleans up on success/failure and restores the original service after load
-failure. The new runtime parameter has host tests and matching-kernel build
-checks; its hardware/reboot acceptance remains pending. See
-[development loading](installation.md#开发-overlay-的临时加载).
+GE2D/full zero-copy and per-slice early delivery are research gates. Existing
+register headers do contain source/destination endianness controls; the old
+claim that GE2D has no such controls was too broad. Meson8b register,canvas,
+clock,power and actual conversion/scale behavior still need implementation and
+hardware validation before integration. Current capture copies remain correct
+and explicit. Multiple encoder sessions,HEVC hardware encoding,Main10/tiles,
+CABAC/High-profile/B-picture encoding are not advertised.
 
-## Application artifact
-
-Backend `6c77764f`, frontend `a845b34`, prepared clean image:
-`youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`.
-The earlier image without the `-clean` suffix contained residual frontend
-assets and is superseded. The clean image has not replaced production.
-
-中文：开发和有界验证已有成果，但稳定性、旧格式尾帧、实时吞吐、最新版浏览器
-验收和跨板运行仍未完成。两次重启后原系统与业务已恢复，生产持续负载实验
-暂停；临时 overlay 恢复缺陷已修，不能把构建或短测通过视为稳定性通过。
+中文：新驱动已按授权部署，与新版 OpenList 配套使用；本轮补齐了 IRQ/EOS、
+固件 DMA 防护、异步转换和编码 VUI，并完成最新版浏览器的有界播放与跳转。
+研究线已移植现有解码格式，构建和设备树检查通过。整机失联根因、实时吞吐、
+旧格式完整性、异常重启和跨板验收仍开放，不能宣称全部完成。

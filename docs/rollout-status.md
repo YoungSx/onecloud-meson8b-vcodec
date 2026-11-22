@@ -4,24 +4,21 @@ Current development targets official unmodified FFmpeg. The earlier private
 peak/CPB option is retired; its dated acceptance below remains historical.
 See [official compatibility](ffmpeg-compatibility.md).
 
-The official-FFmpeg candidate image is
-`youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a137737`. It was loaded
-on the device and passed disposable local/worker HLS acceptance. It has
-**not replaced the production container**. The production image remains
-`youngsx/openlist-onecloud:v4.2.10-v4l2m2m-29c7842`; its start time and
-restart count were preserved during the tests. The read-only delivery check
-confirms start `2026-11-21T18:51:32.818687155Z`, restart count 0, and installed
-source `89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`. Current candidate changes,
-performance and unresolved goals are in [development results](next-development-status.md).
+Current explicitly authorized development installation is source
+`1a1d1f70ad4f803279ebd1142451f5972abe69d1` on the original5.15.79-meson kernel.
+Production OpenList runs `v4.2.10-official-ffmpeg-a845b34-clean`; its FFmpeg
+and ffprobe are byte-identical to the pinned official base. See
+[current deployment evidence](../evidence/development-2026-11-22/README.md).
 
-The older rate-budget candidate and its private FFmpeg option are historical
-experiments, superseded by the official compatibility route. Direct V4L2
-peak/CPB controls remain in the driver. Original modules are restored after
-each bounded candidate test; no boot kernel, DT or CMA change is made.
+Original v0.4.0 package,firmware,unit and rollback state are preserved.
+Updates keep the production OpenList start time unchanged. Runtime module
+switches and matching overlay updates do not change boot kernel/DT or CMA.
+The new source passes bounded content/recovery checks; prior outages still
+prevent a new stability/soak claim. Research builds are not installed.
 
 ## Installed release history
 
-Current installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
+Historical installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
 runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
 state /root/venc-deploy/p6/codec-state-v040-install. Module hashes meson-vdec
 15d5c77d25225e8b, meson-venc 2507c7cc69fb1b00, meson8b-runtime

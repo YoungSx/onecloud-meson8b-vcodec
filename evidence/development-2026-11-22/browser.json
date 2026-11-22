@@ -1,0 +1,54 @@
+{
+  "status": "bounded-playback-and-seeks-passed-with-buffering",
+  "image": "youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean",
+  "frontend": "a845b348e7967e4a76f2ef07b9e840709def96cf",
+  "driver_source": "9c3405e00e41a9e6a077355ee6fbf196e0e499f8",
+  "duration": 84.010666,
+  "observations": [
+    {
+      "case": "continuous-before-seek",
+      "time": 19.946772,
+      "decoded_frames": 609,
+      "media_error": null
+    },
+    {
+      "case": "uncached-forward-50",
+      "time": 61.952141,
+      "decoded_frames": 974,
+      "media_error": null
+    },
+    {
+      "case": "backward-12",
+      "time": 29.945649,
+      "decoded_frames": 1571,
+      "media_error": null
+    },
+    {
+      "case": "forward-75-to-end",
+      "time": 84.010666,
+      "decoded_frames": 2846,
+      "media_error": null
+    }
+  ],
+  "cached_seeked_events": [
+    {
+      "target": 12,
+      "actual": 12,
+      "ready_state": 4
+    },
+    {
+      "target": 50,
+      "actual": 50,
+      "ready_state": 4
+    }
+  ],
+  "cancel": {
+    "status": "pass",
+    "cancelled_jobs": 1,
+    "release_seconds": 0.242,
+    "pool_slots": 0
+  },
+  "transport": "shared browser through SSH/Tailscale forward; buffering observed",
+  "realtime_claim": false,
+  "latest_driver_rerun_required": true
+}

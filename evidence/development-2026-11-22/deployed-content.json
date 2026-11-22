@@ -1,0 +1,85 @@
+{
+  "status": "pass",
+  "source": "1e700213432c0c1160403a4f7cb7320d083a6eba",
+  "cases": [
+    {
+      "case": "cfr-color-crop",
+      "fps": "30",
+      "probe": {
+        "profile": "Baseline",
+        "width": 640,
+        "height": 360,
+        "color_range": "tv",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "30/1",
+        "avg_frame_rate": "30/1",
+        "duration": "2.000000",
+        "nb_read_frames": "60"
+      },
+      "software_decode": "pass"
+    },
+    {
+      "case": "cfr-color-crop",
+      "fps": "30000/1001",
+      "probe": {
+        "profile": "Baseline",
+        "width": 854,
+        "height": 480,
+        "color_range": "tv",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "30000/1001",
+        "avg_frame_rate": "30000/1001",
+        "duration": "2.002000",
+        "nb_read_frames": "60"
+      },
+      "software_decode": "pass"
+    },
+    {
+      "case": "cfr-color-crop",
+      "fps": "24",
+      "probe": {
+        "profile": "Baseline",
+        "width": 1280,
+        "height": 720,
+        "color_range": "tv",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "24/1",
+        "avg_frame_rate": "24/1",
+        "duration": "2.500000",
+        "nb_read_frames": "60"
+      },
+      "software_decode": "pass"
+    },
+    {
+      "case": "decode-hashes",
+      "codec": "h264",
+      "frames": 300,
+      "expected": 300,
+      "hashes_match": true,
+      "rc": 0
+    },
+    {
+      "case": "decode-hashes",
+      "codec": "hevc",
+      "frames": 30,
+      "expected": 30,
+      "hashes_match": true,
+      "rc": 0
+    }
+  ],
+  "framerate_verification": "SPS time scale and MP4 presentation timestamps/average frame rate; raw r_frame_rate is an estimate",
+  "services": {
+    "openlist": 200,
+    "sublinkpro": 200,
+    "vocat": 200,
+    "homeassistant": 200
+  },
+  "arcane_running": true,
+  "pool_slots": 0
+}

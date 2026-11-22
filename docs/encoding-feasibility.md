@@ -6,6 +6,10 @@
 H.264/JPEG 仍有驱动与数据路径的扩展空间。
 用户已决定本轮不强行研究 HEVC 硬编，下一阶段按[开发计划](history/development-plan-v0.3.md)推进。
 
+本轮补充：H.264 SPS/VUI 的裁剪、已知色彩与协商帧周期已实现并通过有界
+实机检查，详见[当前状态](next-development-status.md)。下表是历史可行性依据，
+不代表功能仍全部缺失。
+
 ## HEVC 的硬件边界
 
 原始 [S805 Datasheet V0.8](https://github.com/DeciHD/amlogic_docs/blob/58fe4e1f878a1b2c4899eca6ea52e4cb6ec7cea2/s805/S805_Datasheet%20V0.8%2020150126.pdf)

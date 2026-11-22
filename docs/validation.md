@@ -37,6 +37,9 @@ EOS 超时可观测）。2026-11-20 起安装 v0.4.0 正式发布包（CI 从 `8
 | 设备枚举 | v4l2-ctl 枚举两个设备、格式和控件 | [Enumeration](../evidence/hevc-2026-11-14/v4l2-enumeration.log) |
 | 干净源码构建 | 原配置完整构建、三个外部模块哈希一致、additive 补丁/Kbuild | [Build](../evidence/hevc-2026-11-14/reproduced-codec-build.log) / [Hashes](../evidence/hevc-2026-11-14/reproduced-module-hashes.txt) |
 
+后续2026-11-22 的部署与新增 IRQ/EOS、异步转换、VUI、DMA 保护验收见
+[本轮结果](next-development-status.md)；下列旧版本的限制不自动代表新构建。
+
 ## 限制
 
 - HEVC Main10、tiles、长期参考帧未支持或广告；当前 8-bit 线性路径。

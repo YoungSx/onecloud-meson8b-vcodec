@@ -6,6 +6,7 @@
 
 | 主题 | 主记录 |
 | --- | --- |
+| 2026-11-22 新驱动部署、IRQ/EOS/DMA/VUI、浏览器及研究线格式移植 | [Current development](development-2026-11-22/README.md) |
 | P0–P3 开发、恢复/性能/浏览器观察及设备中断 | [Current pass](p0-p3-2026-11-22/README.md) |
 | drain 结束权、失败传播、尾帧对照及被否决实验 | [Drain follow-up](drain-2026-11-22/README.md) |
 | 官方 FFmpeg 30 分钟、质量、解析竞态及主线重编译 | [2026-11-22 regression](official-ffmpeg-2026-11-22/README.md) |
