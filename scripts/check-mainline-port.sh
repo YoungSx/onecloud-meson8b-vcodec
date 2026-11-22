@@ -40,7 +40,7 @@ for patch in "${patches[@]}"; do
     # this driver's directory is already listed there as a whole.
     out=$(sed -n '/^diff --git/,$p' "$patch" |
           "$tree/scripts/checkpatch.pl" --no-tree --no-signoff --strict \
-          --ignore FILE_PATH_CHANGES -)
+          --ignore FILE_PATH_CHANGES -) || true
     if ! grep -q "0 errors, 0 warnings" <<< "$out"; then
         echo "checkpatch: $name" >&2
         grep -E "^#|errors" <<< "$out" >&2

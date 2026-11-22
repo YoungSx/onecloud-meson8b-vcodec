@@ -1,0 +1,37 @@
+Subject: [PATCH RFC] media: meson: Describe the explicit Meson8b VDEC1 divider clock
+
+An explicit divider handle avoids deriving clock topology from a fixed
+number of parent links. The decoder refuses rates that would require
+retuning a shared PLL. No clock is changed at probe time.
+
+---
+diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+--- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
++++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+@@ -77,7 +77,7 @@
+       - const: dos_parser
+       - const: dos
+       - const: vdec_1
+-      - const: vdec_hevc
++      - enum: [vdec_hevc, vdec_1_div]
+       - const: vdec_hevcf
+ 
+   amlogic,ao-sysctrl:
+@@ -112,9 +112,14 @@
+     then:
+       properties:
+         clocks:
+-          maxItems: 3
+-        clock-names:
+-          maxItems: 3
++          minItems: 4
++          maxItems: 4
++        clock-names:
++          items:
++            - const: dos_parser
++            - const: dos
++            - const: vdec_1
++            - const: vdec_1_div
+     else:
+       properties:
+         clocks:
