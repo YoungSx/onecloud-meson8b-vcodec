@@ -163,6 +163,7 @@ struct amvdec_core {
 
 	struct amvdec_session *cur_sess;
 	struct mutex lock; /* video device lock */
+	struct mutex session_lock; /* serialize hardware session start/stop */
 	struct mutex esparser_lock; /* one parser fetch, including its IRQ wait */
 
 	/* Meson8b output conversion: frames per path and CPU time */

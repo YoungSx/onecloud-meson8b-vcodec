@@ -393,7 +393,8 @@ static bool vdec_capture_queue_fits(struct amvdec_session *sess,
 	return true;
 }
 
-static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+static int vdec_start_streaming_locked(struct vb2_queue *q,
+				       unsigned int count)
 {
 	struct amvdec_session *sess = vb2_get_drv_priv(q);
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
@@ -526,6 +527,17 @@ bufs_done:
 	return ret;
 }
 
+static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
+{
+	struct amvdec_session *sess = vb2_get_drv_priv(q);
+	int ret;
+
+	mutex_lock(&sess->core->session_lock);
+	ret = vdec_start_streaming_locked(q, count);
+	mutex_unlock(&sess->core->session_lock);
+	return ret;
+}
+
 static void vdec_free_canvas(struct amvdec_session *sess)
 {
 	int i;
@@ -558,7 +570,7 @@ static void vdec_reset_bufs_recycle(struct amvdec_session *sess)
 	}
 }
 
-static void vdec_stop_streaming(struct vb2_queue *q)
+static void vdec_stop_streaming_locked(struct vb2_queue *q)
 {
 	struct amvdec_session *sess = vb2_get_drv_priv(q);
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
@@ -609,6 +621,15 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 
 		sess->streamon_cap = 0;
 	}
+}
+
+static void vdec_stop_streaming(struct vb2_queue *q)
+{
+	struct amvdec_session *sess = vb2_get_drv_priv(q);
+
+	mutex_lock(&sess->core->session_lock);
+	vdec_stop_streaming_locked(q);
+	mutex_unlock(&sess->core->session_lock);
 }
 
 static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
@@ -1373,6 +1394,7 @@ static int vdec_probe(struct platform_device *pdev)
 	core->dev_dec = dev;
 	mutex_init(&core->lock);
 	mutex_init(&core->esparser_lock);
+	mutex_init(&core->session_lock);
 
 	strscpy(vdev->name, "meson-video-decoder", sizeof(vdev->name));
 	vdev->release = video_device_release;

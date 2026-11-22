@@ -7,7 +7,7 @@ class CaptureFitTests(unittest.TestCase):
     def test_planar_chroma_capacity(self):
         source = (ROOT / "vdec/vdec.c").read_text()
         start = source.index("static bool vdec_capture_queue_fits(")
-        end = source.index("static int vdec_start_streaming(", start)
+        end = source.index("static int vdec_start_streaming_locked(", start)
         body = (
             r"""
 #include <assert.h>

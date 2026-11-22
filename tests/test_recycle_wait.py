@@ -15,7 +15,7 @@ class RecycleWaitTests(unittest.TestCase):
         ]
         reset = source[
             source.index("static void vdec_reset_bufs_recycle(") : source.index(
-                "static void vdec_stop_streaming("
+                "static void vdec_stop_streaming_locked("
             )
         ]
         header = r"""
