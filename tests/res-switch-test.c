@@ -454,11 +454,8 @@ int main(int argc, char **argv)
 				       fmt.fmt.pix_mp.height);
 				resolutions++;
 				reinit_capture();
-			} else if (ev.type == V4L2_EVENT_EOS) {
-				printf("EOS frames=%lu resolutions=%lu\n",
-				       frames, resolutions);
-				return 0;
 			}
+			/* EOS may precede dequeuing LAST; finish on that buffer. */
 			continue;
 		}
 
