@@ -8,8 +8,10 @@ The official-FFmpeg candidate image is
 `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a137737`. It was loaded
 on the device and passed disposable local/worker HLS acceptance. It has
 **not replaced the production container**. The production image remains
-`youngsx/openlist-onecloud:v4.2.10-v4l2m2m-d1c514c`; its start time and
-restart count were preserved during the tests. Current candidate changes,
+`youngsx/openlist-onecloud:v4.2.10-v4l2m2m-29c7842`; its start time and
+restart count were preserved during the tests. The read-only delivery check
+confirms start `2026-11-21T18:51:32.818687155Z`, restart count 0, and installed
+source `89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`. Current candidate changes,
 performance and unresolved goals are in [development results](next-development-status.md).
 
 The older rate-budget candidate and its private FFmpeg option are historical
