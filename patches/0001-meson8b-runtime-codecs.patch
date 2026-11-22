@@ -7364,7 +7364,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,516 @@
+@@ -0,0 +1,517 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/kernel.h>
@@ -7818,8 +7818,9 @@
 +	pool->picture[slot] = *pic;
 +	sess->core->pool_waiting_peak = max(sess->core->pool_waiting_peak,
 +					    pool->state.len);
-+	amvdec_pool_deliver_locked(sess);
 +	mutex_unlock(&pool->lock);
++	/* Let the IRQ acknowledge firmware while conversion runs separately. */
++	schedule_work(&pool->work);
 +}
 +
 +static void amvdec_pool_work(struct work_struct *work)
@@ -8109,7 +8110,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1444 @@
+@@ -0,0 +1,1441 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8254,12 +8255,9 @@
 +static void vdec_poweroff(struct amvdec_session *sess)
 +{
 +	struct amvdec_ops *vdec_ops = sess->fmt_out->vdec_ops;
-+	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 +
 +	sess->should_stop = 1;
 +	vdec_wait_inactive(sess);
-+	if (codec_ops->drain)
-+		codec_ops->drain(sess);
 +
 +	vdec_ops->stop(sess);
 +	clk_disable_unprepare(sess->core->dos_clk);
@@ -8689,13 +8687,13 @@
 +	    sess->status == STATUS_INIT ||
 +	    (sess->status == STATUS_NEEDS_RESUME &&
 +	     (!sess->streamon_out || !sess->streamon_cap))) {
++		disable_irq(core->vdec_irq);
 +		if (vdec_codec_needs_recycle(sess))
 +			kthread_stop(sess->recycle_thread);
 +		/* No delivery may run into the codec being stopped. */
 +		if (amvdec_has_pool(sess))
 +			cancel_work_sync(&sess->pool.work);
 +
-+		disable_irq(core->vdec_irq);
 +		vdec_poweroff(sess);
 +		WRITE_ONCE(core->cur_sess, NULL);
 +		enable_irq(core->vdec_irq);

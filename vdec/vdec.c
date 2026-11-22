@@ -142,12 +142,9 @@ static int vdec_wait_inactive(struct amvdec_session *sess)
 static void vdec_poweroff(struct amvdec_session *sess)
 {
 	struct amvdec_ops *vdec_ops = sess->fmt_out->vdec_ops;
-	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 
 	sess->should_stop = 1;
 	vdec_wait_inactive(sess);
-	if (codec_ops->drain)
-		codec_ops->drain(sess);
 
 	vdec_ops->stop(sess);
 	clk_disable_unprepare(sess->core->dos_clk);
@@ -577,13 +574,13 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 	    sess->status == STATUS_INIT ||
 	    (sess->status == STATUS_NEEDS_RESUME &&
 	     (!sess->streamon_out || !sess->streamon_cap))) {
+		disable_irq(core->vdec_irq);
 		if (vdec_codec_needs_recycle(sess))
 			kthread_stop(sess->recycle_thread);
 		/* No delivery may run into the codec being stopped. */
 		if (amvdec_has_pool(sess))
 			cancel_work_sync(&sess->pool.work);
 
-		disable_irq(core->vdec_irq);
 		vdec_poweroff(sess);
 		WRITE_ONCE(core->cur_sess, NULL);
 		enable_irq(core->vdec_irq);

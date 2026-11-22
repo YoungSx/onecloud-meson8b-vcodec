@@ -451,8 +451,9 @@ void amvdec_pool_push(struct amvdec_session *sess, u32 slot,
 	pool->picture[slot] = *pic;
 	sess->core->pool_waiting_peak = max(sess->core->pool_waiting_peak,
 					    pool->state.len);
-	amvdec_pool_deliver_locked(sess);
 	mutex_unlock(&pool->lock);
+	/* Let the IRQ acknowledge firmware while conversion runs separately. */
+	schedule_work(&pool->work);
 }
 
 static void amvdec_pool_work(struct work_struct *work)
