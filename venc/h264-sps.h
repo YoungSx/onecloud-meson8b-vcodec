@@ -169,7 +169,7 @@ static inline u32 venc_sps_rewrite(const u8 *nal, u32 len, u32 crop_right,
 		if (vui->tick && vui->scale) {
 			venc_put_bits(&w, vui->tick, 32);
 			venc_put_bits(&w, vui->scale, 32);
-			venc_put_bits(&w, 0, 1);	/* timestamps may be variable */
+			venc_put_bits(&w, 1, 1);	/* negotiated coded-picture period */
 		}
 		venc_put_bits(&w, 0, 1);		/* nal_hrd_parameters_present */
 		venc_put_bits(&w, 0, 1);		/* vcl_hrd_parameters_present */

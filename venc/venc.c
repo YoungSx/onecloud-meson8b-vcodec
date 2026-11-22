@@ -1953,8 +1953,15 @@ static int venc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 			return -ERANGE;
 		t->numerator = numerator;
 		t->denominator = denominator;
-		/* frame rate only feeds the rate control, not the hardware */
+		/* The SPS timing and rate budget use the same stream period. */
 		mutex_lock(ctx->ctrl_handler.lock);
+		if ((vb2_is_streaming(v4l2_m2m_get_src_vq(ctx->m2m_ctx)) ||
+		     vb2_is_streaming(v4l2_m2m_get_dst_vq(ctx->m2m_ctx))) &&
+		    (u64)t->numerator * ctx->timeperframe.denominator !=
+		    (u64)t->denominator * ctx->timeperframe.numerator) {
+			mutex_unlock(ctx->ctrl_handler.lock);
+			return -EBUSY;
+		}
 		ctx->timeperframe = *t;
 		ctx->rc_config.numerator = t->numerator;
 		ctx->rc_config.denominator = t->denominator;

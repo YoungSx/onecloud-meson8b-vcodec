@@ -44,7 +44,7 @@ static struct fields parse(const u8 *nal, u32 len)
 		if (venc_get_bits(&b, 1)) {
 			f.vui.tick = venc_get_bits(&b, 32);
 			f.vui.scale = venc_get_bits(&b, 32);
-			assert(venc_get_bits(&b, 1) == 0); /* variable timestamps allowed */
+			assert(venc_get_bits(&b, 1) == 1); /* fixed coded-picture period */
 		}
 		assert(venc_get_bits(&b, 4) == 0); /* no HRD, pic_struct, restriction */
 	}
