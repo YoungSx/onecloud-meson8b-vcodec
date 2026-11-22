@@ -14,7 +14,7 @@ class RuntimeDeviceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             names = ['modules/' + name for name in runtime.MODULE_FILES]
-            names += ['README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'docs/installation.md']
+            names += ['README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'FFMPEG_BUILD_VARIANT', 'docs/installation.md']
             names += ['firmware/meson/vdec/' + name for name in (
                 'meson8b-runtime.dtbo', 'meson8b_h264.bin', 'meson8b_hevc.bin',
                 'meson8b_mpeg12.bin', 'meson8b_mpeg4.bin', 'meson8b_vc1.bin', 'meson8b_mjpeg.bin')]

@@ -31,7 +31,7 @@ def checked_package(package):
         digest, name = line.split('  ', 1)
         relative = Path(name)
         if (relative.is_absolute() or '..' in relative.parts or
-                relative.parts[0] not in ('modules', 'firmware', 'scripts', 'tools', 'patches', 'config', 'systemd', 'docs', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'LICENSE', 'KERNEL_RELEASE', 'SOURCE_COMMIT', 'TARGET_PROVIDERS.json') or name in files):
+                relative.parts[0] not in ('modules', 'firmware', 'scripts', 'tools', 'patches', 'config', 'systemd', 'docs', 'README.md', 'README.zh-CN.md', 'CHANGELOG.md', 'LICENSE', 'KERNEL_RELEASE', 'SOURCE_COMMIT', 'FFMPEG_BUILD_VARIANT', 'TARGET_PROVIDERS.json') or name in files):
             raise ValueError('invalid package path: ' + name)
         path = package / relative
         if any(p.is_symlink() for p in [path, *path.parents]) or not path.is_file():
