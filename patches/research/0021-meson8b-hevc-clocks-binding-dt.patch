@@ -1,0 +1,57 @@
+Subject: [PATCH RFC] media: document Meson8b HEVC clocks and board resources
+
+Add the HEVC gate and fixed parent to the Meson8b clock binding and node.
+The video power domain covers VDEC1 and HEVC bridge controls; memory
+gating remains owned by the selected engine.
+
+---
+diff --git a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+--- a/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
++++ b/Documentation/devicetree/bindings/media/amlogic,gx-vdec.yaml
+@@ -36,7 +36,7 @@
+               - amlogic,gxm-vdec # GXM (S912)
+           - const: amlogic,gx-vdec
+       - enum:
+-          - amlogic,meson8b-vdec # Meson8b (S805), H.264 only
++          - amlogic,meson8b-vdec # Meson8b (S805), vendor stateful codecs
+           - amlogic,g12a-vdec # G12A (S905X2, S905D2)
+           - amlogic,sm1-vdec # SM1 (S905X3, S905D3)
+ 
+@@ -69,7 +69,7 @@
+ 
+   clocks:
+     minItems: 3
+-    maxItems: 5
++    maxItems: 7
+ 
+   clock-names:
+     minItems: 3
+@@ -79,6 +79,8 @@
+       - const: vdec_1
+       - enum: [vdec_hevc, vdec_1_div]
+       - enum: [vdec_hevcf, vdec_1_parent]
++      - const: vdec_hevc
++      - const: hevc_parent
+ 
+   amlogic,ao-sysctrl:
+     description: |
+@@ -112,8 +114,8 @@
+     then:
+       properties:
+         clocks:
+-          minItems: 5
+-          maxItems: 5
++          minItems: 7
++          maxItems: 7
+         clock-names:
+           items:
+             - const: dos_parser
+@@ -121,6 +123,8 @@
+             - const: vdec_1
+             - const: vdec_1_div
+             - const: vdec_1_parent
++            - const: vdec_hevc
++            - const: hevc_parent
+     else:
+       properties:
+         clocks:
