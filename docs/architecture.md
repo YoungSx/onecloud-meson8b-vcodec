@@ -13,7 +13,8 @@ Overlay、canvas、时钟和 V4L2 M2M/vb2 支持，无需打开 staging 或替�
 
 DOS 控制位由多个引擎共享。模块使用统一 owner/lock 和 PMU regmap 更新
 掩码，避免整个寄存器写入干扰另一引擎。依赖模块卸载后 runtime 才能移除
-Overlay。HCODEC 使用固定 fclk_div4/2（318.75 MHz），HEVC 使用固定
+Overlay。解码器对文件句柄开放能力查询，跨句柄用独立会话锁串行硬件启停，
+第二路 STREAMON 在引擎占用时返回 EBUSY。HCODEC 使用固定 fclk_div4/2（318.75 MHz），HEVC 使用固定
 fclk_div5（255 MHz），避免重编程以太网依赖的共享 MPLL。
 VDEC1 新候选通过显式 `vdec_1_div` 句柄设置分频，只有父频率恰为请求
 频率两倍才执行；父频率不匹配时拒绝，不允许 CCF 自动重选/重调共享父钟。
@@ -84,5 +85,5 @@ S805 实机验证仍缺，上游合入不在本项目范围内（见
 [移植记录](../evidence/mainline-2026-11-16/PORT.md)）。
 
 研究线 `0016` 已移植独立帧池，`0019` 同步 IRQ/EOS 与旧格式，`0020–0022`
-接入 HEVC、固定父钟及共享 genpd。25 个补丁构建与 schema 通过；新内核和
+接入 HEVC、固定父钟及共享 genpd。26 个补丁构建与 schema 通过；新内核和
 跨板运行不能继承旧内核的实机验收，见[通用性边界](portability.md)。

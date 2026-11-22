@@ -110,4 +110,7 @@ patching file drivers/staging/media/meson/vdec/codec_mjpeg.c
 applied 0023-meson8b-legacy-drain-activity.patch
 patching file drivers/staging/media/meson/vdec/vdec_1.c
 applied 0024-vdec1-firmware-dma-ordering.patch
-PASS: 25 patches apply to pristine-mainline in order
+patching file drivers/staging/media/meson/vdec/vdec.c
+patching file drivers/staging/media/meson/vdec/vdec.h
+applied 0025-decoder-session-ownership.patch
+PASS: 26 patches apply to pristine-mainline in order

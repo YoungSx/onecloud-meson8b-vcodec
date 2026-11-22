@@ -1,5 +1,5 @@
 {
-  "source": "1a1d1f70ad4f803279ebd1142451f5972abe69d1",
+  "source": "3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066",
   "status": "bounded-checks-passed-with-recorded-legacy-limits",
   "cases": [
     {
@@ -41,14 +41,14 @@
     {
       "case": "legacy-tail",
       "sample": "regress.m2v",
-      "frames": 89,
+      "frames": 90,
       "expected": 90,
       "rc": 0
     },
     {
       "case": "legacy-tail",
       "sample": "m2v-bf.m2v",
-      "frames": 150,
+      "frames": 149,
       "expected": 150,
       "rc": 0
     },
@@ -68,5 +68,5 @@
     "8123": 200
   },
   "arcane": true,
-  "utc": "2026-11-22T15:29:39Z"
+  "utc": "2026-11-22T16:21:05Z"
 }

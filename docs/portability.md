@@ -29,11 +29,11 @@ each supported SoC. Retain the runtime loader as the old-kernel deployment
 adapter. See [shared ownership](power-domain-design.md) and the
 [research port](../evidence/mainline-2026-11-16/PORT.md).
 
-Research patches0016–0024 port the independent pool, IRQ/completion/EOS
+Research patches0016–0025 port the independent pool, IRQ/completion/EOS
 ordering, existing VDEC1 formats and HEVC Main8 protocol to Linux 7.3.4.
 The DOS syscon owns shared registers; genpd owns VDEC1/HEVC AO bridge power
 and each engine owns its DOS memory power gates. Fixed clock parents avoid
-MPLL retuning. All25 patches apply without fuzz and pass checkpatch;
+MPLL retuning. All26 patches apply without fuzz and pass checkpatch;
 full kernel/modules,ARM DTB/binding and ODROID checks pass locally.
 Research support has not run on a board. Known stream/content limits remain.
 

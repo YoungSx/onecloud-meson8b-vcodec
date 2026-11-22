@@ -5,7 +5,7 @@ peak/CPB option is retired; its dated acceptance below remains historical.
 See [official compatibility](ffmpeg-compatibility.md).
 
 Current explicitly authorized development installation is source
-`1a1d1f70ad4f803279ebd1142451f5972abe69d1` on the original5.15.79-meson kernel.
+`3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066` on the original5.15.79-meson kernel.
 Production OpenList runs `v4.2.10-official-ffmpeg-a845b34-clean`; its FFmpeg
 and ffprobe are byte-identical to the pinned official base. See
 [current deployment evidence](../evidence/development-2026-11-22/README.md).

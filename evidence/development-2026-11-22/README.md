@@ -1,7 +1,7 @@
 # Deployed development work,2026-11-22
 
 The user explicitly requested the new driver on WanOS. Installed runtime source
-is `1a1d1f70ad4f803279ebd1142451f5972abe69d1`. Original boot kernel,
+is `3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066`. Original boot kernel,
 boot DT,CMA,business container settings and the original v0.4.0 rollback
 installation remain preserved. The overall development goal is not complete.
 
@@ -24,9 +24,11 @@ installation remain preserved. The overall development goal is not complete.
   [build tail](research-build.log),[ODROID check](research-odroid.log): full
   Linux7.3.4 kernel/modules and ARM binding checks. Runtime formats are ported,
   but no research-kernel/static-DT or second-board hardware is available.
+- [Decoder exclusivity](decoder-exclusivity.log): two open handles, QUERYCAP
+  succeeds while busy, second STREAMON returns EBUSY, takeover after release.
 - [Final deployed regression](final-regression.json): four H.264 runs match
-  expected counts (300-frame runs match software hashes); MPEG-2 89/90 and
-  150/150,MPEG-4 88/90 remain documented tail limits,all exit normally.
+  expected counts (300-frame runs match software hashes); MPEG-2 90/90 and
+  149/150, MPEG-4 88/90 remain documented tail limits,all exit normally.
 - [Rejected drain-count check](rejected-drain-count.json):20 H.264 repeats
   passed; MPEG-4 timed out before correcting submission-count interpretation.
 - [Diagnostics](diagnostics.json): temporary rotating kernel log fsynced per

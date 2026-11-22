@@ -1,15 +1,15 @@
 {
-  "target_source": "1a1d1f70ad4f803279ebd1142451f5972abe69d1",
-  "previous_source": "1e700213432c0c1160403a4f7cb7320d083a6eba",
+  "target_source": "3ee2fb100d5e9dc4e2bdc02fea562a99e33ea066",
+  "previous_source": "cfd3f0896eddb1bf36de4d47584c70204538a351",
   "status": "deployed",
   "original_v040_backup": "/mnt/sda2/vcodec-upgrade-e82a333/original-install",
   "firmware_changed": false,
   "module_sha256": {
     "meson-venc.ko": "3d1d5748fe9a52766b1f5a55a637d3603c2ee14b307f14489a9c548eb1f7d9a0",
     "meson8b-runtime.ko": "7ca640be512c76d71d2b3606c2a1bf4b0d7f3ca0db12896706ee6649abd6cb32",
-    "meson-vdec.ko": "11cf31d533ebbc0167690c87b5be589ef555c6ac66dae1d005957973b44cf504"
+    "meson-vdec.ko": "7250742f52ad6e390ba2ffecaa0a1394489473b317ae7232fd230603e49a9ca8"
   },
-  "codec_interruption_seconds": 2.76,
+  "codec_interruption_seconds": 2.359,
   "production_start_unchanged": true,
-  "utc": "2026-11-22T15:27:23Z"
+  "utc": "2026-11-22T16:16:53Z"
 }
