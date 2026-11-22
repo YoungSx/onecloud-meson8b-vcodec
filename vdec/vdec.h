@@ -108,6 +108,7 @@ enum amvdec_pool_end {
  */
 struct amvdec_frame_pool {
 	struct mutex lock;
+	struct mutex delivery_lock;
 	struct meson8b_pool state;
 	struct amvdec_shadow slot[MESON8B_POOL_MAX];
 	struct amvdec_picture picture[MESON8B_POOL_MAX];

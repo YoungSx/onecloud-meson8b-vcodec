@@ -250,6 +250,7 @@ static void amvdec_pool_work(struct work_struct *work);
 void amvdec_pool_init(struct amvdec_session *sess)
 {
 	mutex_init(&sess->pool.lock);
+	mutex_init(&sess->pool.delivery_lock);
 	INIT_WORK(&sess->pool.work, amvdec_pool_work);
 }
 
@@ -269,6 +270,7 @@ int amvdec_pool_prepare(struct amvdec_session *sess, u32 count)
 	if (!count || count > MESON8B_POOL_MAX)
 		return -EINVAL;
 
+	mutex_lock(&pool->delivery_lock);
 	mutex_lock(&pool->lock);
 	fresh = !pool->state.count || pool->slot[0].luma != luma;
 	if (fresh) {
@@ -296,6 +298,7 @@ int amvdec_pool_prepare(struct amvdec_session *sess, u32 count)
 	ret = fresh;
 unlock:
 	mutex_unlock(&pool->lock);
+	mutex_unlock(&pool->delivery_lock);
 	return ret;
 }
 
@@ -304,6 +307,7 @@ void amvdec_pool_give_all(struct amvdec_session *sess)
 {
 	struct amvdec_frame_pool *pool = &sess->pool;
 
+	mutex_lock(&pool->delivery_lock);
 	mutex_lock(&pool->lock);
 	if (pool->state.len) {
 		/* A table reset lets the firmware overwrite any slot. */
@@ -314,6 +318,7 @@ void amvdec_pool_give_all(struct amvdec_session *sess)
 	}
 	meson8b_pool_give_all(&pool->state);
 	mutex_unlock(&pool->lock);
+	mutex_unlock(&pool->delivery_lock);
 }
 
 u32 amvdec_pool_count(struct amvdec_session *sess)
@@ -401,8 +406,11 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 		if (!vbuf)
 			return;
 
+		/* Keep the slot queued until copying ends; IRQs may queue other slots. */
+		mutex_unlock(&pool->lock);
 		ret = amvdec_meson8b_copy_capture(sess, &pic->geo, &pool->slot[slot],
 						  &vbuf->vb2_buf);
+		mutex_lock(&pool->lock);
 		meson8b_pool_pop(&pool->state);
 		/* The picture is out of the slot; the firmware may reuse it. */
 		if (codec_ops->recycle)
@@ -460,12 +468,16 @@ static void amvdec_pool_work(struct work_struct *work)
 		container_of(work, struct amvdec_session, pool.work);
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 
+	if (!READ_ONCE(sess->streamon_cap))
+		return;
+	mutex_lock(&sess->pool.delivery_lock);
 	mutex_lock(&sess->pool.lock);
 	amvdec_pool_deliver_locked(sess);
 	mutex_unlock(&sess->pool.lock);
+	mutex_unlock(&sess->pool.delivery_lock);
 
 	/* Slots may be free again: let a codec waiting for one continue. */
-	if (codec_ops->capture_queued)
+	if (READ_ONCE(sess->streamon_cap) && codec_ops->capture_queued)
 		codec_ops->capture_queued(sess);
 }
 
@@ -482,8 +494,8 @@ void amvdec_pool_end(struct amvdec_session *sess, enum amvdec_pool_end end)
 {
 	mutex_lock(&sess->pool.lock);
 	sess->pool.end = end;
-	amvdec_pool_deliver_locked(sess);
 	mutex_unlock(&sess->pool.lock);
+	schedule_work(&sess->pool.work);
 }
 
 /*
@@ -497,19 +509,23 @@ void amvdec_pool_capture_stop(struct amvdec_session *sess)
 	struct vb2_v4l2_buffer *buf;
 
 	cancel_work_sync(&sess->pool.work);
+	mutex_lock(&sess->pool.delivery_lock);
 	mutex_lock(&sess->pool.lock);
 	meson8b_pool_drop(&sess->pool.state);
 	sess->pool.end = AMVDEC_POOL_RUNNING;
 	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
 		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 	mutex_unlock(&sess->pool.lock);
+	mutex_unlock(&sess->pool.delivery_lock);
 }
 
 void amvdec_pool_free(struct amvdec_session *sess)
 {
 	cancel_work_sync(&sess->pool.work);
+	mutex_lock(&sess->pool.delivery_lock);
 	mutex_lock(&sess->pool.lock);
 	amvdec_pool_free_slots(sess);
 	sess->pool.end = AMVDEC_POOL_RUNNING;
 	mutex_unlock(&sess->pool.lock);
+	mutex_unlock(&sess->pool.delivery_lock);
 }

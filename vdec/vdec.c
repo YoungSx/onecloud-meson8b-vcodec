@@ -1183,6 +1183,7 @@ static int vdec_close(struct file *file)
 	mutex_destroy(&sess->lock);
 	mutex_destroy(&sess->bufs_recycle_lock);
 	mutex_destroy(&sess->pool.lock);
+	mutex_destroy(&sess->pool.delivery_lock);
 
 	kfree(sess);
 

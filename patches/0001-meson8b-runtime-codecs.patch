@@ -7364,7 +7364,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,515 @@
+@@ -0,0 +1,531 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/kernel.h>
@@ -7617,6 +7617,7 @@
 +void amvdec_pool_init(struct amvdec_session *sess)
 +{
 +	mutex_init(&sess->pool.lock);
++	mutex_init(&sess->pool.delivery_lock);
 +	INIT_WORK(&sess->pool.work, amvdec_pool_work);
 +}
 +
@@ -7636,6 +7637,7 @@
 +	if (!count || count > MESON8B_POOL_MAX)
 +		return -EINVAL;
 +
++	mutex_lock(&pool->delivery_lock);
 +	mutex_lock(&pool->lock);
 +	fresh = !pool->state.count || pool->slot[0].luma != luma;
 +	if (fresh) {
@@ -7663,6 +7665,7 @@
 +	ret = fresh;
 +unlock:
 +	mutex_unlock(&pool->lock);
++	mutex_unlock(&pool->delivery_lock);
 +	return ret;
 +}
 +
@@ -7671,6 +7674,7 @@
 +{
 +	struct amvdec_frame_pool *pool = &sess->pool;
 +
++	mutex_lock(&pool->delivery_lock);
 +	mutex_lock(&pool->lock);
 +	if (pool->state.len) {
 +		/* A table reset lets the firmware overwrite any slot. */
@@ -7681,6 +7685,7 @@
 +	}
 +	meson8b_pool_give_all(&pool->state);
 +	mutex_unlock(&pool->lock);
++	mutex_unlock(&pool->delivery_lock);
 +}
 +
 +u32 amvdec_pool_count(struct amvdec_session *sess)
@@ -7768,8 +7773,11 @@
 +		if (!vbuf)
 +			return;
 +
++		/* Keep the slot queued until copying ends; IRQs may queue other slots. */
++		mutex_unlock(&pool->lock);
 +		ret = amvdec_meson8b_copy_capture(sess, &pic->geo, &pool->slot[slot],
 +						  &vbuf->vb2_buf);
++		mutex_lock(&pool->lock);
 +		meson8b_pool_pop(&pool->state);
 +		/* The picture is out of the slot; the firmware may reuse it. */
 +		if (codec_ops->recycle)
@@ -7827,12 +7835,16 @@
 +		container_of(work, struct amvdec_session, pool.work);
 +	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 +
++	if (!READ_ONCE(sess->streamon_cap))
++		return;
++	mutex_lock(&sess->pool.delivery_lock);
 +	mutex_lock(&sess->pool.lock);
 +	amvdec_pool_deliver_locked(sess);
 +	mutex_unlock(&sess->pool.lock);
++	mutex_unlock(&sess->pool.delivery_lock);
 +
 +	/* Slots may be free again: let a codec waiting for one continue. */
-+	if (codec_ops->capture_queued)
++	if (READ_ONCE(sess->streamon_cap) && codec_ops->capture_queued)
 +		codec_ops->capture_queued(sess);
 +}
 +
@@ -7849,8 +7861,8 @@
 +{
 +	mutex_lock(&sess->pool.lock);
 +	sess->pool.end = end;
-+	amvdec_pool_deliver_locked(sess);
 +	mutex_unlock(&sess->pool.lock);
++	schedule_work(&sess->pool.work);
 +}
 +
 +/*
@@ -7864,21 +7876,25 @@
 +	struct vb2_v4l2_buffer *buf;
 +
 +	cancel_work_sync(&sess->pool.work);
++	mutex_lock(&sess->pool.delivery_lock);
 +	mutex_lock(&sess->pool.lock);
 +	meson8b_pool_drop(&sess->pool.state);
 +	sess->pool.end = AMVDEC_POOL_RUNNING;
 +	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
 +		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 +	mutex_unlock(&sess->pool.lock);
++	mutex_unlock(&sess->pool.delivery_lock);
 +}
 +
 +void amvdec_pool_free(struct amvdec_session *sess)
 +{
 +	cancel_work_sync(&sess->pool.work);
++	mutex_lock(&sess->pool.delivery_lock);
 +	mutex_lock(&sess->pool.lock);
 +	amvdec_pool_free_slots(sess);
 +	sess->pool.end = AMVDEC_POOL_RUNNING;
 +	mutex_unlock(&sess->pool.lock);
++	mutex_unlock(&sess->pool.delivery_lock);
 +}
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-copy.h
@@ -8108,7 +8124,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1443 @@
+@@ -0,0 +1,1444 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9294,6 +9310,7 @@
 +	mutex_destroy(&sess->lock);
 +	mutex_destroy(&sess->bufs_recycle_lock);
 +	mutex_destroy(&sess->pool.lock);
++	mutex_destroy(&sess->pool.delivery_lock);
 +
 +	kfree(sess);
 +
@@ -9554,7 +9571,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,381 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9665,6 +9682,7 @@
 + */
 +struct amvdec_frame_pool {
 +	struct mutex lock;
++	struct mutex delivery_lock;
 +	struct meson8b_pool state;
 +	struct amvdec_shadow slot[MESON8B_POOL_MAX];
 +	struct amvdec_picture picture[MESON8B_POOL_MAX];
