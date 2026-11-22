@@ -68,10 +68,13 @@ static int vdec_hevc_load_firmware(struct amvdec_session *sess,
 
 	ret = read_poll_timeout(amvdec_read_dos, status, !(status & 0x8000),
 				10, 1000000, false, core, HEVC_IMEM_DMA_CTRL);
-	if (ret)
+	if (ret) {
 		dev_err(dev, "HEVC firmware DMA timed out\n");
-	else
+		amvdec_write_dos(core, HEVC_IMEM_DMA_CTRL, 0);
+		amvdec_read_dos(core, HEVC_IMEM_DMA_CTRL);
+	} else {
 		dev_info(dev, "loaded firmware %s (%zu bytes)\n", fwname, fw->size);
+	}
 
 	dma_free_coherent(core->dev, MC_SIZE, mc_addr, mc_addr_map);
 release_firmware:

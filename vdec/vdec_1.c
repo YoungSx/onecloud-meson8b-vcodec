@@ -60,6 +60,7 @@ vdec_1_load_firmware(struct amvdec_session *sess, const char *fwname)
 
 	amvdec_clear_dos_bits(core, MDEC_PIC_DC_CTRL, BIT(31));
 
+	dma_wmb();
 	amvdec_write_dos(core, IMEM_DMA_ADR, mc_addr_map);
 	amvdec_write_dos(core, IMEM_DMA_COUNT, MC_SIZE / 4);
 	amvdec_write_dos(core, IMEM_DMA_CTRL, (0x8000 | (7 << 16)));
@@ -69,6 +70,7 @@ vdec_1_load_firmware(struct amvdec_session *sess, const char *fwname)
 	if (ret) {
 		dev_err(dev, "Firmware load fail (DMA hang?)\n");
 		amvdec_write_dos(core, IMEM_DMA_CTRL, 0);
+		amvdec_read_dos(core, IMEM_DMA_CTRL);
 		goto free_mc;
 	}
 

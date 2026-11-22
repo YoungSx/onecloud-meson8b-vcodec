@@ -9955,7 +9955,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_1.c
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,320 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10018,6 +10018,7 @@
 +
 +	amvdec_clear_dos_bits(core, MDEC_PIC_DC_CTRL, BIT(31));
 +
++	dma_wmb();
 +	amvdec_write_dos(core, IMEM_DMA_ADR, mc_addr_map);
 +	amvdec_write_dos(core, IMEM_DMA_COUNT, MC_SIZE / 4);
 +	amvdec_write_dos(core, IMEM_DMA_CTRL, (0x8000 | (7 << 16)));
@@ -10027,6 +10028,7 @@
 +	if (ret) {
 +		dev_err(dev, "Firmware load fail (DMA hang?)\n");
 +		amvdec_write_dos(core, IMEM_DMA_CTRL, 0);
++		amvdec_read_dos(core, IMEM_DMA_CTRL);
 +		goto free_mc;
 +	}
 +
@@ -11167,7 +11169,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_hevc.c
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,269 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <maxi.jourdan@wanadoo.fr>
@@ -11238,10 +11240,13 @@
 +
 +	ret = read_poll_timeout(amvdec_read_dos, status, !(status & 0x8000),
 +				10, 1000000, false, core, HEVC_IMEM_DMA_CTRL);
-+	if (ret)
++	if (ret) {
 +		dev_err(dev, "HEVC firmware DMA timed out\n");
-+	else
++		amvdec_write_dos(core, HEVC_IMEM_DMA_CTRL, 0);
++		amvdec_read_dos(core, HEVC_IMEM_DMA_CTRL);
++	} else {
 +		dev_info(dev, "loaded firmware %s (%zu bytes)\n", fwname, fw->size);
++	}
 +
 +	dma_free_coherent(core->dev, MC_SIZE, mc_addr, mc_addr_map);
 +release_firmware:
