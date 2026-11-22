@@ -7364,7 +7364,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,517 @@
+@@ -0,0 +1,515 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/kernel.h>
@@ -7715,7 +7715,6 @@
 +
 +static void amvdec_pool_end_locked(struct amvdec_session *sess)
 +{
-+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 +	struct amvdec_frame_pool *pool = &sess->pool;
 +	struct vb2_v4l2_buffer *vbuf, *last = NULL;
 +	unsigned int i;
@@ -7735,7 +7734,7 @@
 +		if (!last)
 +			return;
 +		last->flags = V4L2_BUF_FLAG_LAST;
-+		v4l2_event_queue_fh(&sess->fh, &eos);
++		container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
 +		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 +		break;
 +	case AMVDEC_POOL_LAST:
@@ -7745,6 +7744,7 @@
 +		sess->should_stop = 1;
 +		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
 +			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
++		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = true;
 +		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
 +		break;
 +	}
@@ -7754,7 +7754,6 @@
 +/* Convert waiting pictures into queued CAPTURE buffers, oldest first. */
 +static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 +{
-+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 +	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 +	struct amvdec_frame_pool *pool = &sess->pool;
 +	int slot;
@@ -7794,8 +7793,7 @@
 +		vbuf->field = pic->field;
 +		if (pic->restart)
 +			sess->sequence_cap = 0;
-+		if (pic->eos)
-+			v4l2_event_queue_fh(&sess->fh, &eos);
++		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
 +		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
 +	}
 +
@@ -8110,7 +8108,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1441 @@
+@@ -0,0 +1,1443 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8139,11 +8137,6 @@
 +#include "vdec.h"
 +#include "esparser.h"
 +#include "vdec_helpers.h"
-+
-+struct dummy_buf {
-+	struct vb2_v4l2_buffer vb;
-+	struct list_head list;
-+};
 +
 +/* 16 MiB for parsed bitstream swap exchange */
 +#define SIZE_VIFIFO SZ_16M
@@ -8732,8 +8725,11 @@
 +static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
 +{
 +	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
++	struct amvdec_vb2_buffer *buf =
++		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 +
 +	vbuf->field = V4L2_FIELD_NONE;
++	buf->eos = false;
 +	return 0;
 +}
 +
@@ -8741,14 +8737,18 @@
 +{
 +	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
 +	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
++	struct amvdec_vb2_buffer *buf =
++		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 +	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 +
 +	/* Publish EOS after userspace consumes LAST, preserving queued pictures
 +	 * for clients that stop reading immediately upon the event.
 +	 */
-+	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->fmt_out->codec_ops->firmware_eos &&
-+	    (vbuf->flags & V4L2_BUF_FLAG_LAST))
++	if (V4L2_TYPE_IS_CAPTURE(vb->type) && buf->eos &&
++	    (vbuf->flags & V4L2_BUF_FLAG_LAST)) {
++		buf->eos = false;
 +		v4l2_event_queue_fh(&sess->fh, &eos);
++	}
 +}
 +
 +static const struct vb2_ops vdec_vb2_ops = {
@@ -9165,7 +9165,7 @@
 +	src_vq->ops = &vdec_vb2_ops;
 +	src_vq->mem_ops = &vb2_dma_contig_memops;
 +	src_vq->drv_priv = sess;
-+	src_vq->buf_struct_size = sizeof(struct dummy_buf);
++	src_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
 +	src_vq->min_buffers_needed = 1;
 +	src_vq->dev = sess->core->dev;
 +	src_vq->lock = &sess->lock;
@@ -9183,7 +9183,7 @@
 +		dst_vq->io_modes = VB2_MMAP;
 +	}
 +	dst_vq->drv_priv = sess;
-+	dst_vq->buf_struct_size = sizeof(struct dummy_buf);
++	dst_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
 +	dst_vq->min_buffers_needed = 1;
 +	dst_vq->dev = sess->core->dev;
 +	dst_vq->lock = &sess->lock;
@@ -9554,7 +9554,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,373 @@
+@@ -0,0 +1,380 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9629,8 +9629,15 @@
 +	u32 flags;
 +	u32 field;
 +	struct amvdec_geometry geo;
-+	bool eos;	/* raise V4L2_EVENT_EOS with this picture */
++	bool eos;	/* raise V4L2_EVENT_EOS after this picture is dequeued */
 +	bool restart;	/* restart the CAPTURE sequence after this picture */
++};
++
++/* The first members match v4l2_m2m_buffer; EOS differs from source-change LAST. */
++struct amvdec_vb2_buffer {
++	struct vb2_v4l2_buffer vb;
++	struct list_head list;
++	bool eos;
 +};
 +
 +enum amvdec_pool_end {
@@ -10268,7 +10275,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.c
-@@ -0,0 +1,744 @@
+@@ -0,0 +1,741 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10769,7 +10776,6 @@
 +			 struct vb2_v4l2_buffer *vbuf,
 +			 const struct amvdec_picture *pic)
 +{
-+	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 +	struct device *dev = sess->core->dev_dec;
 +	u32 output_size = amvdec_get_output_size(sess);
 +
@@ -10789,8 +10795,7 @@
 +	vbuf->sequence = sess->sequence_cap++;
 +	vbuf->flags = pic->flags;
 +	vbuf->timecode = pic->timecode;
-+	if (pic->eos)
-+		v4l2_event_queue_fh(&sess->fh, &eos);
++	container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
 +	if (pic->restart)
 +		sess->sequence_cap = 0;
 +
@@ -10928,7 +10933,6 @@
 + */
 +void amvdec_flush_capture_buffers(struct amvdec_session *sess)
 +{
-+	static const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
 +	struct vb2_v4l2_buffer *vbuf, *last = NULL;
 +	unsigned int i;
 +
@@ -10951,7 +10955,7 @@
 +		return;
 +
 +	last->flags = V4L2_BUF_FLAG_LAST;
-+	v4l2_event_queue_fh(&sess->fh, &ev);
++	container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
 +	v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 +}
 +EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);

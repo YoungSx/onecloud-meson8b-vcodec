@@ -348,7 +348,6 @@ void amvdec_pool_release(struct amvdec_session *sess, u32 slot)
 
 static void amvdec_pool_end_locked(struct amvdec_session *sess)
 {
-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 	struct amvdec_frame_pool *pool = &sess->pool;
 	struct vb2_v4l2_buffer *vbuf, *last = NULL;
 	unsigned int i;
@@ -368,7 +367,7 @@ static void amvdec_pool_end_locked(struct amvdec_session *sess)
 		if (!last)
 			return;
 		last->flags = V4L2_BUF_FLAG_LAST;
-		v4l2_event_queue_fh(&sess->fh, &eos);
+		container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
 		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 		break;
 	case AMVDEC_POOL_LAST:
@@ -378,6 +377,7 @@ static void amvdec_pool_end_locked(struct amvdec_session *sess)
 		sess->should_stop = 1;
 		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
 			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
+		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = true;
 		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
 		break;
 	}
@@ -387,7 +387,6 @@ static void amvdec_pool_end_locked(struct amvdec_session *sess)
 /* Convert waiting pictures into queued CAPTURE buffers, oldest first. */
 static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 {
-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
 	struct amvdec_frame_pool *pool = &sess->pool;
 	int slot;
@@ -427,8 +426,7 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 		vbuf->field = pic->field;
 		if (pic->restart)
 			sess->sequence_cap = 0;
-		if (pic->eos)
-			v4l2_event_queue_fh(&sess->fh, &eos);
+		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
 	}
 

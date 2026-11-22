@@ -72,8 +72,15 @@ struct amvdec_picture {
 	u32 flags;
 	u32 field;
 	struct amvdec_geometry geo;
-	bool eos;	/* raise V4L2_EVENT_EOS with this picture */
+	bool eos;	/* raise V4L2_EVENT_EOS after this picture is dequeued */
 	bool restart;	/* restart the CAPTURE sequence after this picture */
+};
+
+/* The first members match v4l2_m2m_buffer; EOS differs from source-change LAST. */
+struct amvdec_vb2_buffer {
+	struct vb2_v4l2_buffer vb;
+	struct list_head list;
+	bool eos;
 };
 
 enum amvdec_pool_end {

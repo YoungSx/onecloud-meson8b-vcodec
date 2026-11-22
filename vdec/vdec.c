@@ -27,11 +27,6 @@
 #include "esparser.h"
 #include "vdec_helpers.h"
 
-struct dummy_buf {
-	struct vb2_v4l2_buffer vb;
-	struct list_head list;
-};
-
 /* 16 MiB for parsed bitstream swap exchange */
 #define SIZE_VIFIFO SZ_16M
 
@@ -619,8 +614,11 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct amvdec_vb2_buffer *buf =
+		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 
 	vbuf->field = V4L2_FIELD_NONE;
+	buf->eos = false;
 	return 0;
 }
 
@@ -628,14 +626,18 @@ static void vdec_vb2_buf_finish(struct vb2_buffer *vb)
 {
 	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct amvdec_vb2_buffer *buf =
+		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 
 	/* Publish EOS after userspace consumes LAST, preserving queued pictures
 	 * for clients that stop reading immediately upon the event.
 	 */
-	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->fmt_out->codec_ops->firmware_eos &&
-	    (vbuf->flags & V4L2_BUF_FLAG_LAST))
+	if (V4L2_TYPE_IS_CAPTURE(vb->type) && buf->eos &&
+	    (vbuf->flags & V4L2_BUF_FLAG_LAST)) {
+		buf->eos = false;
 		v4l2_event_queue_fh(&sess->fh, &eos);
+	}
 }
 
 static const struct vb2_ops vdec_vb2_ops = {
@@ -1052,7 +1054,7 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->ops = &vdec_vb2_ops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
 	src_vq->drv_priv = sess;
-	src_vq->buf_struct_size = sizeof(struct dummy_buf);
+	src_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
 	src_vq->min_buffers_needed = 1;
 	src_vq->dev = sess->core->dev;
 	src_vq->lock = &sess->lock;
@@ -1070,7 +1072,7 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 		dst_vq->io_modes = VB2_MMAP;
 	}
 	dst_vq->drv_priv = sess;
-	dst_vq->buf_struct_size = sizeof(struct dummy_buf);
+	dst_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
 	dst_vq->min_buffers_needed = 1;
 	dst_vq->dev = sess->core->dev;
 	dst_vq->lock = &sess->lock;

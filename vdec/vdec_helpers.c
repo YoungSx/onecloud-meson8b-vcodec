@@ -498,7 +498,6 @@ static void dst_buf_done(struct amvdec_session *sess,
 			 struct vb2_v4l2_buffer *vbuf,
 			 const struct amvdec_picture *pic)
 {
-	static const struct v4l2_event eos = { .type = V4L2_EVENT_EOS };
 	struct device *dev = sess->core->dev_dec;
 	u32 output_size = amvdec_get_output_size(sess);
 
@@ -518,8 +517,7 @@ static void dst_buf_done(struct amvdec_session *sess,
 	vbuf->sequence = sess->sequence_cap++;
 	vbuf->flags = pic->flags;
 	vbuf->timecode = pic->timecode;
-	if (pic->eos)
-		v4l2_event_queue_fh(&sess->fh, &eos);
+	container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
 	if (pic->restart)
 		sess->sequence_cap = 0;
 
@@ -657,7 +655,6 @@ EXPORT_SYMBOL_GPL(amvdec_dst_buf_done_idx);
  */
 void amvdec_flush_capture_buffers(struct amvdec_session *sess)
 {
-	static const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
 	struct vb2_v4l2_buffer *vbuf, *last = NULL;
 	unsigned int i;
 
@@ -680,7 +677,7 @@ void amvdec_flush_capture_buffers(struct amvdec_session *sess)
 		return;
 
 	last->flags = V4L2_BUF_FLAG_LAST;
-	v4l2_event_queue_fh(&sess->fh, &ev);
+	container_of(last, struct amvdec_vb2_buffer, vb)->eos = true;
 	v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 }
 EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);
