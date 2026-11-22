@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Minimal stateful V4L2 m2m H.264 decode client for driver validation.
+/* Minimal stateful V4L2 m2m decode client for driver validation.
  * Implements the source-change flow the kernel expects:
  * poll(POLLPRI) -> DQEVENT(SOURCE_CHANGE) -> STREAMOFF(CAPTURE)
  * -> G_FMT/S_FMT(CAPTURE) -> REQBUFS(CAPTURE) -> STREAMON(CAPTURE).
@@ -227,6 +227,36 @@ static void reinit_capture(void)
 	xioctl(VIDIOC_STREAMON, &type, "STREAMON(CAPTURE)");
 }
 
+/* Keep one coded picture per OUTPUT buffer for every tested format. */
+static int access_unit_start(const unsigned char *p, unsigned int fourcc,
+			     int *picture)
+{
+	unsigned int code = p[0];
+
+	if (fourcc == V4L2_PIX_FMT_MPEG1 || fourcc == V4L2_PIX_FMT_MPEG2) {
+		*picture = code == 0;
+		return *picture || code == 0xb3 || code == 0xb8;
+	}
+	if (fourcc == V4L2_PIX_FMT_MPEG4) {
+		*picture = code == 0xb6;
+		return *picture || code == 0xb0 || code == 0xb3 ||
+		       (code >= 0x20 && code <= 0x2f);
+	}
+	if (fourcc == V4L2_PIX_FMT_VC1_ANNEX_G) {
+		*picture = code == 0x0d;
+		return *picture || code == 0x0f || code == 0x0e;
+	}
+	if (fourcc == V4L2_PIX_FMT_HEVC) {
+		code = (code >> 1) & 0x3f;
+		*picture = code <= 31;
+		return *picture ? p[2] & 0x80 :
+		       (code >= 32 && code <= 35) || code == 39;
+	}
+	code &= 0x1f;
+	*picture = code == 1 || code == 5;
+	return *picture ? p[1] & 0x80 : code >= 6 && code <= 9;
+}
+
 int main(int argc, char **argv)
 {
 	enum v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -347,21 +377,12 @@ int main(int argc, char **argv)
 			int have_slice = 0;
 
 			for (scan = pos + 2; scan < eslen - 3; scan++) {
-				int slice, starts_au, nal;
+				int slice, starts_au;
 
 				if (esbuf[scan - 2] || esbuf[scan - 1] || esbuf[scan] != 1)
 					continue;
-				if (out_fourcc == V4L2_PIX_FMT_HEVC) {
-					nal = (esbuf[scan + 1] >> 1) & 0x3f;
-					slice = nal <= 31;
-					starts_au = slice ? esbuf[scan + 3] & 0x80 :
-						    (nal >= 32 && nal <= 35) || nal == 39;
-				} else {
-					nal = esbuf[scan + 1] & 0x1f;
-					slice = nal == 1 || nal == 5;
-					starts_au = slice ? esbuf[scan + 2] & 0x80 :
-						    nal >= 6 && nal <= 9;
-				}
+				starts_au = access_unit_start(esbuf + scan + 1,
+							     out_fourcc, &slice);
 				if (have_slice && starts_au) {
 					/* 4-byte start codes keep their leading zero */
 					next = scan - 2;
