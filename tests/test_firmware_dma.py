@@ -1,12 +1,20 @@
 """Microcode DMA must see initialized memory and stop before timeout cleanup."""
-import pathlib,subprocess,tempfile,unittest
-ROOT=pathlib.Path(__file__).parents[1]
+
+import pathlib, subprocess, tempfile, unittest
+
+ROOT = pathlib.Path(__file__).parents[1]
+
+
 class FirmwareDMATests(unittest.TestCase):
- def test_ordering_and_timeout_cancel(self):
-  for name in ['vdec_1','vdec_hevc']:
-   with self.subTest(engine=name):
-    s=(ROOT/('vdec/'+name+'.c')).read_text();a=s.index(name+'_load_firmware(');a=s.rfind('static int',0,a);b=s.index('\nstatic ',a+12)
-    code=r'''
+    def test_ordering_and_timeout_cancel(self):
+        for name in ["vdec_1", "vdec_hevc"]:
+            with self.subTest(engine=name):
+                s = (ROOT / ("vdec/" + name + ".c")).read_text()
+                a = s.index(name + "_load_firmware(")
+                a = s.rfind("static int", 0, a)
+                b = s.index("\nstatic ", a + 12)
+                code = (
+                    r"""
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -32,8 +40,28 @@ static void amvdec_write_dos(struct amvdec_core *c,int reg,u32 val){(void)c;if(r
 static u32 amvdec_read_dos(struct amvdec_core *c,int reg){(void)c;(void)reg;reads++;return active?0x8000:0;}
 #define amvdec_clear_dos_bits(c,r,v) ((void)(c),(void)(r),(void)(v))
 #define read_poll_timeout(op,val,condition,delay,limit,sleep,c,r) ((val)=(timeout?0x8000:0),(void)(val),active=timeout,timeout?-ETIMEDOUT:0)
-'''+s[a:b]+r'''
+"""
+                    + s[a:b]
+                    + r"""
 int main(void){struct amvdec_core core={0};struct amvdec_codec_ops ops={0};struct format fmt={&ops};struct amvdec_session session={&core,&fmt};assert(!LOAD(&session,"test"));timeout=1;active=barrier=cancels=reads=0;assert(LOAD(&session,"test")==-ETIMEDOUT);return 0;}
-'''.replace('LOAD',name+'_load_firmware')
-    with tempfile.TemporaryDirectory() as directory:
-     p=pathlib.Path(directory);(p/'test.c').write_text(code);subprocess.run(['cc','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-pie','-no-pie',str(p/'test.c'),'-o',str(p/'test')],check=True);subprocess.run([str(p/'test')],check=True)
+""".replace("LOAD", name + "_load_firmware")
+                )
+                with tempfile.TemporaryDirectory() as directory:
+                    p = pathlib.Path(directory)
+                    (p / "test.c").write_text(code)
+                    subprocess.run(
+                        [
+                            "cc",
+                            "-Wall",
+                            "-Wextra",
+                            "-Werror",
+                            "-fsanitize=address,undefined",
+                            "-fno-pie",
+                            "-no-pie",
+                            str(p / "test.c"),
+                            "-o",
+                            str(p / "test"),
+                        ],
+                        check=True,
+                    )
+                    subprocess.run([str(p / "test")], check=True)

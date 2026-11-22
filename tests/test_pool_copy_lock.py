@@ -1,10 +1,18 @@
 """A HEVC reference may end during copying, but its slot stays unavailable."""
-import pathlib,subprocess,tempfile,unittest
-ROOT=pathlib.Path(__file__).parents[1]
+
+import pathlib, subprocess, tempfile, unittest
+
+ROOT = pathlib.Path(__file__).parents[1]
+
+
 class PoolCopyLockTests(unittest.TestCase):
- def test_irq_can_queue_while_copy_keeps_its_slot(self):
-  s=(ROOT/'vdec/meson8b-capture.c').read_text();a=s.index('static void amvdec_pool_deliver_locked(');b=s.index('\n/* The picture in @slot',a);c=s.index('void amvdec_pool_push(',b);d=s.index('\nstatic void amvdec_pool_work(',c)
-  code=r'''
+    def test_irq_can_queue_while_copy_keeps_its_slot(self):
+        s = (ROOT / "vdec/meson8b-capture.c").read_text()
+        a = s.index("static void amvdec_pool_deliver_locked(")
+        b = s.index("\n/* The picture in @slot", a)
+        c = s.index("void amvdec_pool_push(", b)
+        d = s.index("\nstatic void amvdec_pool_work(", c)
+        code = r"""
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -42,13 +50,40 @@ static void amvdec_pool_end_locked(struct amvdec_session *s){assert(!s->pool.sta
 static void schedule_work(int *p){(void)p;assert(!pool_locked);scheduled++;}
 static void amvdec_pool_push(struct amvdec_session *,u32,const struct amvdec_picture *);
 static int amvdec_meson8b_copy_capture(struct amvdec_session *s,const struct amvdec_geometry *g,const struct amvdec_shadow *shadow,struct vb2_buffer *b){(void)g;(void)shadow;(void)b;assert(!pool_locked && delivery_locked);assert(s->pool.state.waiting&1);if(!copies){assert(!meson8b_pool_release(&s->pool.state,0));assert(meson8b_pool_take(&s->pool.state)==1);struct amvdec_picture next={.geo={16,16},.timestamp=84,.eos=true};amvdec_pool_push(s,1,&next);}copies++;return 0;}
-'''.replace('POOL_HEADER',str(ROOT/'vdec/meson8b-pool.h'))
-  # The driver function is global; keep that linkage in the declaration.
-  code=code.replace('static void amvdec_pool_push(struct amvdec_session *,','void amvdec_pool_push(struct amvdec_session *,')
-  # Check the current queued slot on both copies.
-  code=code.replace('assert(s->pool.state.waiting&1);','assert(s->pool.state.waiting&(1u<<copies));')
-  code+=s[a:b]+s[c:d]+r'''
+""".replace("POOL_HEADER", str(ROOT / "vdec/meson8b-pool.h"))
+        # The driver function is global; keep that linkage in the declaration.
+        code = code.replace(
+            "static void amvdec_pool_push(struct amvdec_session *,",
+            "void amvdec_pool_push(struct amvdec_session *,",
+        )
+        # Check the current queued slot on both copies.
+        code = code.replace(
+            "assert(s->pool.state.waiting&1);",
+            "assert(s->pool.state.waiting&(1u<<copies));",
+        )
+        code += (
+            s[a:b]
+            + s[c:d]
+            + r"""
 int main(void){struct core core={0};struct amvdec_codec_ops ops={0};struct format f={&ops};session.core=&core;session.fmt_out=&f;assert(!meson8b_pool_reset(&session.pool.state,3));assert(meson8b_pool_take(&session.pool.state)==0);assert(!meson8b_pool_push(&session.pool.state,0));session.pool.picture[0]=(struct amvdec_picture){.geo={16,16},.timestamp=42};mutex_lock(&session.pool.delivery_lock);mutex_lock(&session.pool.lock);amvdec_pool_deliver_locked(&session);mutex_unlock(&session.pool.lock);mutex_unlock(&session.pool.delivery_lock);assert(copies==2 && done==2 && scheduled==1 && !session.pool.state.len);assert(buffers[0].vb.vb2_buf.timestamp==42 && buffers[1].vb.vb2_buf.timestamp==84 && buffers[1].eos);return 0;}
-'''
-  with tempfile.TemporaryDirectory() as directory:
-   p=pathlib.Path(directory);(p/'test.c').write_text(code);subprocess.run(['cc','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-pie','-no-pie',str(p/'test.c'),'-o',str(p/'test')],check=True);subprocess.run([str(p/'test')],check=True)
+"""
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            p = pathlib.Path(directory)
+            (p / "test.c").write_text(code)
+            subprocess.run(
+                [
+                    "cc",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-fsanitize=address,undefined",
+                    "-fno-pie",
+                    "-no-pie",
+                    str(p / "test.c"),
+                    "-o",
+                    str(p / "test"),
+                ],
+                check=True,
+            )
+            subprocess.run([str(p / "test")], check=True)
