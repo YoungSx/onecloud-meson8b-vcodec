@@ -418,7 +418,8 @@ static void amvdec_mark_picture(struct amvdec_session *sess,
 	pic->geo.crop_left = sess->crop_left;
 	pic->geo.crop_top = sess->crop_top;
 
-	if (sess->should_stop &&
+	/* Custom drains finish only after the firmware's delayed pictures. */
+	if (sess->should_stop && !sess->fmt_out->codec_ops->drain &&
 	    atomic_read(&sess->esparser_queued_bufs) <= 1) {
 		dev_dbg(dev, "Signaling EOS\n");
 		pic->eos = true;

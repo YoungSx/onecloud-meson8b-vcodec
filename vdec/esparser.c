@@ -271,8 +271,8 @@ int esparser_queue_eos(struct amvdec_core *core, const u8 *data, u32 len)
 
 	/* A timed-out write used to return 0, hiding a drain terminator that
 	 * never reached the parser; the final picture then stays in the
-	 * firmware with no kernel trace. Callers still ignore the return;
-	 * this only makes the failure observable.
+	 * firmware with no kernel trace. Propagate it so the caller fails the
+	 * queues instead of announcing a successful drain.
 	 */
 	if (ret <= 0) {
 		dev_err(dev, "esparser: EOS write %s, drain terminator not delivered\n",

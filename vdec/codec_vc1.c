@@ -202,7 +202,10 @@ static void codec_vc1_drain(struct amvdec_session *sess)
 		return;
 
 	/* VC1 end-of-sequence */
-	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
+	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
+		amvdec_abort(sess);
+		return;
+	}
 
 	vc1->draining = true;
 	schedule_delayed_work(&vc1->drain_work, 0);

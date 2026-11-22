@@ -207,7 +207,10 @@ static void codec_mpeg12_drain(struct amvdec_session *sess)
 	if (mpeg12->draining)
 		return;
 
-	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
+	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
+		amvdec_abort(sess);
+		return;
+	}
 
 	mpeg12->draining = true;
 	schedule_delayed_work(&mpeg12->drain_work, 0);

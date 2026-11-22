@@ -184,7 +184,10 @@ static void codec_mpeg4_drain(struct amvdec_session *sess)
 		return;
 
 	/* Visual object sequence end */
-	esparser_queue_eos(sess->core, eos_sequence, 4);
+	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
+		amvdec_abort(sess);
+		return;
+	}
 
 	mpeg4->draining = true;
 	schedule_delayed_work(&mpeg4->drain_work, 0);

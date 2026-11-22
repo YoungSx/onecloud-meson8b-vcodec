@@ -952,8 +952,11 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 		u32 len;
 		const u8 *data = codec_ops->eos_sequence(&len);
 
-		esparser_queue_eos(sess->core, data, len);
-		vdec_wait_inactive(sess);
+		ret = esparser_queue_eos(sess->core, data, len);
+		if (ret)
+			amvdec_abort(sess);
+		else
+			vdec_wait_inactive(sess);
 	}
 
 	return ret;

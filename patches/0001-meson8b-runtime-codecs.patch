@@ -3207,7 +3207,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg12.c
-@@ -0,0 +1,312 @@
+@@ -0,0 +1,315 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3417,7 +3417,10 @@
 +	if (mpeg12->draining)
 +		return;
 +
-+	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
 +
 +	mpeg12->draining = true;
 +	schedule_delayed_work(&mpeg12->drain_work, 0);
@@ -3539,7 +3542,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,252 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3726,7 +3729,10 @@
 +		return;
 +
 +	/* Visual object sequence end */
-+	esparser_queue_eos(sess->core, eos_sequence, 4);
++	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
++		amvdec_abort(sess);
++		return;
++	}
 +
 +	mpeg4->draining = true;
 +	schedule_delayed_work(&mpeg4->drain_work, 0);
@@ -3808,7 +3814,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,270 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -4013,7 +4019,10 @@
 +		return;
 +
 +	/* VC1 end-of-sequence */
-+	esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence));
++	if (esparser_queue_eos(sess->core, eos_sequence, sizeof(eos_sequence))) {
++		amvdec_abort(sess);
++		return;
++	}
 +
 +	vc1->draining = true;
 +	schedule_delayed_work(&vc1->drain_work, 0);
@@ -6690,8 +6699,8 @@
 +
 +	/* A timed-out write used to return 0, hiding a drain terminator that
 +	 * never reached the parser; the final picture then stays in the
-+	 * firmware with no kernel trace. Callers still ignore the return;
-+	 * this only makes the failure observable.
++	 * firmware with no kernel trace. Propagate it so the caller fails the
++	 * queues instead of announcing a successful drain.
 +	 */
 +	if (ret <= 0) {
 +		dev_err(dev, "esparser: EOS write %s, drain terminator not delivered\n",
@@ -8067,7 +8076,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1392 @@
+@@ -0,0 +1,1395 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9022,8 +9031,11 @@
 +		u32 len;
 +		const u8 *data = codec_ops->eos_sequence(&len);
 +
-+		esparser_queue_eos(sess->core, data, len);
-+		vdec_wait_inactive(sess);
++		ret = esparser_queue_eos(sess->core, data, len);
++		if (ret)
++			amvdec_abort(sess);
++		else
++			vdec_wait_inactive(sess);
 +	}
 +
 +	return ret;
@@ -10144,7 +10156,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.c
-@@ -0,0 +1,742 @@
+@@ -0,0 +1,743 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10565,7 +10577,8 @@
 +	pic->geo.crop_left = sess->crop_left;
 +	pic->geo.crop_top = sess->crop_top;
 +
-+	if (sess->should_stop &&
++	/* Custom drains finish only after the firmware's delayed pictures. */
++	if (sess->should_stop && !sess->fmt_out->codec_ops->drain &&
 +	    atomic_read(&sess->esparser_queued_bufs) <= 1) {
 +		dev_dbg(dev, "Signaling EOS\n");
 +		pic->eos = true;
