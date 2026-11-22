@@ -163,10 +163,11 @@ static void codec_mpeg4_drain_work(struct work_struct *work)
 	bool irq_quiet = false;
 
 	while (polls++ < max_polls) {
+		int in_flight = atomic_read(&sess->esparser_queued_bufs);
+
 		irq_quiet = !READ_ONCE(sess->irq_active) &&
 			!time_is_after_jiffies64(
 			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
-		int in_flight = atomic_read(&sess->esparser_queued_bufs);
 
 		if (irq_quiet && in_flight <= 1)
 			break;
