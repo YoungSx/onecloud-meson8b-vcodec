@@ -8082,7 +8082,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1414 @@
+@@ -0,0 +1,1428 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8152,6 +8152,10 @@
 +	struct amvdec_buffer *tmp, *n;
 +
 +	while (!kthread_should_stop()) {
++		wait_event_interruptible(sess->recycle_wq,
++			kthread_should_stop() || READ_ONCE(sess->recycle_pending));
++		if (kthread_should_stop())
++			break;
 +		mutex_lock(&sess->bufs_recycle_lock);
 +		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
 +			if (!codec_ops->can_recycle(core))
@@ -8159,11 +8163,15 @@
 +
 +			codec_ops->recycle(core, tmp->fw_idx);
 +			list_del(&tmp->list);
++			sess->recycle_pending--;
 +			kfree(tmp);
 +		}
 +		mutex_unlock(&sess->bufs_recycle_lock);
 +
-+		usleep_range(5000, 10000);
++		/* Wait only while the firmware's recycle mailbox is occupied. */
++		wait_event_interruptible_timeout(sess->recycle_wq,
++			kthread_should_stop() || codec_ops->can_recycle(core),
++			msecs_to_jiffies(5));
 +	}
 +
 +	return 0;
@@ -8241,7 +8249,9 @@
 +
 +	mutex_lock(&sess->bufs_recycle_lock);
 +	list_add_tail(&new_buf->list, &sess->bufs_recycle);
++	sess->recycle_pending++;
 +	mutex_unlock(&sess->bufs_recycle_lock);
++	wake_up_interruptible(&sess->recycle_wq);
 +}
 +
 +/* Without a frame pool the firmware writes into the CAPTURE buffers, so a
@@ -8629,6 +8639,8 @@
 +static void vdec_reset_bufs_recycle(struct amvdec_session *sess)
 +{
 +	struct amvdec_buffer *tmp, *n;
++
++	sess->recycle_pending = 0;
 +
 +	list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
 +		list_del(&tmp->list);
@@ -9218,6 +9230,7 @@
 +	INIT_WORK(&sess->esparser_queue_work, esparser_queue_all_src);
 +	mutex_init(&sess->lock);
 +	mutex_init(&sess->bufs_recycle_lock);
++	init_waitqueue_head(&sess->recycle_wq);
 +	amvdec_pool_init(sess);
 +	spin_lock_init(&sess->ts_spinlock);
 +
@@ -9277,6 +9290,7 @@
 +		return IRQ_NONE;
 +
 +	sess->last_irq_jiffies = get_jiffies_64();
++	wake_up_interruptible(&sess->recycle_wq);
 +
 +	return sess->fmt_out->codec_ops->isr(sess);
 +}
@@ -9499,7 +9513,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,371 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9847,6 +9861,8 @@
 +	struct list_head bufs_recycle;
 +	struct mutex bufs_recycle_lock; /* bufs_recycle list lock */
 +	struct task_struct *recycle_thread;
++	wait_queue_head_t recycle_wq;
++	u32 recycle_pending;
 +
 +	struct list_head timestamps;
 +	spinlock_t ts_spinlock; /* timestamp list lock */

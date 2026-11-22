@@ -67,6 +67,10 @@ static int vdec_recycle_thread(void *data)
 	struct amvdec_buffer *tmp, *n;
 
 	while (!kthread_should_stop()) {
+		wait_event_interruptible(sess->recycle_wq,
+			kthread_should_stop() || READ_ONCE(sess->recycle_pending));
+		if (kthread_should_stop())
+			break;
 		mutex_lock(&sess->bufs_recycle_lock);
 		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
 			if (!codec_ops->can_recycle(core))
@@ -74,11 +78,15 @@ static int vdec_recycle_thread(void *data)
 
 			codec_ops->recycle(core, tmp->fw_idx);
 			list_del(&tmp->list);
+			sess->recycle_pending--;
 			kfree(tmp);
 		}
 		mutex_unlock(&sess->bufs_recycle_lock);
 
-		usleep_range(5000, 10000);
+		/* Wait only while the firmware's recycle mailbox is occupied. */
+		wait_event_interruptible_timeout(sess->recycle_wq,
+			kthread_should_stop() || codec_ops->can_recycle(core),
+			msecs_to_jiffies(5));
 	}
 
 	return 0;
@@ -156,7 +164,9 @@ void amvdec_recycle(struct amvdec_session *sess, u32 fw_idx)
 
 	mutex_lock(&sess->bufs_recycle_lock);
 	list_add_tail(&new_buf->list, &sess->bufs_recycle);
+	sess->recycle_pending++;
 	mutex_unlock(&sess->bufs_recycle_lock);
+	wake_up_interruptible(&sess->recycle_wq);
 }
 
 /* Without a frame pool the firmware writes into the CAPTURE buffers, so a
@@ -544,6 +554,8 @@ static void vdec_reset_timestamps(struct amvdec_session *sess)
 static void vdec_reset_bufs_recycle(struct amvdec_session *sess)
 {
 	struct amvdec_buffer *tmp, *n;
+
+	sess->recycle_pending = 0;
 
 	list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
 		list_del(&tmp->list);
@@ -1133,6 +1145,7 @@ static int vdec_open(struct file *file)
 	INIT_WORK(&sess->esparser_queue_work, esparser_queue_all_src);
 	mutex_init(&sess->lock);
 	mutex_init(&sess->bufs_recycle_lock);
+	init_waitqueue_head(&sess->recycle_wq);
 	amvdec_pool_init(sess);
 	spin_lock_init(&sess->ts_spinlock);
 
@@ -1192,6 +1205,7 @@ static irqreturn_t vdec_isr(int irq, void *data)
 		return IRQ_NONE;
 
 	sess->last_irq_jiffies = get_jiffies_64();
+	wake_up_interruptible(&sess->recycle_wq);
 
 	return sess->fmt_out->codec_ops->isr(sess);
 }
