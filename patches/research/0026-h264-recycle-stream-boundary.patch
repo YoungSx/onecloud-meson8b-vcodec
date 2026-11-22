@@ -1,0 +1,107 @@
+Subject: [PATCH RFC] media: meson: isolate H.264 recycle mailboxes at stream changes
+
+Pause slot recycling while Meson8b replaces its frame table and discard old
+slot notifications and mailboxes before resuming. Prevent old slot numbers
+from prematurely releasing pictures in a new segment.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/vdec.c b/drivers/staging/media/meson/vdec/vdec.c
+--- a/drivers/staging/media/meson/vdec/vdec.c
++++ b/drivers/staging/media/meson/vdec/vdec.c
+@@ -63,12 +63,15 @@
+ 
+ 	while (!kthread_should_stop()) {
+ 		wait_event_interruptible(sess->recycle_wq,
+-			kthread_should_stop() || READ_ONCE(sess->recycle_pending));
++			kthread_should_stop() ||
++			(READ_ONCE(sess->recycle_pending) &&
++			 !READ_ONCE(sess->recycle_paused)));
+ 		if (kthread_should_stop())
+ 			break;
+ 		mutex_lock(&sess->bufs_recycle_lock);
+ 		list_for_each_entry_safe(tmp, n, &sess->bufs_recycle, list) {
+-			if (!codec_ops->can_recycle(core))
++			if (READ_ONCE(sess->recycle_paused) ||
++			    !codec_ops->can_recycle(core))
+ 				break;
+ 
+ 			codec_ops->recycle(core, tmp->fw_idx);
+@@ -80,7 +83,8 @@
+ 
+ 		/* Wait only while the firmware's recycle mailbox is occupied. */
+ 		wait_event_interruptible_timeout(sess->recycle_wq,
+-			kthread_should_stop() || codec_ops->can_recycle(core),
++			kthread_should_stop() || READ_ONCE(sess->recycle_paused) ||
++			codec_ops->can_recycle(core),
+ 			msecs_to_jiffies(5));
+ 	}
+ 
+diff --git a/drivers/staging/media/meson/vdec/codec_h264.c b/drivers/staging/media/meson/vdec/codec_h264.c
+--- a/drivers/staging/media/meson/vdec/codec_h264.c
++++ b/drivers/staging/media/meson/vdec/codec_h264.c
+@@ -340,7 +340,23 @@
+ 	struct amvdec_core *core = sess->core;
+ 	struct codec_h264 *h264 = sess->priv;
+ 	u32 mb_width, mb_height, mb_total;
++	struct amvdec_buffer *pending, *next;
+ 	int ret;
++
++	if (core->platform->revision == VDEC_REVISION_MESON8B &&
++	    READ_ONCE(sess->recycle_paused)) {
++		/* Old slot numbers must not free pictures in the new buffer table. */
++		mutex_lock(&sess->bufs_recycle_lock);
++		list_for_each_entry_safe(pending, next, &sess->bufs_recycle, list) {
++			list_del(&pending->list);
++			kfree(pending);
++		}
++		sess->recycle_pending = 0;
++		amvdec_write_dos(core, AV_SCRATCH_7, 0);
++		amvdec_write_dos(core, AV_SCRATCH_8, 0);
++		amvdec_write_dos(core, AV_SCRATCH_9, 0);
++		mutex_unlock(&sess->bufs_recycle_lock);
++	}
+ 
+ 	ret = amvdec_set_canvases(sess,
+ 				  (u32[]){ ANC0_CANVAS_ADDR, 0 },
+@@ -375,6 +391,8 @@
+ 	/* End of ref MV */
+ 	amvdec_write_dos(core, AV_SCRATCH_4, h264->ref_paddr + h264->ref_size);
+ 
++	WRITE_ONCE(sess->recycle_paused, false);
++	wake_up_interruptible(&sess->recycle_wq);
+ 	amvdec_write_dos(core, AV_SCRATCH_0, (h264->max_refs << 24) |
+ 					     (sess->num_dst_bufs << 16) |
+ 					     ((h264->max_refs - 1) << 8));
+@@ -410,8 +428,7 @@
+ 	h264->mb_height = mb_total / h264->mb_width;
+ 
+ 	h264->max_refs = ((parsed_info >> MAX_REF_BIT) & MAX_REF_MASK) + 1;
+-	dpb_size = h264->max_refs + (amvdec_has_pool(sess) ?
+-		READ_ONCE(h264_extra_buffers) : 5);
++	dpb_size = h264->max_refs + READ_ONCE(h264_extra_buffers);
+ 	if (dpb_size > sess->fmt_out->max_buffers) {
+ 		dev_err(core->dev, "H.264 reference count exceeds capture capacity\n");
+ 		amvdec_abort(sess);
+@@ -433,6 +450,11 @@
+ 	dev_dbg(core->dev, "frame: %ux%u; crop: %u %u\n",
+ 		frame_width, frame_height, crop_right, crop_bottom);
+ 
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		mutex_lock(&sess->bufs_recycle_lock);
++		WRITE_ONCE(sess->recycle_paused, true);
++		mutex_unlock(&sess->bufs_recycle_lock);
++	}
+ 	codec_h264_set_par(sess);
+ 	amvdec_src_change(sess, frame_width, frame_height, dpb_size);
+ }
+diff --git a/drivers/staging/media/meson/vdec/vdec.h b/drivers/staging/media/meson/vdec/vdec.h
+--- a/drivers/staging/media/meson/vdec/vdec.h
++++ b/drivers/staging/media/meson/vdec/vdec.h
+@@ -370,6 +370,7 @@
+ 	struct task_struct *recycle_thread;
+ 	wait_queue_head_t recycle_wq;
+ 	u32 recycle_pending;
++	bool recycle_paused;
+ 
+ 	struct list_head timestamps;
+ 	spinlock_t ts_spinlock; /* timestamp list lock */
