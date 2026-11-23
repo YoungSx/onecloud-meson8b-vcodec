@@ -11,6 +11,7 @@
 | VBR、峰值/CPB、失败策略与观测 | [Rate control](rate-control.md) |
 | 新 clone、交叉编译、补丁、打包 | [Build](build.md) |
 | 模块、帧池与共享硬件资源 | [Architecture](architecture.md) / [Portability](portability.md) |
+| 阶段性能测量与 GE2D 验证入口 | [Performance](performance.md) |
 | 固件来源和许可证 | [Firmware](firmware.md) |
 | 设备、队列、网络取证问题 | [Troubleshooting](troubleshooting.md) |
 | H.264 少帧时序重放与已有修复覆盖 | [H.264 regression](h264-regression.md) |
