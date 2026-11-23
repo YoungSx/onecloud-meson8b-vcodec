@@ -7,6 +7,7 @@
 #include <linux/iopoll.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/soc/amlogic/meson-canvas.h>
@@ -18,6 +19,7 @@
 #include "../runtime/meson8b-runtime.h"
 #include "ge2d-layout.h"
 #include "ge2d-scale.h"
+#include "ge2d-api.h"
 
 #define GEN_CTRL0 0x00
 #define GEN_CTRL1 0x04
@@ -71,9 +73,11 @@ struct meson8b_ge2d {
 	struct video_device *video;
 	struct v4l2_m2m_dev *m2m;
 	struct mutex lock; /* V4L2 ioctl and vb2 queue serialization. */
+	struct mutex hardware_lock; /* Serialize userspace and in-kernel commands. */
 	struct work_struct work;
 	struct ge2d_ctx *active;
 	bool offline;
+	bool ready;
 };
 
 struct ge2d_ctx {
@@ -374,7 +378,9 @@ static void ge2d_work(struct work_struct *work)
 		struct meson8b_ge2d_image output = ge2d_buffer_image(&dst->vb2_buf, &ctx->output);
 		unsigned int i;
 
-		ret = ge2d_blit(core, &input, &output, &ctx->crop);
+		mutex_lock(&core->hardware_lock);
+		ret = core->ready ? ge2d_blit(core, &input, &output, &ctx->crop) : -ENODEV;
+		mutex_unlock(&core->hardware_lock);
 		v4l2_m2m_buf_copy_metadata(src, dst, true);
 		dst->sequence = ctx->sequence++;
 		for (i = 0; i < ctx->output.num_planes; i++)
@@ -744,6 +750,63 @@ static const struct v4l2_file_operations ge2d_fops = {
 	.unlocked_ioctl = video_ioctl2,
 };
 
+static struct device *ge2d_get_device(struct device *consumer)
+{
+	struct platform_device *supplier;
+	struct meson8b_ge2d *core;
+	struct device_node *node;
+
+	node = of_parse_phandle(consumer->of_node, "amlogic,ge2d", 0);
+	if (!node)
+		return ERR_PTR(-ENODEV);
+	if (!of_device_is_compatible(node, "amlogic,meson8b-ge2d")) {
+		of_node_put(node);
+		return ERR_PTR(-ENODEV);
+	}
+	supplier = of_find_device_by_node(node);
+	of_node_put(node);
+	if (!supplier)
+		return ERR_PTR(-EPROBE_DEFER);
+	core = platform_get_drvdata(supplier);
+	if (!core || !READ_ONCE(core->ready)) {
+		put_device(&supplier->dev);
+		return ERR_PTR(-EPROBE_DEFER);
+	}
+	if (!device_link_add(consumer, &supplier->dev, DL_FLAG_AUTOREMOVE_CONSUMER)) {
+		put_device(&supplier->dev);
+		return ERR_PTR(-ENOMEM);
+	}
+	return &supplier->dev;
+}
+
+static void ge2d_put_device(struct device *supplier)
+{
+	put_device(supplier);
+}
+
+static int ge2d_convert(struct device *supplier, const struct meson8b_ge2d_image *input,
+			const struct meson8b_ge2d_image *output,
+			const struct meson8b_ge2d_crop *crop)
+{
+	struct meson8b_ge2d *core = dev_get_drvdata(supplier);
+	int ret;
+
+	mutex_lock(&core->hardware_lock);
+	ret = core->ready ? ge2d_blit(core, input, output, crop) : -ENODEV;
+	mutex_unlock(&core->hardware_lock);
+	return ret;
+}
+
+const struct meson8b_ge2d_api *meson8b_ge2d_get_api(void)
+{
+	static const struct meson8b_ge2d_api api = {
+		.get = ge2d_get_device, .put = ge2d_put_device, .convert = ge2d_convert,
+	};
+
+	return &api;
+}
+EXPORT_SYMBOL_GPL(meson8b_ge2d_get_api);
+
 static int ge2d_probe(struct platform_device *pdev)
 {
 	struct meson8b_ge2d *core;
@@ -755,6 +818,7 @@ static int ge2d_probe(struct platform_device *pdev)
 	if (!core)
 		return -ENOMEM;
 	core->dev = &pdev->dev;
+	mutex_init(&core->hardware_lock);
 	core->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(core->regs))
 		return PTR_ERR(core->regs);
@@ -821,6 +885,7 @@ static int ge2d_probe(struct platform_device *pdev)
 	if (ret)
 		goto release_video;
 	platform_set_drvdata(pdev, core);
+	WRITE_ONCE(core->ready, true);
 	dev_info(core->dev, "byte-order self-test passed; registered /dev/video%d\n",
 		 core->video->num);
 	return 0;
@@ -847,6 +912,9 @@ static int ge2d_remove(struct platform_device *pdev)
 {
 	struct meson8b_ge2d *core = platform_get_drvdata(pdev);
 
+	mutex_lock(&core->hardware_lock);
+	WRITE_ONCE(core->ready, false);
+	mutex_unlock(&core->hardware_lock);
 	video_unregister_device(core->video);
 	flush_work(&core->work);
 	v4l2_m2m_release(core->m2m);
@@ -857,6 +925,7 @@ static int ge2d_remove(struct platform_device *pdev)
 	meson_canvas_free(core->canvas, core->src_uv_canvas);
 	meson_canvas_free(core->canvas, core->dst_canvas);
 	meson_canvas_free(core->canvas, core->src_canvas);
+	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
 

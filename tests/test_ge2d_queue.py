@@ -28,7 +28,7 @@ typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
 #define U32_MAX UINT32_MAX
 #include "ge2d-layout.h"
 struct work_struct {int unused;};
-struct ge2d_ctx;struct meson8b_ge2d {struct work_struct work;struct ge2d_ctx *active;void *m2m;};
+struct ge2d_ctx;struct meson8b_ge2d {struct work_struct work;struct ge2d_ctx *active;void *m2m;int hardware_lock;bool ready;};
 struct vb2_v4l2_buffer;
 struct queue {u32 type;struct ge2d_ctx *ctx;struct vb2_v4l2_buffer *buffer;};
 struct v4l2_fh {struct m2m *m2m_ctx;};
@@ -43,6 +43,9 @@ struct ge2d_ctx {struct v4l2_fh fh;struct meson8b_ge2d *core;struct v4l2_pix_for
 static struct meson8b_ge2d core;
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
 static int blit_error,commands,finished,flushed;
+static int locked;
+static void mutex_lock(int *l){(void)l;assert(!locked);locked=1;}
+static void mutex_unlock(int *l){(void)l;assert(locked);locked=0;}
 static void *vb2_get_drv_priv(struct queue *q){return q->ctx;}
 static dma_addr_t vb2_dma_contig_plane_dma_addr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->address[i];}
 static void vb2_set_plane_payload(struct vb2_buffer *b,unsigned i,u32 value){assert(i<b->num_planes);b->payload[i]=value;}
@@ -69,11 +72,13 @@ int main(void){
  m.src.ctx=m.dst.ctx=&c;m.src.type=V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;m.dst.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
  struct vb2_v4l2_buffer s={.vb2_buf={.num_planes=2,.address={0x100000,0x200000},.timestamp=123}},
  d={.vb2_buf={.num_planes=2,.address={0x300000,0x400000}}};
- core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+ core.ready=true;core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
  assert(s.state==1&&d.state==1&&d.vb2_buf.payload[0]==4096&&d.vb2_buf.payload[1]==2048);
  assert(d.vb2_buf.timestamp==123&&d.sequence==0&&finished==1&&commands==1);
  blit_error=-ETIMEDOUT;core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
  assert(s.state==2&&d.state==2&&!d.vb2_buf.payload[0]&&!d.vb2_buf.payload[1]&&finished==2);
+ core.ready=false;core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+ assert(commands==2&&finished==3&&s.state==2&&d.state==2&&!locked);
  m.src.buffer=&s;ge2d_stop(&m.src);assert(s.state==2&&flushed==1&&!m.src.buffer);
  m.dst.buffer=&d;ge2d_stop(&m.dst);assert(d.state==2&&flushed==2&&!m.dst.buffer);
  return 0;

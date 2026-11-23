@@ -14,7 +14,7 @@ import threading
 import time
 
 COUNTERS = {
-    "decoder": ("converted_frames", "convert_ns", "cropped_frames"),
+    "decoder": ("converted_frames", "convert_ns", "cropped_frames", "ge2d_frames"),
     "encoder": ("copied_frames", "copy_ns", "direct_frames"),
 }
 

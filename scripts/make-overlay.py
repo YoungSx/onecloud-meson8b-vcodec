@@ -40,7 +40,7 @@ def render(tree, ge2d=False):
     if ge2d and any(b'amlogic,meson8b-ge2d' in strings(p) for p in tree.rglob('compatible')):
         raise ValueError('A GE2D node already exists')
     ge2d_node = f'''
-            blitter@c1106280 {{
+            ge2d: blitter@c1106280 {{
                 compatible = "amlogic,meson8b-ge2d";
                 reg = <0xc1106280 0x12c>;
                 clocks = <{clkc} 49>;
@@ -49,6 +49,7 @@ def render(tree, ge2d=False):
                 status = "okay";
             }};
 ''' if ge2d else ''
+    ge2d_link = '                amlogic,ge2d = <&ge2d>;\n' if ge2d else ''
     return f'''/dts-v1/;
 /plugin/;
 / {{
@@ -67,7 +68,7 @@ def render(tree, ge2d=False):
                 reset-names = "esparser";
                 amlogic,ao-sysctrl = <{pmu}>;
                 amlogic,canvas = <{canvas}>;
-                status = "okay";
+{ge2d_link}                status = "okay";
             }};
             video-encoder@d0050000 {{
                 compatible = "amlogic,meson8b-venc";

@@ -135,6 +135,8 @@ struct amvdec_frame_pool {
  * @v4l2_dev: v4l2 device
  * @cur_sess: current decoding session
  */
+struct meson8b_ge2d_api;
+
 struct amvdec_core {
 	void __iomem *dos_base;
 	void __iomem *esparser_base;
@@ -146,6 +148,8 @@ struct amvdec_core {
 	const struct vdec_platform *platform;
 
 	struct meson_canvas *canvas;
+	const struct meson8b_ge2d_api *ge2d_api;
+	struct device *ge2d_dev;
 
 	struct clk *dos_parser_clk;
 	struct clk *dos_clk;
@@ -169,6 +173,7 @@ struct amvdec_core {
 	/* Meson8b output conversion: frames per path and CPU time */
 	struct dentry *debugfs;
 	u64 converted_frames, cropped_frames, convert_ns;
+	u64 ge2d_frames;
 	/* Meson8b frame pool of the current session: slots and their bytes */
 	u32 pool_slots;
 	u64 pool_bytes;

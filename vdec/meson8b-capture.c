@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 #include <linux/dma-mapping.h>
+#include <linux/dma-buf.h>
 #include <linux/kernel.h>
 #include <linux/ktime.h>
 #include <linux/mm.h>
@@ -8,6 +9,7 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-core.h>
+#include <media/videobuf2-dma-contig.h>
 
 #include <asm/neon.h>
 #include <asm/simd.h>
@@ -16,6 +18,7 @@
 #include "meson8b-copy.h"
 #include "meson8b-swap-neon.h"
 #include "meson8b-window.h"
+#include "../ge2d/ge2d-api.h"
 
 static void amvdec_shadow_free(struct amvdec_session *sess,
 			       struct amvdec_shadow *shadow)
@@ -203,13 +206,109 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 }
 
 /* Convert one decoded picture into @vb, accounting the CPU time. */
+static int amvdec_ge2d_capture(struct amvdec_session *sess,
+			     const struct amvdec_geometry *geo,
+			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
+{
+	struct amvdec_core *core = sess->core;
+	u32 width = geo->reference_width ? geo->reference_width : geo->width;
+	u32 stride = ALIGN(width, 32);
+	u32 height = geo->reference_height ? geo->reference_height : geo->height;
+	struct meson8b_ge2d_image input = {
+		.width = width, .height = height, .stride = stride,
+		.address = { shadow->paddr, shadow->paddr + shadow->luma }, .nv12 = true,
+	};
+	struct meson8b_ge2d_image output = {
+		.width = geo->width, .height = geo->height, .stride = ALIGN(geo->width, 32),
+		.nv12 = true, .little_endian = true,
+	};
+	struct meson8b_ge2d_crop crop = {
+		.left = geo->crop_left, .top = geo->crop_top,
+		.width = geo->width, .height = geo->height,
+	};
+	unsigned int i;
+
+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
+		return -EOPNOTSUPP;
+	if (vb->num_planes != 2 || !shadow->vaddr || shadow->luma < stride * height ||
+	    shadow->size < shadow->luma + stride * height / 2 ||
+	    (u64)shadow->paddr + shadow->size > (u64)U32_MAX + 1)
+		return -EINVAL;
+	for (i = 0; i < 2; i++) {
+		u32 rows = i ? output.height / 2 : output.height;
+		u32 payload = amvdec_get_output_size_wh(geo->width, geo->height) / (i ? 2 : 1);
+		void *address = vb2_plane_vaddr(vb, i);
+		u32 row;
+		int ret;
+
+		if (vb->planes[i].data_offset || !address || vb2_plane_size(vb, i) < payload ||
+		    payload < output.stride * rows)
+			return -EINVAL;
+		if (vb->planes[i].dbuf) {
+			ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
+			if (ret)
+				return ret;
+		}
+		/* GE2D writes visible pixels; do not expose a previous image in padding. */
+		for (row = 0; row < rows; row++)
+			memset(address + row * output.stride + output.width, 0,
+			       output.stride - output.width);
+		memset(address + output.stride * rows, 0, payload - output.stride * rows);
+		if (vb->planes[i].dbuf) {
+			ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
+			if (ret)
+				return ret;
+		}
+		output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+	}
+	return core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
+}
+
+static int amvdec_cpu_capture(struct amvdec_session *sess,
+			     const struct amvdec_geometry *geo,
+			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
+{
+	unsigned int i, acquired = 0;
+	int ret;
+
+	/* A DMA-BUF fallback writes through its CPU mapping after GE2D has stopped. */
+	for (i = 0; i < vb->num_planes; i++) {
+		if (!vb->planes[i].dbuf)
+			continue;
+		ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
+		if (ret)
+			goto finish;
+		acquired = i + 1;
+	}
+	ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
+finish:
+	for (i = 0; i < acquired; i++)
+		if (vb->planes[i].dbuf) {
+			int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
+
+			if (!ret)
+				ret = end_ret;
+		}
+	return ret;
+}
+
 static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
 				       const struct amvdec_geometry *geo,
 				       const struct amvdec_shadow *shadow,
 				       struct vb2_buffer *vb)
 {
 	ktime_t start = ktime_get();
-	int ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
+	int ret;
+
+	if (sess->core->ge2d_dev) {
+		ret = amvdec_ge2d_capture(sess, geo, shadow, vb);
+		if (!ret)
+			sess->core->ge2d_frames++;
+		else
+			ret = amvdec_cpu_capture(sess, geo, shadow, vb);
+	} else {
+		ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
+	}
 
 	if (!ret) {
 		sess->core->converted_frames++;

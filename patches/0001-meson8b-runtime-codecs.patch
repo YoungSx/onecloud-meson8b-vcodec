@@ -8043,9 +8043,10 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,531 @@
+@@ -0,0 +1,630 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
++#include <linux/dma-buf.h>
 +#include <linux/kernel.h>
 +#include <linux/ktime.h>
 +#include <linux/mm.h>
@@ -8054,6 +8055,7 @@
 +#include <media/v4l2-event.h>
 +#include <media/v4l2-mem2mem.h>
 +#include <media/videobuf2-core.h>
++#include <media/videobuf2-dma-contig.h>
 +
 +#include <asm/neon.h>
 +#include <asm/simd.h>
@@ -8062,6 +8064,7 @@
 +#include "meson8b-copy.h"
 +#include "meson8b-swap-neon.h"
 +#include "meson8b-window.h"
++#include "../ge2d/ge2d-api.h"
 +
 +static void amvdec_shadow_free(struct amvdec_session *sess,
 +			       struct amvdec_shadow *shadow)
@@ -8249,13 +8252,109 @@
 +}
 +
 +/* Convert one decoded picture into @vb, accounting the CPU time. */
++static int amvdec_ge2d_capture(struct amvdec_session *sess,
++			     const struct amvdec_geometry *geo,
++			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
++{
++	struct amvdec_core *core = sess->core;
++	u32 width = geo->reference_width ? geo->reference_width : geo->width;
++	u32 stride = ALIGN(width, 32);
++	u32 height = geo->reference_height ? geo->reference_height : geo->height;
++	struct meson8b_ge2d_image input = {
++		.width = width, .height = height, .stride = stride,
++		.address = { shadow->paddr, shadow->paddr + shadow->luma }, .nv12 = true,
++	};
++	struct meson8b_ge2d_image output = {
++		.width = geo->width, .height = geo->height, .stride = ALIGN(geo->width, 32),
++		.nv12 = true, .little_endian = true,
++	};
++	struct meson8b_ge2d_crop crop = {
++		.left = geo->crop_left, .top = geo->crop_top,
++		.width = geo->width, .height = geo->height,
++	};
++	unsigned int i;
++
++	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
++		return -EOPNOTSUPP;
++	if (vb->num_planes != 2 || !shadow->vaddr || shadow->luma < stride * height ||
++	    shadow->size < shadow->luma + stride * height / 2 ||
++	    (u64)shadow->paddr + shadow->size > (u64)U32_MAX + 1)
++		return -EINVAL;
++	for (i = 0; i < 2; i++) {
++		u32 rows = i ? output.height / 2 : output.height;
++		u32 payload = amvdec_get_output_size_wh(geo->width, geo->height) / (i ? 2 : 1);
++		void *address = vb2_plane_vaddr(vb, i);
++		u32 row;
++		int ret;
++
++		if (vb->planes[i].data_offset || !address || vb2_plane_size(vb, i) < payload ||
++		    payload < output.stride * rows)
++			return -EINVAL;
++		if (vb->planes[i].dbuf) {
++			ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++			if (ret)
++				return ret;
++		}
++		/* GE2D writes visible pixels; do not expose a previous image in padding. */
++		for (row = 0; row < rows; row++)
++			memset(address + row * output.stride + output.width, 0,
++			       output.stride - output.width);
++		memset(address + output.stride * rows, 0, payload - output.stride * rows);
++		if (vb->planes[i].dbuf) {
++			ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++			if (ret)
++				return ret;
++		}
++		output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
++	}
++	return core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
++}
++
++static int amvdec_cpu_capture(struct amvdec_session *sess,
++			     const struct amvdec_geometry *geo,
++			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
++{
++	unsigned int i, acquired = 0;
++	int ret;
++
++	/* A DMA-BUF fallback writes through its CPU mapping after GE2D has stopped. */
++	for (i = 0; i < vb->num_planes; i++) {
++		if (!vb->planes[i].dbuf)
++			continue;
++		ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++		if (ret)
++			goto finish;
++		acquired = i + 1;
++	}
++	ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
++finish:
++	for (i = 0; i < acquired; i++)
++		if (vb->planes[i].dbuf) {
++			int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++
++			if (!ret)
++				ret = end_ret;
++		}
++	return ret;
++}
++
 +static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
 +				       const struct amvdec_geometry *geo,
 +				       const struct amvdec_shadow *shadow,
 +				       struct vb2_buffer *vb)
 +{
 +	ktime_t start = ktime_get();
-+	int ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
++	int ret;
++
++	if (sess->core->ge2d_dev) {
++		ret = amvdec_ge2d_capture(sess, geo, shadow, vb);
++		if (!ret)
++			sess->core->ge2d_frames++;
++		else
++			ret = amvdec_cpu_capture(sess, geo, shadow, vb);
++	} else {
++		ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
++	}
 +
 +	if (!ret) {
 +		sess->core->converted_frames++;
@@ -8803,7 +8902,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1487 @@
+@@ -0,0 +1,1537 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8828,6 +8927,7 @@
 +#include <media/videobuf2-dma-contig.h>
 +#include <media/videobuf2-vmalloc.h>
 +#include "../runtime/meson8b-runtime.h"
++#include "../ge2d/ge2d-api.h"
 +
 +#include "vdec.h"
 +#include "esparser.h"
@@ -8835,6 +8935,42 @@
 +
 +/* 16 MiB for parsed bitstream swap exchange */
 +#define SIZE_VIFIFO SZ_16M
++
++static bool capture_ge2d;
++module_param(capture_ge2d, bool, 0444);
++MODULE_PARM_DESC(capture_ge2d, "Use explicitly linked GE2D and contiguous CAPTURE buffers");
++
++static void vdec_release_ge2d(void *data)
++{
++	struct amvdec_core *core = data;
++
++	core->ge2d_api->put(core->ge2d_dev);
++	symbol_put(meson8b_ge2d_get_api);
++}
++
++static int vdec_acquire_ge2d(struct amvdec_core *core)
++{
++	typeof(&meson8b_ge2d_get_api) get_api;
++	int ret;
++
++	if (!capture_ge2d)
++		return 0;
++	if (!of_find_property(core->dev->of_node, "amlogic,ge2d", NULL))
++		return -ENODEV;
++	get_api = symbol_get(meson8b_ge2d_get_api);
++	if (!get_api)
++		return -EPROBE_DEFER;
++	core->ge2d_api = get_api();
++	core->ge2d_dev = core->ge2d_api->get(core->dev);
++	if (IS_ERR(core->ge2d_dev)) {
++		ret = PTR_ERR(core->ge2d_dev);
++		symbol_put(meson8b_ge2d_get_api);
++		core->ge2d_api = NULL;
++		core->ge2d_dev = NULL;
++		return ret;
++	}
++	return devm_add_action_or_reset(core->dev, vdec_release_ge2d, core);
++}
 +
 +/*
 + * Cover the whole canvas amvdec_set_canvases() programs: the hardware writes
@@ -9444,10 +9580,16 @@
 +
 +static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
 +{
++	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
 +	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 +	struct amvdec_vb2_buffer *buf =
 +		container_of(vbuf, struct amvdec_vb2_buffer, vb);
++	unsigned int i;
 +
++	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->core->ge2d_dev)
++		for (i = 0; i < vb->num_planes; i++)
++			if (vb->planes[i].data_offset)
++				return -EINVAL;
 +	vbuf->field = V4L2_FIELD_NONE;
 +	buf->eos = false;
 +	return 0;
@@ -9915,7 +10057,8 @@
 +	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 +	dst_vq->ops = &vdec_vb2_ops;
 +	dst_vq->mem_ops = &vb2_dma_contig_memops;
-+	if (sess->core->platform->revision == VDEC_REVISION_MESON8B) {
++	if (sess->core->platform->revision == VDEC_REVISION_MESON8B &&
++	    !sess->core->ge2d_dev) {
 +		dst_vq->mem_ops = &vb2_vmalloc_memops;
 +		dst_vq->io_modes = VB2_MMAP;
 +	}
@@ -10120,6 +10263,11 @@
 +	if (core->platform->revision == VDEC_REVISION_MESON8B &&
 +	    !meson8b_runtime_ready())
 +		return -EPROBE_DEFER;
++	if (core->platform->revision == VDEC_REVISION_MESON8B) {
++		ret = vdec_acquire_ge2d(core);
++		if (ret)
++			return ret;
++	}
 +
 +	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dos");
 +	if (core->platform->revision == VDEC_REVISION_MESON8B) {
@@ -10248,6 +10396,7 @@
 +			   &core->cropped_frames);
 +	debugfs_create_u64("convert_ns", 0444, core->debugfs,
 +			   &core->convert_ns);
++	debugfs_create_u64("ge2d_frames", 0444, core->debugfs, &core->ge2d_frames);
 +	debugfs_create_u32("pool_slots", 0444, core->debugfs,
 +			   &core->pool_slots);
 +	debugfs_create_u64("pool_bytes", 0444, core->debugfs,
@@ -10293,7 +10442,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,383 @@
+@@ -0,0 +1,388 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10431,6 +10580,8 @@
 + * @v4l2_dev: v4l2 device
 + * @cur_sess: current decoding session
 + */
++struct meson8b_ge2d_api;
++
 +struct amvdec_core {
 +	void __iomem *dos_base;
 +	void __iomem *esparser_base;
@@ -10442,6 +10593,8 @@
 +	const struct vdec_platform *platform;
 +
 +	struct meson_canvas *canvas;
++	const struct meson8b_ge2d_api *ge2d_api;
++	struct device *ge2d_dev;
 +
 +	struct clk *dos_parser_clk;
 +	struct clk *dos_clk;
@@ -10465,6 +10618,7 @@
 +	/* Meson8b output conversion: frames per path and CPU time */
 +	struct dentry *debugfs;
 +	u64 converted_frames, cropped_frames, convert_ns;
++	u64 ge2d_frames;
 +	/* Meson8b frame pool of the current session: slots and their bytes */
 +	u32 pool_slots;
 +	u64 pool_bytes;
@@ -16618,6 +16772,27 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-m += meson8b-ge2d.o
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/ge2d/ge2d-api.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef MESON8B_GE2D_API_H
++#define MESON8B_GE2D_API_H
++#include <linux/device.h>
++#include <linux/dma-mapping.h>
++#include "ge2d-layout.h"
++
++/* Caller holds DMA buffers until convert returns; addresses share the S805 bus. */
++struct meson8b_ge2d_api {
++	struct device *(*get)(struct device *consumer);
++	void (*put)(struct device *supplier);
++	int (*convert)(struct device *supplier, const struct meson8b_ge2d_image *input,
++		       const struct meson8b_ge2d_image *output,
++		       const struct meson8b_ge2d_crop *crop);
++};
++
++const struct meson8b_ge2d_api *meson8b_ge2d_get_api(void);
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/ge2d/ge2d-layout.h
 @@ -0,0 +1,82 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
@@ -16731,7 +16906,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/ge2d/meson8b-ge2d.c
-@@ -0,0 +1,877 @@
+@@ -0,0 +1,946 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* S805 canvas GE2D; register protocol from Hardkernel Linux 5aed95d35d25.
 + * A byte-plane self-test proves endian conversion before exposing the device.
@@ -16741,6 +16916,7 @@
 +#include <linux/iopoll.h>
 +#include <linux/module.h>
 +#include <linux/of.h>
++#include <linux/of_platform.h>
 +#include <linux/platform_device.h>
 +#include <linux/reset.h>
 +#include <linux/soc/amlogic/meson-canvas.h>
@@ -16752,6 +16928,7 @@
 +#include "../runtime/meson8b-runtime.h"
 +#include "ge2d-layout.h"
 +#include "ge2d-scale.h"
++#include "ge2d-api.h"
 +
 +#define GEN_CTRL0 0x00
 +#define GEN_CTRL1 0x04
@@ -16805,9 +16982,11 @@
 +	struct video_device *video;
 +	struct v4l2_m2m_dev *m2m;
 +	struct mutex lock; /* V4L2 ioctl and vb2 queue serialization. */
++	struct mutex hardware_lock; /* Serialize userspace and in-kernel commands. */
 +	struct work_struct work;
 +	struct ge2d_ctx *active;
 +	bool offline;
++	bool ready;
 +};
 +
 +struct ge2d_ctx {
@@ -17108,7 +17287,9 @@
 +		struct meson8b_ge2d_image output = ge2d_buffer_image(&dst->vb2_buf, &ctx->output);
 +		unsigned int i;
 +
-+		ret = ge2d_blit(core, &input, &output, &ctx->crop);
++		mutex_lock(&core->hardware_lock);
++		ret = core->ready ? ge2d_blit(core, &input, &output, &ctx->crop) : -ENODEV;
++		mutex_unlock(&core->hardware_lock);
 +		v4l2_m2m_buf_copy_metadata(src, dst, true);
 +		dst->sequence = ctx->sequence++;
 +		for (i = 0; i < ctx->output.num_planes; i++)
@@ -17478,6 +17659,63 @@
 +	.unlocked_ioctl = video_ioctl2,
 +};
 +
++static struct device *ge2d_get_device(struct device *consumer)
++{
++	struct platform_device *supplier;
++	struct meson8b_ge2d *core;
++	struct device_node *node;
++
++	node = of_parse_phandle(consumer->of_node, "amlogic,ge2d", 0);
++	if (!node)
++		return ERR_PTR(-ENODEV);
++	if (!of_device_is_compatible(node, "amlogic,meson8b-ge2d")) {
++		of_node_put(node);
++		return ERR_PTR(-ENODEV);
++	}
++	supplier = of_find_device_by_node(node);
++	of_node_put(node);
++	if (!supplier)
++		return ERR_PTR(-EPROBE_DEFER);
++	core = platform_get_drvdata(supplier);
++	if (!core || !READ_ONCE(core->ready)) {
++		put_device(&supplier->dev);
++		return ERR_PTR(-EPROBE_DEFER);
++	}
++	if (!device_link_add(consumer, &supplier->dev, DL_FLAG_AUTOREMOVE_CONSUMER)) {
++		put_device(&supplier->dev);
++		return ERR_PTR(-ENOMEM);
++	}
++	return &supplier->dev;
++}
++
++static void ge2d_put_device(struct device *supplier)
++{
++	put_device(supplier);
++}
++
++static int ge2d_convert(struct device *supplier, const struct meson8b_ge2d_image *input,
++			const struct meson8b_ge2d_image *output,
++			const struct meson8b_ge2d_crop *crop)
++{
++	struct meson8b_ge2d *core = dev_get_drvdata(supplier);
++	int ret;
++
++	mutex_lock(&core->hardware_lock);
++	ret = core->ready ? ge2d_blit(core, input, output, crop) : -ENODEV;
++	mutex_unlock(&core->hardware_lock);
++	return ret;
++}
++
++const struct meson8b_ge2d_api *meson8b_ge2d_get_api(void)
++{
++	static const struct meson8b_ge2d_api api = {
++		.get = ge2d_get_device, .put = ge2d_put_device, .convert = ge2d_convert,
++	};
++
++	return &api;
++}
++EXPORT_SYMBOL_GPL(meson8b_ge2d_get_api);
++
 +static int ge2d_probe(struct platform_device *pdev)
 +{
 +	struct meson8b_ge2d *core;
@@ -17489,6 +17727,7 @@
 +	if (!core)
 +		return -ENOMEM;
 +	core->dev = &pdev->dev;
++	mutex_init(&core->hardware_lock);
 +	core->regs = devm_platform_ioremap_resource(pdev, 0);
 +	if (IS_ERR(core->regs))
 +		return PTR_ERR(core->regs);
@@ -17555,6 +17794,7 @@
 +	if (ret)
 +		goto release_video;
 +	platform_set_drvdata(pdev, core);
++	WRITE_ONCE(core->ready, true);
 +	dev_info(core->dev, "byte-order self-test passed; registered /dev/video%d\n",
 +		 core->video->num);
 +	return 0;
@@ -17581,6 +17821,9 @@
 +{
 +	struct meson8b_ge2d *core = platform_get_drvdata(pdev);
 +
++	mutex_lock(&core->hardware_lock);
++	WRITE_ONCE(core->ready, false);
++	mutex_unlock(&core->hardware_lock);
 +	video_unregister_device(core->video);
 +	flush_work(&core->work);
 +	v4l2_m2m_release(core->m2m);
@@ -17591,6 +17834,7 @@
 +	meson_canvas_free(core->canvas, core->src_uv_canvas);
 +	meson_canvas_free(core->canvas, core->dst_canvas);
 +	meson_canvas_free(core->canvas, core->src_canvas);
++	platform_set_drvdata(pdev, NULL);
 +	return 0;
 +}
 +

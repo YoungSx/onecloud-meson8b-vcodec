@@ -22,6 +22,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-vmalloc.h>
 #include "../runtime/meson8b-runtime.h"
+#include "../ge2d/ge2d-api.h"
 
 #include "vdec.h"
 #include "esparser.h"
@@ -29,6 +30,42 @@
 
 /* 16 MiB for parsed bitstream swap exchange */
 #define SIZE_VIFIFO SZ_16M
+
+static bool capture_ge2d;
+module_param(capture_ge2d, bool, 0444);
+MODULE_PARM_DESC(capture_ge2d, "Use explicitly linked GE2D and contiguous CAPTURE buffers");
+
+static void vdec_release_ge2d(void *data)
+{
+	struct amvdec_core *core = data;
+
+	core->ge2d_api->put(core->ge2d_dev);
+	symbol_put(meson8b_ge2d_get_api);
+}
+
+static int vdec_acquire_ge2d(struct amvdec_core *core)
+{
+	typeof(&meson8b_ge2d_get_api) get_api;
+	int ret;
+
+	if (!capture_ge2d)
+		return 0;
+	if (!of_find_property(core->dev->of_node, "amlogic,ge2d", NULL))
+		return -ENODEV;
+	get_api = symbol_get(meson8b_ge2d_get_api);
+	if (!get_api)
+		return -EPROBE_DEFER;
+	core->ge2d_api = get_api();
+	core->ge2d_dev = core->ge2d_api->get(core->dev);
+	if (IS_ERR(core->ge2d_dev)) {
+		ret = PTR_ERR(core->ge2d_dev);
+		symbol_put(meson8b_ge2d_get_api);
+		core->ge2d_api = NULL;
+		core->ge2d_dev = NULL;
+		return ret;
+	}
+	return devm_add_action_or_reset(core->dev, vdec_release_ge2d, core);
+}
 
 /*
  * Cover the whole canvas amvdec_set_canvases() programs: the hardware writes
@@ -638,10 +675,16 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 
 static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
 {
+	struct amvdec_session *sess = vb2_get_drv_priv(vb->vb2_queue);
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct amvdec_vb2_buffer *buf =
 		container_of(vbuf, struct amvdec_vb2_buffer, vb);
+	unsigned int i;
 
+	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->core->ge2d_dev)
+		for (i = 0; i < vb->num_planes; i++)
+			if (vb->planes[i].data_offset)
+				return -EINVAL;
 	vbuf->field = V4L2_FIELD_NONE;
 	buf->eos = false;
 	return 0;
@@ -1109,7 +1152,8 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	dst_vq->ops = &vdec_vb2_ops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
-	if (sess->core->platform->revision == VDEC_REVISION_MESON8B) {
+	if (sess->core->platform->revision == VDEC_REVISION_MESON8B &&
+	    !sess->core->ge2d_dev) {
 		dst_vq->mem_ops = &vb2_vmalloc_memops;
 		dst_vq->io_modes = VB2_MMAP;
 	}
@@ -1314,6 +1358,11 @@ static int vdec_probe(struct platform_device *pdev)
 	if (core->platform->revision == VDEC_REVISION_MESON8B &&
 	    !meson8b_runtime_ready())
 		return -EPROBE_DEFER;
+	if (core->platform->revision == VDEC_REVISION_MESON8B) {
+		ret = vdec_acquire_ge2d(core);
+		if (ret)
+			return ret;
+	}
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dos");
 	if (core->platform->revision == VDEC_REVISION_MESON8B) {
@@ -1442,6 +1491,7 @@ static int vdec_probe(struct platform_device *pdev)
 			   &core->cropped_frames);
 	debugfs_create_u64("convert_ns", 0444, core->debugfs,
 			   &core->convert_ns);
+	debugfs_create_u64("ge2d_frames", 0444, core->debugfs, &core->ge2d_frames);
 	debugfs_create_u32("pool_slots", 0444, core->debugfs,
 			   &core->pool_slots);
 	debugfs_create_u64("pool_bytes", 0444, core->debugfs,
