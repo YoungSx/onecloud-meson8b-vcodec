@@ -36,7 +36,7 @@ changed.
   The runtime isolation parameter has host/build coverage, not board acceptance.
 - Record two device outages, original production recovery and an interrupted
   19-minute mixed load at 182 MHz. Pause sustained production tests; stability
-  remains open. See [P0–P3 status](docs/next-development-status.md).
+  remains open. See [P0–P3 status](docs/validation.md).
 
 - Let custom decoder drains own LAST completion and propagate failed EOS
   parser writes through queue errors and STOP returns. Cover the failure

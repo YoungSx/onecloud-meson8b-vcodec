@@ -54,8 +54,9 @@ cover probed filters, device serialization, FFmpeg capability matching, shared
 local/remote arguments and out-of-order segment notifications. These are
 application improvements, not a new driver hardware acceptance. The
 [OpenList implementation](https://github.com/YoungSx/OpenList/tree/feat/transcode-v4l2m2m/internal/transcode/v4l2m2m)
-records its own limits. Browser rendering, sustained playback and arbitrary
-remote sources still need their own evidence.
+records its own limits. Latest clean-image bounded browser playback and seeks were checked separately
+on 2026-11-22; buffering, realtime throughput, sustained playback and arbitrary
+remote sources remain separate acceptance boundaries.
 
 The runtime modules and overlay were upgraded by explicit user request; the
 production boot kernel,boot DT and CMA stay unchanged. Research is not booted

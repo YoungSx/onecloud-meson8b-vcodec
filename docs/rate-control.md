@@ -64,14 +64,14 @@ fresh burst. STREAMOFF/ON starts a new session budget.
 预测 QP 可以在经验证的范围内提高，但硬件不能保证任意内容都达到目标。
 超预算 AU 不发布：其 payload 清零、两个队列置错，后续已排队帧不再调用
 硬件。客户端须报告失败，或在首片发布前选择更小尺寸；不能把部分输出
-继续当作成功。此处是 VBR 码量约束，没有严格 CBR、HRD/VUI 或填充字节，
+继续当作成功。此处是 VBR 码量约束，没有严格 CBR、HRD signaling 或填充字节，
 也不会按网络发送时间限速。
 
 Prediction may raise QP within the verified range. Hardware cannot reach every
 target for every scene. An oversized access unit is not published: its payload
 is cleared, both queues fail, and later queued pictures skip hardware. Clients
 must report failure or select smaller geometry before publication. This is a
-VBR output envelope. It does not implement strict CBR, HRD/VUI, filler bytes or
+VBR output envelope. It does not implement strict CBR, HRD signaling, filler bytes or
 network-time pacing.
 
 官方 FFmpeg 是兼容目标，使用标准 `-b:v`、`-qmin/-qmax`、`-g` 和输出帧率；

@@ -26,7 +26,7 @@ HEVC、B 帧并发与最终安装见末尾“最终补全”；以下保留开�
 
 ## P2 — 使用集成（0.5 轮会话）
 
-8. ~~WanOS/OpenList 转码链路使用 h264_v4l2m2m 的配置示例文档。~~ 完成（0373337，docs/transcode.md）。
+8. ~~WanOS/OpenList 转码链路使用 h264_v4l2m2m 的配置示例文档。~~ 完成（0373337，docs/usage.md）。
 9. ~~`extract-firmware.py` 扩展 mpeg12 微码（vmpeg12_mc 单数组，16KiB 零填充）
    + 驱动侧 vdec_platform.c 平台条目（NV12M-only，M8B shadow 路径只支持
    NV12M）~~ 完成（24ed700）。关键发现：m8 固件在 MPSR=1 释放处理器时快照

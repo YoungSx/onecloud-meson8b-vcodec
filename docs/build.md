@@ -3,6 +3,16 @@
 目标为 ARMv7 hard-float 和原版 `5.15.79-meson`。在外部 Ubuntu 24.04
 x86_64/ARM64 主机执行，不在约 990 MiB 的生产设备上构建。
 
+## 从新工作区开始
+
+```sh
+git clone https://github.com/YoungSx/onecloud-meson8b-vcodec.git
+cd onecloud-meson8b-vcodec
+```
+
+构建仅依赖仓库和脚本固定的公开输入，不依赖旧工作区路径、SSH或原机headers。
+离线重建和精确部署二进制的保留方法见[工作区迁移](workspace-migration.md)。
+
 ## 依赖与源码
 
 ```sh
@@ -67,8 +77,8 @@ make dtbo
 
 安装器校验 phandle。[配置片段](../config/runtime-codecs.config)和
 [patches/series](../patches/series)用于同样实现的源码树集成，入口为
-`CONFIG_VIDEO_MESON8B_VCODEC=m`。`patches/research/` 为早期存档，不应用到
-当前实现；它已改为以主线 v7.3.4 为基准，仅用于编译级移植验证
+`CONFIG_VIDEO_MESON8B_VCODEC=m`。`patches/research/` 是单独的Linux v7.3.4研究系列，包含独立帧池和现有解码格式，
+不应用到5.15运行包；仅完成编译级移植验证
 （见[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。未验证新的启动
 内核；运行包只安装模块/固件，不改 `/boot`。
 

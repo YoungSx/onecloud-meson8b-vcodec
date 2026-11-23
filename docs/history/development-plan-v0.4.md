@@ -1,14 +1,14 @@
 # 开发计划（v0.4）
 
 2026-11-18 制定。上一轮（v0.1–v0.3）的计划与结果见
-[历史计划](history/development-plan-v0.3.md)。
+[历史计划](development-plan-v0.3.md)。
 
 2026-11-20 状态：A、D 已完成，v0.4.0 正式包已热更新并完成回归、
-30 分钟负载和服务并存检查，见[部署记录](../evidence/p6-2026-11-20/v040-deploy.md)。
+30 分钟负载和服务并存检查，见[部署记录](../../evidence/p6-2026-11-20/v040-deploy.md)。
 B 顺延。C 后续按用户决定改用自建 fork；2026-11-20 已部署并通过有界
 HTTP HLS 检查，应用候选修正独立验收，浏览器和持续播放仍待完成。
 下文性能与 OpenList 目标不能作为 v0.4.0 的验收结论；通用性边界见
-[Portability](portability.md)。
+[Portability](../portability.md)。
 
 ## 起因
 
@@ -86,7 +86,7 @@ Meson8b 路径改为驱动持有固定的帧池，GX 平台的零拷贝路径不
 
 VIFIFO 2 MiB（`SZ_4M` 改 `SZ_2M`）已构建并在实机跑完分辨率切换矩阵：H.264
 130 幅、HEVC 50 幅在 CAPTURE 1、2、4、8、20、32 下全部通过
-（[vififo2m-res-switch.log](../evidence/phase-a-2026-11-19/vififo2m-res-switch.log)）。
+（[vififo2m-res-switch.log](../../evidence/phase-a-2026-11-19/vififo2m-res-switch.log)）。
 但未采用：VIFIFO 收到的包不拆分，超过可用空间的包直接返回 EAGAIN、由应用重试，
 2 MiB 只是把安全余量从 4 MiB 减到 2 MiB 来换每路 2 MiB CMA，收益远小于余量
 5→2 的 9 MiB；实测最大包 59468 B，现有片源看不出差别，但没有覆盖大包边界的

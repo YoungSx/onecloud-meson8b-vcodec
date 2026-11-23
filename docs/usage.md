@@ -16,7 +16,7 @@ v4l2m2m 列表也仅证明包装器存在。
 
 ## H.264 硬解到硬编
 
-使用目标原生产 FFmpeg。解码器自己持有帧池，应用申请的 CAPTURE 数不影响
+使用包含对应包装器的官方原版 FFmpeg。解码器自己持有帧池，应用申请的 CAPTURE 数不影响
 硬件解码内存，默认参数即可：
 
 ```sh
@@ -64,7 +64,8 @@ python3 scripts/verify-hashes.py software.md5 hardware.md5
 | `MULTI_SLICE_MODE` / `MULTI_SLICE_MAX_MB` | `MAX_MB` 按整行宏块向下取整；分片随整帧交付，没有逐片低延迟 |
 
 控件在取下一帧时生效，当前帧按旧配置记账；STREAMOFF/ON 新会话重置历史。
-码流为 Baseline、无 VUI，帧率与色彩信息由封装层携带。
+码流为 Baseline；新开发驱动在 SPS/VUI 中写入裁剪、已知色彩与协商帧周期。
+官方包装不传递的未知颜色信息保持未指定，详见[能力边界](validation.md)。
 FFmpeg 默认 bitrate 为 200 kbit/s；码率控制达不到的目标会停在 QP 32，
 需要更低码率时应降低分辨率或帧率。单帧超过 1 MiB 码流缓冲（例如 1080p
 在很低 QP 下）时该帧返回错误，下一帧为恢复 IDR，日志提示所用 QP；累计
@@ -113,7 +114,8 @@ OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映�
 
 ## HEVC Main 8-bit
 
-目标原 FFmpeg 未编入 `hevc_v4l2m2m`，使用运行包的独立工具：
+宿主原 7.0.2 未编入 `hevc_v4l2m2m`；当前 OpenList 镜像的官方8.1.3是另一构建。
+先用`ffmpeg -decoders`核对所用程序。若缺少包装器，可使用运行包的独立工具：
 
 ```sh
 /opt/meson8b-vcodec/current/tools/ffmpeg -nostdin \

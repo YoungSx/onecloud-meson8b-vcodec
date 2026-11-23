@@ -2,100 +2,60 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-为玩客云 S805（Meson8b）、WanOS/HiNAS 原版 **Linux 5.15.79-meson** 提供
-硬件视频解码及 H.264/JPEG 编码。三个可加载模块通过可移除的运行时设备树
-Overlay 暴露标准 V4L2 Memory-to-Memory 设备，构建在外部机器完成，目标为
-ARMv7 hard-float。
+为玩客云 Amlogic S805（Meson8b）提供硬件视频解码与 H.264/JPEG 编码。
+三个外部模块通过可移除的运行时设备树 Overlay，在 WanOS/HiNAS 原版
+**Linux 5.15.79-meson** 上暴露标准 V4L2 Memory-to-Memory 设备，无需替换启动内核。
 
-新驱动已按授权部署，与使用官方原版 FFmpeg 的 OpenList fork 配套；原 v0.4.0
-安装保留供回滚。有界内容与播放检查通过，历史离线原因仍未确认，生产持续
-负载实验暂停，详见
-[当前结果与恢复记录](docs/next-development-status.md)。
+## 能做什么
 
-[2026-11-14 实机验收](docs/validation.md)覆盖 H.264/HEVC 图像比对、十轮
-1080p B 帧输入转码、900 帧 JPEG、固件错误恢复及可回滚安装。最终检查时
-五项原有服务均运行，原启动内核、设备树和生产 FFmpeg 保留。
-
-## 支持范围
-
-| 路径 | 支持及验证范围 |
+| 路径 | 范围 |
 | --- | --- |
-| 解码 | H.264、HEVC Main 8-bit、MPEG-1/2、MPEG-4 Part 2、VC-1 advanced、MJPEG |
-| H.264 编码 | 4:2:0、4:2:2、4:4:4 与 RGB 输入；固定 I/P QP 或码率控制；多分片；DMA-BUF 输入；无 B 帧编码 |
-| JPEG 编码 | 质量 1–100；全量程 YCbCr 输入；标准 V4L2 客户端 |
-| 并发转码 | 一个解码会话加一个编码会话；原 64 MiB CMA 下验证 1080p H.264 B 帧输入 |
+| 解码 | H.264、HEVC Main 8-bit 已做图像内容检查；MPEG-1/2、MPEG-4 Part 2、VC-1 advanced、MJPEG 有已知帧尾或内容限制。 |
+| H.264 编码 | Baseline/Level 4.0；固定 QP 或 VBR 目标；YUV/RGB 输入、DMA-BUF、多分片、SPS 裁剪/VUI。 |
+| JPEG 编码 | 质量 1–100，全量程 YCbCr 输入，使用直接 V4L2 客户端。 |
+| 转码 | 一个解码会话加一个编码会话；已验收的 1080p 样片可在原 64 MiB CMA 内运行。 |
 
-HEVC Main10、tiles 和长期参考帧不支持；旧 MPEG、VC-1、MJPEG 的帧尾及
-色度限制见验收记录。输出仍有 CPU 字节序转换和拷贝。自动加载已于
-2026-11-16 冷启动验收：overlay 在内核启动 29 s 时应用、两个 V4L2 节点出现，
-原厂内核未替换；`systemctl restart` 也在 5 s 内恢复，无需重启。
-[主线移植](evidence/mainline-2026-11-16/PORT.md)只到
-编译级：研究系列以 v7.3.4 为基准可编译模块与全部 ARM DTB，未在 S805 实机
-运行；[上游 linux-media 结论](docs/linux-media-rfc.md)记录在
-[Discussions](https://github.com/YoungSx/onecloud-meson8b-vcodec/discussions/2)，不向上游提交。
-详见[能力与边界](docs/validation.md)。上表的编码扩展与 MPEG/VC-1 drain
-修复于 2026-11-15 实机验证，在役机当前安装的 v0.4.0 发布包继续包含这些功能。
-v0.4.0 帧池已通过默认缓冲参数回归、30 分钟负载及五项服务并存检查，见
-[部署记录](evidence/p6-2026-11-20/v040-deploy.md)。
-S805 官方编码格式为 H.264 和 JPEG，HEVC 属于解码能力。
-[编码扩展可行性](docs/encoding-feasibility.md)记录硬件依据与后续 H.264/JPEG 开发方向。
-[通用性说明](docs/portability.md)区分已验证运行包、较旧的研究移植与 OpenList 接入边界。
+适配目标为**官方原版 FFmpeg**。OpenList fork 自动发现 V4L2 格式并串行使用
+硬件；Docker 仍需映射设备。不提供 HEVC 硬编、Main10、H.264 Main/High/B 帧
+编码、端到端零拷贝或实时吞吐保证。完整边界见[能力与验收](docs/validation.md)。
 
-[码率控制更新](docs/rate-control.md)修复全 I 反馈、控件帧边界与有界溢出恢复，
-已补 S805 回归证据。显式启用峰值/CPB 控件后可兑现媒体时间 VBR 预算，
-超预算 AU 不发布并终止队列。适配目标为官方原版 FFmpeg，标准 `-b:v`、
-QP 和 GOP 不需 fork；峰值/CPB 由直接 V4L2 客户端使用，官方包装未传递
-这两项控件。复杂场景仍可能使目标不可达；这不提供严格 CBR、HRD 或
-网络限速。候选构建的实机验收与在役安装分别记录。
+最新正式版为 **v0.4.0**。当前在役机安装了更新的开发构建（`5fedae9`），
+保留 v0.4.0 供回滚。有界检查通过；两轮网络失联已经调查，持续负载实验仍暂停。
+开发部署和 CI 通过不等于新的稳定版。
 
-## 开始使用
+## 快速开始
 
-1. 阅读[安装和回滚](docs/installation.md)：包须匹配内核 ABI、板型与运行
-   设备树的 provider phandle。
-2. 从[发版页面](https://github.com/YoungSx/onecloud-meson8b-vcodec/releases)取得
-   构建产物，或[从源码交叉编译](docs/build.md)。CI 产物代表构建验证；实机
-   验收对应记录的源码版本。
-3. 校验归档，再使用新的备份目录安装：
+1. 获取[发行包](https://github.com/YoungSx/onecloud-meson8b-vcodec/releases)，
+   或在外部机器[交叉构建](docs/build.md)。
+2. 阅读[安装与回滚](docs/installation.md)。包须匹配内核 ABI、板型及运行中
+   设备树的 phandle，先校验归档。
+3. 结束编解码客户端，使用新的备份路径安装：
 
    ```sh
    sudo python3 runtime-package/scripts/runtime-device.py check runtime-package
    sudo bash runtime-package/scripts/install-autoload.sh runtime-package /root/new-codec-state
    ```
 
-结束所有编解码客户端后，移除自动加载、卸载模块并恢复安装前固件：
+使用包含对应包装器的 FFmpeg：
 
 ```sh
-sudo bash /opt/meson8b-vcodec/current/scripts/remove-autoload.sh
+ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 -an \
+  -c:v h264_v4l2m2m -pix_fmt nv12 -b:v 2M -g 30 output.mp4
 ```
 
-## 使用示例
+默认 CAPTURE 数即可，无需板型专用缓冲调参。码率是 VBR 目标，低目标可能不可达；
+原版 FFmpeg 未转发峰值/CPB 控件。[使用指南](docs/usage.md)包含设备枚举、JPEG
+和其他输入；[FFmpeg 适配](docs/ffmpeg-compatibility.md)解释标准参数语义。
 
-原生产 FFmpeg 支持 H.264 M2M。解码器自己持有帧池，应用申请的 CAPTURE
-数不再决定硬件内存，默认参数即可：
-
-```sh
-ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
-  -an -c:v h264_v4l2m2m -b:v 0 -fps_mode passthrough output.mp4
-```
-
-独立包 `tools/ffmpeg` 默认从未修改的官方源码构建，启用 H.264/HEVC M2M、
-AAC 与 HLS/MPEG-TS 验收功能。它支持文件和 HTTP，没有 HTTPS/TLS
-或 libx264/libx265；完整格式和软件编码继续使用原生产工具。启用前阅读
-[码率预算](docs/rate-control.md)。FFmpeg 7.0.2 没有 JPEG M2M 编码包装，JPEG
-使用 V4L2 客户端。[使用指南](docs/usage.md)提供完整命令及缓冲数量说明。
-
-## 文档与开发
+## 开发与维护
 
 [文档目录](docs/README.md) · [架构](docs/architecture.md) ·
-[构建](docs/build.md) · [验证](docs/validation.md) ·
-[CI 和发版](docs/release.md) · [贡献指南](CONTRIBUTING.md) ·
-[路线图](ROADMAP.md) · [本轮开发结果](docs/next-development-status.md) ·
-[变更记录](CHANGELOG.md)
+[构建](docs/build.md) · [故障排查](docs/troubleshooting.md) ·
+[路线图](ROADMAP.md) · [CI/发版](docs/release.md) ·
+[贡献指南](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
 
-CI 运行主机测试及 Sanitizer，复现固定微码，针对匹配内核交叉编译、检查
-additive 补丁与包校验。版本标签运行同样检查，并生成含运行包、源码包、
-校验和及构建来源的 GitHub Release **草稿**；发布者复核、校验和通过后
-直接发布为正式版，不做预发布。安装新构建前按发版指南完成对应验证。
+重新 clone 即可取得源码、固件、样片和公开证据；Git 无法恢复的私有备份和精确
+部署产物见[工作区迁移](docs/workspace-migration.md)。Linux 7.3.4 研究补丁仅通过
+构建检查，尚未在板上启动。
 
-代码按各文件 SPDX 使用 GPL-2.0/GPL-2.0+；厂商微码来自固定 GPL 源码。
-[固件来源与许可](docs/firmware.md)也说明独立工具的许可。
+代码按各文件 SPDX 使用 GPL-2.0/GPL-2.0+；见[固件来源与许可](docs/firmware.md)。

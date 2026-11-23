@@ -29,8 +29,8 @@ Actions artifact `release-assets` 包含运行包、源码包、`SHA256SUMS` 和
 3. 建立注释版本标签并推送：
 
    ```sh
-   git tag -a v0.1.0 -m 'v0.1.0'
-   git push origin v0.1.0
+   git tag -a vX.Y.Z -m 'vX.Y.Z'
+   git push origin vX.Y.Z
    ```
 
 4. `Release` 工作流重跑全部检查，从标签同一提交构建并创建 **draft**。
@@ -48,31 +48,18 @@ Actions artifact `release-assets` 包含运行包、源码包、`SHA256SUMS` 和
 在已提交、干净工作树上运行[构建流程](build.md)，然后：
 
 ```sh
-bash scripts/package-release.sh v0.1.0 build/release-v0.1.0
+bash scripts/package-release.sh vX.Y.Z build/release-vX.Y.Z
 ```
 
 脚本拒绝已有输出目录、未提交源码与缺失工具。两个 archive 来源同一提交，
 内部清单覆盖全部文件，外部清单覆盖归档与来源 JSON。打包规范化 tar 的
 排序、时间和 owner；跨工具链版本仍应比较 provenance，不假定字节一致。
 
-## 当前开发部署
+## 发布和安装是两件事
 
-2026-11-22 按用户明确授权部署 source `5fedae9`，保留原 v0.4.0 包、固件、
-unit 与 state。新 IRQ/EOS、转换、VUI、DMA 防护的有界实机结果和未完成稳定性
-边界见[本轮部署](../evidence/development-2026-11-22/README.md)。研究线未部署。
-本轮没有创建稳定版标签或发布，不能由 CI 全绿推出长期稳定性通过。
-
-## 已安装硬件验收版本
-
-在役机 2026-11-15 起安装 `c20a473` 运行包（v0.2.0），2026-11-17 起安装
-v0.3.0：先装本机构建的 `0a0542b` 完成回归与 30 分钟负载，当晚换成 GitHub
-Release 包（CI 从 `abee6f6` 构建，驱动代码相同）并重新回归，见
-[v0.3.0 deploy](../evidence/p6-2026-11-17/v030-deploy.md)。2026-11-20 起
-安装 v0.4.0 正式 Release 包（CI 从 `89dd558` 构建）：编解码设备中断 21 s，
-随后回归与 30 分钟负载 441 轮 0 失败、五项服务并存 106 次采样 0 失败，见
-[v0.4.0 deploy](../evidence/p6-2026-11-20/v040-deploy.md)。`bd1cb79` 是
-2026-11-14 完整硬件验收对应的版本。后续 CI/Release 产物不自动部署，新版本
-需要按安装指南明确升级，生产原内核和原 FFmpeg 保留。
+最新正式版v0.4.0；当前在役开发构建来源和验收范围只在
+[部署快照](rollout-status.md)维护。推送代码、CI通过或创建Release不会自动部署。
+新稳定版仍需对应二进制的硬件验收；当前持续负载实验暂停。
 
 ## Research checks
 
@@ -80,4 +67,4 @@ The separate Research kernel workflow pins Linux 7.3.4, checks every research
 patch, builds vmlinux/modules and validates the board binding. Its artifact
 is for compile review; it is not a production-kernel upgrade or hardware
 acceptance. Production recovery and pending runtime gates are in
-[next-development-status.md](next-development-status.md).
+[validation.md](validation.md).

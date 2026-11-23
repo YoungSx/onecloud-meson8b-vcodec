@@ -4,10 +4,10 @@
 编码 host 协议与微码。**没有发现可实现的 S805 HEVC 硬件编码路径。**
 该结论依据公开硬件能力与协议，不能解读为已证明任何理论混合算法都不可能。
 H.264/JPEG 仍有驱动与数据路径的扩展空间。
-用户已决定本轮不强行研究 HEVC 硬编，下一阶段按[开发计划](history/development-plan-v0.3.md)推进。
+用户已决定本轮不强行研究 HEVC 硬编，后续优先级见[路线图](../ROADMAP.md)。
 
 本轮补充：H.264 SPS/VUI 的裁剪、已知色彩与协商帧周期已实现并通过有界
-实机检查，详见[当前状态](next-development-status.md)。下表是历史可行性依据，
+实机检查，详见[当前状态](validation.md)。下表是历史可行性依据，
 不代表功能仍全部缺失。
 
 ## HEVC 的硬件边界
@@ -46,32 +46,12 @@ WAVE 固件。软件 x265 或外部机器/设备的 HEVC encoder 是另一种实
 不能标为 S805 片上 HEVC 硬编。用部分 AVC 单元构造 HEVC 混合编码器仍缺乏
 兼容运算、数据接口和性能证据，不能承诺为可用的硬编扩展。
 
-## H.264/JPEG 的可行扩展
+## 当前实现与仍需研究的方向
 
-以下是源码证据支持的开发方向。2026-11-15 已在候选模块上实现并实机验收
-码率与 QP 控件、多分片（无逐片交付）、YUV422/444 与 RGB 输入以及连续
-DMA-BUF 直读，见[控件](../evidence/ENCODER-CONTROLS-2026-11-15.md)与
-[输入/分片](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md)记录；下表保留
-最初的依据与验收要求。
+已实现：I/P QP与VBR、标准峰值/CPB控件、多分片整帧交付、YUV/RGB输入、
+兼容DMA-BUF直读、SPS裁剪/VUI。对应限制与验收统一见[能力说明](validation.md)，
+不再保留“尚未实现”的旧可行性表。
 
-| 方向 | 已有依据和当前缺口 | 验收要求 |
-| --- | --- | --- |
-| 编码码率与质量控制 | 当前 CBR 为累积码量逐帧调 QP；厂商还有宏块 QP 和运动估计配置。可先改进纯软件控制，再研究微码参数 | 相同目标码率、场景切换、短窗口峰值、逐帧质量与 CPU/延迟 |
-| H.264 多分片与低延迟 | 厂商 `rows_per_slice` / `FIXED_SLICE_CFG` 路径；本驱动当前固定 0。寄存器配置可能改变码流分片，但没有证明能提前回传每个 slice | NAL 数量、解码内容、I/P 帧、EOS；若宣称低延迟，须测逐 slice 的硬件完成与交付时刻 |
-| RGB/RGBA、YUV422/444 输入 | 厂商 MFDIN 有格式、RGB2YUV、下采样/线性输入配置；当前驱动仅选通 4:2:0 输入 | 标准 fourcc、stride、通道顺序、色彩矩阵/量程、边缘填充、JPEG/AVC 回归 |
-| 减少编码输入拷贝 | encoder vb2 接受 DMA-BUF，但仍复制到内部 staging；可评估兼容连续 DMA 布局直接送 MFDIN | 地址跨度、cache/fence 同步、canvas 生命周期、padding、流结束和错误恢复 |
-| 明确 I/P QP、VUI 与头部行为 | 当前仅 QP min/max、GOP、FORCE_KEY_FRAME 等控件；header mode 被存储但未用于改变行为 | 按实际微码能力暴露控件，不伪造 profile/CABAC/B 帧支持；检查 SPS/PPS/VUI 和播放器兼容性 |
-| 较低分辨率更高吞吐 | 减少每帧处理量可探索硬件现有吞吐，1080p30 是官方 H.264 编码规格 | 无帧丢失、连续吞吐、峰值延迟、温度和五项原有服务负载 |
-
-具体厂商扩展点为
-[分片和宏块量化](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/encoder.c#L596)及
-[MFDIN 输入配置](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/encoder.c#L615)。
-当前 staging/copy、控制器和控件处理分别在
-[venc.c](../venc/venc.c)；整体内存约束见[架构](architecture.md)。
-
-增加 B 帧、CABAC/High profile、HEVC、4K 编码不能靠更多工作量作保证。
-其中 HEVC 没有已知 S805 硬件路径；其他能力也需各自微码/寄存器依据，不能
-由 H.264 decoder 的 High profile 支持推导 encoder 的 profile。
-
-推荐先完善 H.264 控件与码率控制，再推进 MFDIN 输入格式/直接 DMA 和多分片。
-这次核查没有改动生产驱动、触碰新硬件寄存器或增加未经验证的编码格式。
+仍可研究：低码率饱和行为、减少拷贝、较低尺寸吞吐及逐片提前交付。
+这些需要固件/寄存器依据、逐帧内容、时延与服务并存实测；多分片NAL已经存在
+不等于硬件能在整帧前交付。GE2D也需要Meson8b实际转换验证后才能集成。

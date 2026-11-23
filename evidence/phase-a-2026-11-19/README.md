@@ -53,7 +53,7 @@ LAST/EOS 结束。H.264 130 幅、HEVC 50 幅全部 PASS
 `h264_extra_buffers` 的取值用 4 参考帧 B 帧 1080p 片源实测：余量 1、2、3、5
 逐帧一致；余量 2 在 CAPTURE 1/2/4/20/32 与 FFmpeg 默认参数下全部通过。
 1080p 每槽 3 MiB，因此较原先的 5 每路会话省 9 MiB CMA。记录在
-[开发计划](../../docs/development-plan.md)。
+[开发计划](../../docs/history/development-plan-v0.4.md)。
 
 ## VIFIFO 2 MiB 对照
 

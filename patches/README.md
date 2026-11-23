@@ -5,8 +5,9 @@ Apply it after the matching [Armbian baseline](../baseline/series). It adds
 runtime/decoder/encoder modules under drivers/media/platform/meson/meson8b-vcodec.
 The deployment still uses a removable runtime overlay.
 
-[ffmpeg-7.0.2-v4l2-drain.patch](ffmpeg-7.0.2-v4l2-drain.patch) is applied only
-to the independent static test tool, not to the production FFmpeg.
+[ffmpeg-7.0.2-v4l2-drain.patch](ffmpeg-7.0.2-v4l2-drain.patch) is optional, applied only
+with `scripts/build-ffmpeg-test.sh --bugfixes`. Default builds and the production
+image use official unmodified FFmpeg.
 
 `research/` holds the upstream candidate series, rebased onto mainline
 v7.3.4 on 2026-11-16 and verified by compiling:
@@ -39,3 +40,8 @@ silicon; see the
 [port record](../evidence/mainline-2026-11-16/PORT.md). The research series is
 not in the current 5.15.79 series and must not be stacked on the current patch.
 CI compares a freshly exported current patch against the checked-in file.
+
+The current research series has 27 patches (`0000`–`0026`); the table above
+records its initial platform split. Later patches port the independent pool,
+existing VDEC1/HEVC formats and IRQ/EOS/DMA/clock guards. Current scope is in
+[portability](../docs/portability.md); none is hardware-accepted on Linux7.3.4.
