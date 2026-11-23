@@ -1,0 +1,29 @@
+[99200.653690] meson8b-runtime: applied volatile codec overlay 1
+[99200.691898] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[99200.691922] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[99200.723305] meson-venc d0050000.video-encoder: registered meson-video-encoder as /dev/video1
+[99200.920114] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
+[99201.207401] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99201.412466] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99201.643925] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99203.443522] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99203.678877] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99203.815896] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.062184] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.216484] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.364510] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.517049] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.698631] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_hevc.bin (16384 bytes)
+[99204.915393] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_avc_enc.bin (16384 bytes)
+[99205.003524] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_avc_enc.bin (16384 bytes)
+[99205.126926] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_jpeg_enc.bin (16384 bytes)
+[99205.192242] meson-venc d0050000.video-encoder: Direct firmware load for meson/venc/meson8b_avc_enc.bin failed with error -2
+[99205.192276] meson-venc d0050000.video-encoder: missing firmware meson/venc/meson8b_avc_enc.bin
+[99205.196935] meson-venc d0050000.video-encoder: session start failed (-2)
+[99205.257279] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_avc_enc.bin (16384 bytes)
+[99205.308453] meson-venc d0050000.video-encoder: session start failed (-22)
+[99205.365231] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_avc_enc.bin (16384 bytes)
+[99211.266332] meson8b-runtime: applied volatile codec overlay 1
+[99211.300008] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
+[99211.300041] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
+[99211.325628] meson-venc d0050000.video-encoder: registered meson-video-encoder as /dev/video1

@@ -26,7 +26,7 @@ git clone --branch feat/transcode-v4l2m2m https://github.com/YoungSx/OpenList-Fr
 | --- | --- |
 | 设备最初boot文件/DT/config/原软件包及哈希 | 救援与原厂对照；不能用新构建代替原始快照。 |
 | 原v0.4.0安装、firmware、unit、state及回退助手 | 升级后的精确回退；`remove-autoload.sh`只撤销安装，不自动切回旧包。 |
-| 当前`5fedae9`模块/overlay/固件和干净OpenList镜像归档 | 新编译不保证逐字节相同；不能依赖短期CI artifact留存。 |
+| 当前`3c7d785`编解码模块、沿用runtime/overlay/固件、上一`5fedae9`安装和干净OpenList镜像归档 | 新编译不保证逐字节相同；不能依赖短期CI artifact留存。 |
 | 原始故障journal、syslog、私有测试结果与采集脚本 | 公开仓库只有脱敏摘要，原件可能含凭据，仅私下取证。 |
 | SSH配置、认证辅助材料、设备入口记录 | 不属于公共源码；账户级SSH/GitHub/Tailscale登录需独立保存或重新登录。 |
 | 三份Git仓库的未推送提交和未提交文件 | 迁移前逐仓库检查；不能只检查工作区最外层。 |

@@ -41,7 +41,9 @@ silicon; see the
 not in the current 5.15.79 series and must not be stacked on the current patch.
 CI compares a freshly exported current patch against the checked-in file.
 
-The current research series has 27 patches (`0000`–`0026`); the table above
+The current research series has 28 patches (`0000`–`0027`); the table above
 records its initial platform split. Later patches port the independent pool,
 existing VDEC1/HEVC formats and IRQ/EOS/DMA/clock guards. Current scope is in
 [portability](../docs/portability.md); none is hardware-accepted on Linux7.3.4.
+`0027` discards HEVC pictures during STREAMOFF; it passed series/checkpatch
+and changed-object ARM compilation, with no new full research-kernel or DT build.

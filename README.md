@@ -23,7 +23,8 @@ or realtime throughput guarantee is provided. See
 [capabilities, evidence and remaining work](docs/validation.md).
 
 Latest stable release: **v0.4.0**. The current production device uses a newer
-development build (`5fedae9`) and retains v0.4.0 for rollback. Bounded checks
+development codec build (`3c7d785`), retains the existing runtime and keeps
+the previous installation plus v0.4.0 recovery materials. Bounded checks
 pass; two network outages were investigated and sustained load tests remain
 paused. Do not treat the development deployment or CI as a stability release.
 
