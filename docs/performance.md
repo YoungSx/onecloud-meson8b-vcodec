@@ -77,5 +77,25 @@ prescale 配置。`VIDIOC_S_SELECTION` 支持 OUTPUT crop，NV12 坐标/尺寸�
 DMA范围、对齐及重叠；错误输出清零两个平面的 payload。
 
 当前通过实际命令、格式、裁剪、队列和客户端的主机 ASan/UBSan 回归与 ARM
-构建。取消/重开、不同 DMA-BUF 导出器、纹理缩放及共享时钟/业务仍需实机，
-再决定接入 decoder 输出。没有 GE2D 实机像素或性能验收，不能宣称已加速转码。
+构建。取消/重开、不同 DMA-BUF 导出器、纹理缩放及共享时钟/业务仍需实机。
+没有 GE2D 实机像素或性能验收，不能宣称已加速转码。
+
+## 显式 decoder 接入（未部署）
+
+当前源码增加 decoder 的 `capture_ge2d=1` 参数，默认关闭。它要求带
+`--ge2d` 的 Overlay 明确引用 `amlogic,ge2d`，GE2D 驱动已加载且 probe
+自检通过；缺失/未就绪时 decoder probe 失败/延期，不悄悄改变配置。
+设备链接及可选模块引用保持 GE2D 生命周期，用户态 M2M 和内核转换用同一
+硬件锁串行；decoder 卸载后释放引用。runtime 仍在依赖模块卸载后才移除
+挥发性 Overlay，不改 boot DT。
+
+启用后的 CAPTURE 使用 `vb2_dma_contig`，可 MMAP/DMA-BUF，而不再使用普通
+vmalloc 内存。帧池保留固件字节序，逐帧通过 GE2D 写可见 NV12M，按图片
+自己的 reference/crop 几何转换；只清零行尾和对齐 padding。`ge2d_frames`
+统计成功硬件转换，`convert_ns` 是墙钟耗时。MJPEG 和错误路径继续 CPU
+转换；DMA-BUF CPU 访问成对同步，GE2D 超时后先复位停机再回退。
+
+连续 CAPTURE 会消耗 CMA。默认20个 FFmpeg缓冲不保证能和固件帧池一起
+容纳在64 MiB中；仅在测试设备先用 `-num_capture_buffers 1` 或直接客户端的
+`CAPTURE_BUFFERS=1` 做完整图片检查，再测实际内存/回压。NEON 默认路径不
+要求这些限制。内核接入尚未实机，不能把该代码作为已验收的生产部署。
