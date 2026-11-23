@@ -12,6 +12,7 @@
 #include "vdec_helpers.h"
 #include "dos_regs.h"
 #include "codec_h264.h"
+#include "codec-par.h"
 
 #define SIZE_EXT_FW	(20 * SZ_1K)
 #define SIZE_WORKSPACE	0x1ee000
@@ -304,14 +305,6 @@ static int codec_h264_load_extended_firmware(struct amvdec_session *sess,
 	return 0;
 }
 
-static const struct v4l2_fract par_table[] = {
-	{ 1, 1 },   { 1, 1 },    { 12, 11 }, { 10, 11 },
-	{ 16, 11 }, { 40, 33 },  { 24, 11 }, { 20, 11 },
-	{ 32, 11 }, { 80, 33 },  { 18, 11 }, { 15, 11 },
-	{ 64, 33 }, { 160, 99 }, { 4, 3 },   { 3, 2 },
-	{ 2, 1 }
-};
-
 static void codec_h264_set_par(struct amvdec_session *sess)
 {
 	struct amvdec_core *core = sess->core;
@@ -329,10 +322,10 @@ static void codec_h264_set_par(struct amvdec_session *sess)
 		return;
 	}
 
-	if (ar_idc >= ARRAY_SIZE(par_table))
+	if (ar_idc >= ARRAY_SIZE(amvdec_par_table))
 		return;
 
-	sess->pixelaspect = par_table[ar_idc];
+	sess->pixelaspect = amvdec_par_table[ar_idc];
 }
 
 static void codec_h264_resume(struct amvdec_session *sess)

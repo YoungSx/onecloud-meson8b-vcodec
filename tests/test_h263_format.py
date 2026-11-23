@@ -17,6 +17,9 @@ class H263FormatTests(unittest.TestCase):
         source = (ROOT / "vdec/codec_mpeg4.c").read_text()
         inspect = source[source.index("static int codec_mpeg4_inspect_input("):
                          source.index("static int codec_mpeg4_can_recycle(")]
+        helper = (ROOT / "vdec/vdec_helpers.c").read_text()
+        ratio = helper[helper.index("void amvdec_set_par_from_ratio("):
+                       helper.index("\nvoid amvdec_set_par_from_dar(")]
         code = r'''
 #include <assert.h>
 #include <errno.h>
@@ -45,11 +48,13 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
 #define clamp(v,lo,hi) min(max(v,lo),hi)
 #define min_t(t,a,b) ((t)(a)<(t)(b)?(t)(a):(t)(b))
 #include "h263-vlc.h"
+struct v4l2_fract {u32 numerator,denominator;};
+#include "codec-par.h"
 struct codec_mpeg4 {u8 *h263_output;struct h263_context h263;};
 struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
 struct core {struct platform *platform;};
-struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size;void *priv;};
+struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size;struct v4l2_fract pixelaspect;void *priv;};
 struct file {void *private_data;};
 struct v4l2_frmsizeenum {u32 pixel_format,index,type;struct {u32 width,height;} discrete;
  struct {u32 min_width,max_width,step_width,min_height,max_height,step_height;} stepwise;};
@@ -65,7 +70,7 @@ static u8 *vb2_plane_vaddr(struct vb2_buffer *b,int plane){assert(!plane);return
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,int plane){assert(!plane);return b->size;}
 static u32 vb2_plane_size(struct vb2_buffer *b,int plane){assert(!plane);return b->capacity;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!plane);b->size=n;}
-''' + negotiate + enum + inspect + r'''
+''' + ratio + negotiate + enum + inspect + r'''
 int main(int argc,char **argv){
  assert(argc==3);
  struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}}};struct platform p={formats,2};
@@ -101,10 +106,12 @@ int main(int argc,char **argv){
  struct codec_mpeg4 codec={.h263_output=translated};s.priv=&codec;
  struct vb2_buffer b={input,5573,sizeof(input)};
  assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==9985&&input[3]==0xb6);
+ assert(s.pixelaspect.numerator==12&&s.pixelaspect.denominator==11);
  memcpy(input,original,8271);b.size=5573;s.width=352;
  assert(codec_mpeg4_inspect_input(&s,&b)==-EINVAL&&b.size==5573&&!memcmp(input,original,8271));
  s.width=128;b.capacity=8192;
  assert(codec_mpeg4_inspect_input(&s,&b)==-ENOSPC&&b.size==5573&&!memcmp(input,original,8271));
+ assert(s.pixelaspect.numerator==12&&s.pixelaspect.denominator==11);
  stream=fopen(argv[2],"rb");assert(stream);
  assert(fread(original,1,sizeof(original),stream)==4558&&feof(stream));fclose(stream);
  s.width=164;s.height=100;b.capacity=sizeof(input);
@@ -113,6 +120,7 @@ int main(int argc,char **argv){
   b.size=start[i+1]-start[i];memcpy(input,original+start[i],b.size);
   assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==length[i]&&input[10]==(i==1));
   assert(codec.h263.header.valid&&codec.h263.header.width==164&&codec.h263.header.height==100);
+  assert(s.pixelaspect.numerator==1&&s.pixelaspect.denominator==1);
  }
  s.fmt_out=&formats[1];b.data=NULL;b.size=0;assert(!codec_mpeg4_inspect_input(&s,&b));
  return 0;

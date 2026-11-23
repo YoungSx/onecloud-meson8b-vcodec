@@ -25,3 +25,13 @@ a UFEP=0 continuation without changing its macroblocks, and exercises a bounded
 1916x1080 INTER picture with a GOB header. The header/format tests cover rejected
 tools, truncation, session state, geometry and capacity. No output media or
 hardware acceptance results are fixtures.
+
+
+`v4l2-cropcap-5.15.79.c` retains only `v4l_g_selection()` and `v4l_cropcap()`
+from Linux 5.15.79 `drivers/media/v4l2-core/v4l2-ioctl.c`, with its original
+copyright and GPL-2.0-or-later notice. SHA256
+`53470e8fd41b3e40b49d767e4d0235acc038e8ad3e1f6ad4885feda39c4e6432`.
+The source is pinned by the Linux archive hash in `scripts/build-kernel.sh`.
+`test_decoder_aspect.py` runs these actual core functions with the decoder's
+registered callbacks, checking both CAPTURE type spellings, coded crop versus
+composed output, and aspect-ratio propagation. It needs no local kernel tree.

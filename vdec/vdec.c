@@ -500,6 +500,10 @@ static int vdec_start_streaming_locked(struct vb2_queue *q,
 	sess->wrap_count = 0;
 	sess->pixelaspect.numerator = 1;
 	sess->pixelaspect.denominator = 1;
+	sess->reference_width = 0;
+	sess->reference_height = 0;
+	sess->crop_left = 0;
+	sess->crop_top = 0;
 	atomic_set(&sess->esparser_queued_bufs, 0);
 	v4l2_ctrl_s_ctrl(sess->ctrl_min_buf_capture, 1);
 	sess->dpb_size = 0;
@@ -1092,16 +1096,50 @@ static int vdec_subscribe_event(struct v4l2_fh *fh,
 	}
 }
 
+static int vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *s)
+{
+	struct amvdec_session *sess =
+		container_of(file->private_data, struct amvdec_session, fh);
+	struct v4l2_rect rect = { .width = sess->width, .height = sess->height };
+
+	/* The V4L2 core normalizes MPLANE types before invoking this callback. */
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	switch (s->target) {
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		rect.width = sess->reference_width ? : sess->width;
+		rect.height = sess->reference_height ? : sess->height;
+		break;
+	case V4L2_SEL_TGT_CROP:
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+		rect.left = sess->crop_left;
+		rect.top = sess->crop_top;
+		break;
+	case V4L2_SEL_TGT_COMPOSE:
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+		/* Frame-pool delivery has already applied the source crop. */
+		break;
+	default:
+		return -EINVAL;
+	}
+	s->r = rect;
+	return 0;
+}
+
 static int vdec_g_pixelaspect(struct file *file, void *fh, int type,
 			      struct v4l2_fract *f)
 {
 	struct amvdec_session *sess =
 		container_of(file->private_data, struct amvdec_session, fh);
 
-	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	*f = sess->pixelaspect;
+	/* CROPCAP uses y/x, while the codec's sample aspect ratio is x/y. */
+	f->numerator = sess->pixelaspect.denominator;
+	f->denominator = sess->pixelaspect.numerator;
 	return 0;
 }
 
@@ -1130,6 +1168,7 @@ static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_try_decoder_cmd = v4l2_m2m_ioctl_try_decoder_cmd,
 	.vidioc_decoder_cmd = vdec_decoder_cmd,
 	.vidioc_g_pixelaspect = vdec_g_pixelaspect,
+	.vidioc_g_selection = vdec_g_selection,
 };
 
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,

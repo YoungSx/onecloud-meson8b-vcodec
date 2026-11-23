@@ -273,6 +273,7 @@ static irqreturn_t codec_vc1_threaded_isr(struct amvdec_session *sess)
 	}
 	buffer_index--;
 	offset = amvdec_read_dos(core, VC1_OFFSET_REG);
+	amvdec_set_par_from_ratio(sess, amvdec_read_dos(core, VC1_PIC_RATIO), 14);
 
 	if (reg & INTERLACE_FLAG)
 		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?

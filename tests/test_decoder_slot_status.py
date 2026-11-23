@@ -29,23 +29,27 @@ typedef uint32_t u32;typedef int irqreturn_t;
 #define BIT(n) (1u<<(n))
 #define GENMASK(h,l) ((~0u<<(l))&(~0u>>(31-(h))))
 #define IRQ_HANDLED 1
+#define V4L2_PIX_FMT_H263 1
 #define V4L2_FIELD_NONE 0
 #define V4L2_FIELD_INTERLACED_TB 1
 #define V4L2_FIELD_INTERLACED_BT 2
 #define dev_err(...) ((void)0)
 #include "dos_regs.h"
 struct amvdec_core {void *dev;};
-struct amvdec_session {struct amvdec_core *core;};
+struct format {u32 pixfmt;};
+struct amvdec_session {struct amvdec_core *core;struct format *fmt_out;};
 static u32 registers[65536];static int delivered,aborted;static u32 slot,frame_offset;
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;assert(r/4<65536);return registers[r/4];}
 static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 value){(void)c;assert(r/4<65536);registers[r/4]=value;}
 static void amvdec_abort(struct amvdec_session *s){(void)s;aborted++;}
 static void amvdec_dst_buf_done_idx(struct amvdec_session *s,u32 i,u32 offset,u32 field){(void)s;(void)field;slot=i;frame_offset=offset;delivered++;}
 ''' + macros + "\n"
+                if codec in ("mpeg4", "vc1"):
+                    code += "static void amvdec_set_par_from_ratio(struct amvdec_session *s,u32 ratio,u32 count){(void)s;(void)ratio;(void)count;}\n"
                 if codec == "mpeg12":
                     code += "\nstatic void codec_mpeg12_update_dar(struct amvdec_session *s){(void)s;}\n"
                 code += source[start:end] + r'''
-int main(void){struct amvdec_core core={0};struct amvdec_session s={&core};
+int main(void){struct amvdec_core core={0};struct format fmt={2};struct amvdec_session s={.core=&core,.fmt_out=&fmt};
  registers[OFFSET/4]=0x123456;
  assert(codec_CODEC_threaded_isr(&s)==IRQ_HANDLED&&!delivered&&!aborted);
  for(u32 i=1;i<=MAXIMUM;i++){

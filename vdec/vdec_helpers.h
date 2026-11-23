@@ -60,6 +60,9 @@ int amvdec_add_ts(struct amvdec_session *sess, u64 ts,
 		  struct v4l2_timecode tc, u32 offset, u32 flags);
 void amvdec_remove_ts(struct amvdec_session *sess, u64 ts);
 
+/* Legacy ratio codes: 6 entries for MPEG-4/H.263, 14 for VC-1. */
+void amvdec_set_par_from_ratio(struct amvdec_session *sess, u32 ratio, u32 idc_count);
+
 /**
  * amvdec_set_par_from_dar() - Set Pixel Aspect Ratio from Display Aspect Ratio
  *

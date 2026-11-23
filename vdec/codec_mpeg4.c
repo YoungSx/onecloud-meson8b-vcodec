@@ -74,6 +74,7 @@ static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buf
 			     capacity - 512, sess->width, sess->height);
 	if (ret < 0)
 		return ret;
+	amvdec_set_par_from_ratio(sess, mpeg4->h263.header.pixel_ratio, 6);
 	memcpy(vb2_plane_vaddr(vb, 0), mpeg4->h263_output, ret);
 	vb2_set_plane_payload(vb, 0, ret);
 	return 0;
@@ -272,6 +273,8 @@ static irqreturn_t codec_mpeg4_threaded_isr(struct amvdec_session *sess)
 	}
 	buffer_index--;
 	offset = amvdec_read_dos(core, MP4_OFFSET_REG);
+	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
+		amvdec_set_par_from_ratio(sess, amvdec_read_dos(core, MP4_PIC_RATIO), 6);
 
 	if (reg & INTERLACE_FLAG)
 		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?

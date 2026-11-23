@@ -80,6 +80,28 @@ static void test_hd(const u8 *header)
 	free(output);
 }
 
+
+static void test_extended_aspect(const u8 *picture, u32 size)
+{
+	u8 input[5000] = { 0 }, output[10000];
+	struct h263_context context = { 0 };
+	u32 bit = 0;
+
+	bit_copy(input, &bit, picture, 0, 73);
+	set_bits(input, 69, 4, 15);
+	bit_copy(input, &bit, picture, 73, 92);
+	set_bits(input, bit, 16, 0x0b0c);
+	bit += 16;
+	bit_copy(input, &bit, picture, 92, size * 8);
+	assert(h263_translate(&context, input, (bit + 7) / 8, output,
+			      sizeof(output), 164, 100) == 7760);
+	assert(context.header.pixel_ratio == 0x0b0c);
+	assert(hash(output, 7760) == 0x2e68fab1b2d6f38bULL);
+	/* An unsuccessful update cannot change either dimensions or PAR. */
+	assert(h263_translate(&context, picture, size, output, 100, 164, 100) == -ENOSPC);
+	assert(context.header.pixel_ratio == 0x0b0c);
+}
+
 static void test_plus(const char *path)
 {
 	u8 input[5000], output[10000], saved[10000], continuation[1000] = { 0 };
@@ -127,6 +149,7 @@ static void test_plus(const char *path)
 			      sizeof(output), 164, 100) == lengths[1]);
 	assert(!memcmp(saved, output, lengths[1]));
 	test_hd(input + start[1]);
+	test_extended_aspect(input, start[1]);
 	/* A successful baseline header invalidates the PLUS continuation state. */
 	u8 baseline[8] = { 0, 0, 0x80, 2, 4, 4, 0 };
 	struct h263_reader reader = { .data = baseline, .size = sizeof(baseline) };

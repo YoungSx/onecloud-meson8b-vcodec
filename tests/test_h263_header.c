@@ -88,7 +88,7 @@ int main(void)
 		header[4] = format << 2;
 		assert(!parse(header, sizeof(header), &state, &picture, 50));
 		assert(picture.width == widths[format] && picture.height == heights[format]);
-		assert(!state.valid);
+		assert(!state.valid && state.pixel_ratio == 2);
 	}
 	header[2] = 0xfc;
 	assert(parse(header, sizeof(header), &state, &picture, 0) == -EINVAL);
@@ -99,18 +99,20 @@ int main(void)
 	}
 	bits = plus(data, 1, 164, 100, true, 0, 15);
 	assert(!parse(data, sizeof(data), &state, &picture, bits));
-	assert(state.valid && state.custom_clock && picture.intra);
+	assert(state.valid && state.custom_clock && picture.intra && state.pixel_ratio == 0x0b0c);
 	assert(picture.width == 164 && picture.height == 100 && picture.temporal == 769);
 	assert(picture.rounding == 1 && picture.quantizer == 10);
 	bits = plus(data, 0, 0, 0, true, 1, 1);
 	assert(parse(data, sizeof(data), &empty, &picture, 0) == -EINVAL);
 	assert(!parse(data, sizeof(data), &state, &picture, bits));
 	assert(!picture.intra && picture.width == 164 && picture.height == 100);
+	assert(state.pixel_ratio == 0x0b0c);
 	/* Incomplete updates must preserve an already valid continuation state. */
 	bits = plus(data, 1, 1920, 1080, false, 1, 1);
 	for (u32 size = 0; size < (bits + 7) / 8; size++) {
 		assert(parse(data, size, &state, &picture, 0) < 0);
 		assert(state.width == 164 && state.height == 100 && state.custom_clock);
+		assert(state.pixel_ratio == 0x0b0c);
 	}
 	assert(!parse(data, sizeof(data), &state, &picture, bits));
 	assert(!state.custom_clock);

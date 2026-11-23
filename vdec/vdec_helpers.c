@@ -10,6 +10,7 @@
 #include <media/videobuf2-dma-contig.h>
 
 #include "vdec_helpers.h"
+#include "codec-par.h"
 #include "../runtime/meson8b-runtime.h"
 
 #define NUM_CANVAS_NV12 2
@@ -681,6 +682,25 @@ void amvdec_flush_capture_buffers(struct amvdec_session *sess)
 	v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 }
 EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);
+
+/* Legacy firmware expands an extended PAR into numerator:denominator bytes. */
+void amvdec_set_par_from_ratio(struct amvdec_session *sess, u32 ratio, u32 idc_count)
+{
+	struct v4l2_fract par = { 1, 1 };
+
+	if (ratio > 15) {
+		u32 num = ratio >> 8;
+		u32 den = ratio & 0xff;
+
+		if (num && den) {
+			par.numerator = num;
+			par.denominator = den;
+		}
+	} else if (ratio < idc_count && ratio < ARRAY_SIZE(amvdec_par_table)) {
+		par = amvdec_par_table[ratio];
+	}
+	sess->pixelaspect = par;
+}
 
 void amvdec_set_par_from_dar(struct amvdec_session *sess,
 			     u32 dar_num, u32 dar_den)

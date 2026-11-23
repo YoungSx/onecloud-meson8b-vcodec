@@ -219,8 +219,26 @@
 +# -ffreestanding lets arm_neon.h build in the kernel (as lib/raid6)
 +CFLAGS_meson8b-swap-neon.o += -ffreestanding -march=armv7-a -mfloat-abi=softfp -mfpu=neon
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec-par.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/* Copyright (C) 2019 BayLibre, SAS. */
++/* Standard PAR codes shared by H.264, VC-1 and MPEG-4/H.263. */
++#ifndef MESON8B_CODEC_PAR_H
++#define MESON8B_CODEC_PAR_H
++
++static const struct v4l2_fract amvdec_par_table[] = {
++	{ 1, 1 },   { 1, 1 },    { 12, 11 }, { 10, 11 },
++	{ 16, 11 }, { 40, 33 },  { 24, 11 }, { 20, 11 },
++	{ 32, 11 }, { 80, 33 },  { 18, 11 }, { 15, 11 },
++	{ 64, 33 }, { 160, 99 }, { 4, 3 },   { 3, 2 },
++	{ 2, 1 }
++};
++
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_h264.c
-@@ -0,0 +1,633 @@
+@@ -0,0 +1,626 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2019 BayLibre, SAS
@@ -235,6 +253,7 @@
 +#include "vdec_helpers.h"
 +#include "dos_regs.h"
 +#include "codec_h264.h"
++#include "codec-par.h"
 +
 +#define SIZE_EXT_FW	(20 * SZ_1K)
 +#define SIZE_WORKSPACE	0x1ee000
@@ -527,14 +546,6 @@
 +	return 0;
 +}
 +
-+static const struct v4l2_fract par_table[] = {
-+	{ 1, 1 },   { 1, 1 },    { 12, 11 }, { 10, 11 },
-+	{ 16, 11 }, { 40, 33 },  { 24, 11 }, { 20, 11 },
-+	{ 32, 11 }, { 80, 33 },  { 18, 11 }, { 15, 11 },
-+	{ 64, 33 }, { 160, 99 }, { 4, 3 },   { 3, 2 },
-+	{ 2, 1 }
-+};
-+
 +static void codec_h264_set_par(struct amvdec_session *sess)
 +{
 +	struct amvdec_core *core = sess->core;
@@ -552,10 +563,10 @@
 +		return;
 +	}
 +
-+	if (ar_idc >= ARRAY_SIZE(par_table))
++	if (ar_idc >= ARRAY_SIZE(amvdec_par_table))
 +		return;
 +
-+	sess->pixelaspect = par_table[ar_idc];
++	sess->pixelaspect = amvdec_par_table[ar_idc];
 +}
 +
 +static void codec_h264_resume(struct amvdec_session *sess)
@@ -3633,7 +3644,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,302 @@
+@@ -0,0 +1,305 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3710,6 +3721,7 @@
 +			     capacity - 512, sess->width, sess->height);
 +	if (ret < 0)
 +		return ret;
++	amvdec_set_par_from_ratio(sess, mpeg4->h263.header.pixel_ratio, 6);
 +	memcpy(vb2_plane_vaddr(vb, 0), mpeg4->h263_output, ret);
 +	vb2_set_plane_payload(vb, 0, ret);
 +	return 0;
@@ -3908,6 +3920,8 @@
 +	}
 +	buffer_index--;
 +	offset = amvdec_read_dos(core, MP4_OFFSET_REG);
++	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
++		amvdec_set_par_from_ratio(sess, amvdec_read_dos(core, MP4_PIC_RATIO), 6);
 +
 +	if (reg & INTERLACE_FLAG)
 +		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?
@@ -3955,7 +3969,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,304 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -4231,6 +4245,7 @@
 +	}
 +	buffer_index--;
 +	offset = amvdec_read_dos(core, VC1_OFFSET_REG);
++	amvdec_set_par_from_ratio(sess, amvdec_read_dos(core, VC1_PIC_RATIO), 14);
 +
 +	if (reg & INTERLACE_FLAG)
 +		field = (reg & BOTTOM_FIELD_FIRST_FLAG) ?
@@ -7157,7 +7172,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/h263-header.h
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,152 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON8B_H263_HEADER_H
 +#define MESON8B_H263_HEADER_H
@@ -7173,6 +7188,7 @@
 +
 +struct h263_header_state {
 +	u32 width, height;
++	u32 pixel_ratio;
 +	bool valid, custom_clock;
 +};
 +
@@ -7249,6 +7265,7 @@
 +
 +				if (!aspect || (aspect > 5 && aspect != 15))
 +					return -EINVAL;
++				next.pixel_ratio = aspect;
 +				next.width = (h263_read(r, 9) + 1) * 4;
 +				if (h263_read(r, 1) != 1)
 +					return -EINVAL;
@@ -7259,10 +7276,12 @@
 +
 +					if (!numerator || !denominator)
 +						return -EINVAL;
++					next.pixel_ratio = numerator << 8 | denominator;
 +				}
 +			} else if (format && format < ARRAY_SIZE(widths)) {
 +				next.width = widths[format];
 +				next.height = heights[format];
++				next.pixel_ratio = 2; /* Standard H.263 source formats use 12:11. */
 +			} else {
 +				return -EINVAL;
 +			}
@@ -7281,6 +7300,7 @@
 +			return -EOPNOTSUPP;
 +		next.width = widths[format];
 +		next.height = heights[format];
++		next.pixel_ratio = 2;
 +		next.valid = false;
 +		next.custom_clock = false;
 +		p.intra = !h263_read(r, 1);
@@ -9020,7 +9040,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1542 @@
+@@ -0,0 +1,1581 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -9523,6 +9543,10 @@
 +	sess->wrap_count = 0;
 +	sess->pixelaspect.numerator = 1;
 +	sess->pixelaspect.denominator = 1;
++	sess->reference_width = 0;
++	sess->reference_height = 0;
++	sess->crop_left = 0;
++	sess->crop_top = 0;
 +	atomic_set(&sess->esparser_queued_bufs, 0);
 +	v4l2_ctrl_s_ctrl(sess->ctrl_min_buf_capture, 1);
 +	sess->dpb_size = 0;
@@ -10115,16 +10139,50 @@
 +	}
 +}
 +
++static int vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *s)
++{
++	struct amvdec_session *sess =
++		container_of(file->private_data, struct amvdec_session, fh);
++	struct v4l2_rect rect = { .width = sess->width, .height = sess->height };
++
++	/* The V4L2 core normalizes MPLANE types before invoking this callback. */
++	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	switch (s->target) {
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++		rect.width = sess->reference_width ? : sess->width;
++		rect.height = sess->reference_height ? : sess->height;
++		break;
++	case V4L2_SEL_TGT_CROP:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++		rect.left = sess->crop_left;
++		rect.top = sess->crop_top;
++		break;
++	case V4L2_SEL_TGT_COMPOSE:
++	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
++	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
++		/* Frame-pool delivery has already applied the source crop. */
++		break;
++	default:
++		return -EINVAL;
++	}
++	s->r = rect;
++	return 0;
++}
++
 +static int vdec_g_pixelaspect(struct file *file, void *fh, int type,
 +			      struct v4l2_fract *f)
 +{
 +	struct amvdec_session *sess =
 +		container_of(file->private_data, struct amvdec_session, fh);
 +
-+	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
++	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 +		return -EINVAL;
 +
-+	*f = sess->pixelaspect;
++	/* CROPCAP uses y/x, while the codec's sample aspect ratio is x/y. */
++	f->numerator = sess->pixelaspect.denominator;
++	f->denominator = sess->pixelaspect.numerator;
 +	return 0;
 +}
 +
@@ -10153,6 +10211,7 @@
 +	.vidioc_try_decoder_cmd = v4l2_m2m_ioctl_try_decoder_cmd,
 +	.vidioc_decoder_cmd = vdec_decoder_cmd,
 +	.vidioc_g_pixelaspect = vdec_g_pixelaspect,
++	.vidioc_g_selection = vdec_g_selection,
 +};
 +
 +static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -11296,7 +11355,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.c
-@@ -0,0 +1,741 @@
+@@ -0,0 +1,761 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -11309,6 +11368,7 @@
 +#include <media/videobuf2-dma-contig.h>
 +
 +#include "vdec_helpers.h"
++#include "codec-par.h"
 +#include "../runtime/meson8b-runtime.h"
 +
 +#define NUM_CANVAS_NV12 2
@@ -11981,6 +12041,25 @@
 +}
 +EXPORT_SYMBOL_GPL(amvdec_flush_capture_buffers);
 +
++/* Legacy firmware expands an extended PAR into numerator:denominator bytes. */
++void amvdec_set_par_from_ratio(struct amvdec_session *sess, u32 ratio, u32 idc_count)
++{
++	struct v4l2_fract par = { 1, 1 };
++
++	if (ratio > 15) {
++		u32 num = ratio >> 8;
++		u32 den = ratio & 0xff;
++
++		if (num && den) {
++			par.numerator = num;
++			par.denominator = den;
++		}
++	} else if (ratio < idc_count && ratio < ARRAY_SIZE(amvdec_par_table)) {
++		par = amvdec_par_table[ratio];
++	}
++	sess->pixelaspect = par;
++}
++
 +void amvdec_set_par_from_dar(struct amvdec_session *sess,
 +			     u32 dar_num, u32 dar_den)
 +{
@@ -12040,7 +12119,7 @@
 +EXPORT_SYMBOL_GPL(amvdec_abort);
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,130 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -12102,6 +12181,9 @@
 +int amvdec_add_ts(struct amvdec_session *sess, u64 ts,
 +		  struct v4l2_timecode tc, u32 offset, u32 flags);
 +void amvdec_remove_ts(struct amvdec_session *sess, u64 ts);
++
++/* Legacy ratio codes: 6 entries for MPEG-4/H.263, 14 for VC-1. */
++void amvdec_set_par_from_ratio(struct amvdec_session *sess, u32 ratio, u32 idc_count);
 +
 +/**
 + * amvdec_set_par_from_dar() - Set Pixel Aspect Ratio from Display Aspect Ratio

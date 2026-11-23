@@ -13,6 +13,7 @@ struct h263_reader {
 
 struct h263_header_state {
 	u32 width, height;
+	u32 pixel_ratio;
 	bool valid, custom_clock;
 };
 
@@ -89,6 +90,7 @@ static inline int h263_parse_picture_header(struct h263_reader *r,
 
 				if (!aspect || (aspect > 5 && aspect != 15))
 					return -EINVAL;
+				next.pixel_ratio = aspect;
 				next.width = (h263_read(r, 9) + 1) * 4;
 				if (h263_read(r, 1) != 1)
 					return -EINVAL;
@@ -99,10 +101,12 @@ static inline int h263_parse_picture_header(struct h263_reader *r,
 
 					if (!numerator || !denominator)
 						return -EINVAL;
+					next.pixel_ratio = numerator << 8 | denominator;
 				}
 			} else if (format && format < ARRAY_SIZE(widths)) {
 				next.width = widths[format];
 				next.height = heights[format];
+				next.pixel_ratio = 2; /* Standard H.263 source formats use 12:11. */
 			} else {
 				return -EINVAL;
 			}
@@ -121,6 +125,7 @@ static inline int h263_parse_picture_header(struct h263_reader *r,
 			return -EOPNOTSUPP;
 		next.width = widths[format];
 		next.height = heights[format];
+		next.pixel_ratio = 2;
 		next.valid = false;
 		next.custom_clock = false;
 		p.intra = !h263_read(r, 1);
