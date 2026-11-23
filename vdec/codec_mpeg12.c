@@ -297,7 +297,12 @@ static irqreturn_t codec_mpeg12_threaded_isr(struct amvdec_session *sess)
 			V4L2_FIELD_INTERLACED_BT;
 
 	codec_mpeg12_update_dar(sess);
-	buffer_index = ((reg & 0xf) - 1) & 7;
+	buffer_index = reg & 0xf;
+	if (!buffer_index || buffer_index > 8) {
+		amvdec_abort(sess);
+		goto end;
+	}
+	buffer_index--;
 	offset = amvdec_read_dos(core, MREG_FRAME_OFFSET);
 	amvdec_dst_buf_done_idx(sess, buffer_index, offset, field);
 

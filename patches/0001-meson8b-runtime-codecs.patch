@@ -2963,7 +2963,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mjpeg.c
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,302 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3227,7 +3227,13 @@
 +	if (!(reg & PICINFO_BUF_IDX_MASK))
 +		return IRQ_HANDLED;
 +
-+	buffer_index = ((reg & PICINFO_BUF_IDX_MASK) - 1) & (MJPEG_NUM_BUFFERS - 1);
++	buffer_index = reg & PICINFO_BUF_IDX_MASK;
++	if (buffer_index > MJPEG_NUM_BUFFERS) {
++		amvdec_abort(sess);
++		amvdec_write_dos(core, MREG_FROM_AMRISC, 0);
++		return IRQ_HANDLED;
++	}
++	buffer_index--;
 +	offset = amvdec_read_dos(core, MREG_FRAME_OFFSET);
 +
 +	if (reg & PICINFO_INTERLACE)
@@ -3279,7 +3285,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg12.c
-@@ -0,0 +1,323 @@
+@@ -0,0 +1,328 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3579,7 +3585,12 @@
 +			V4L2_FIELD_INTERLACED_BT;
 +
 +	codec_mpeg12_update_dar(sess);
-+	buffer_index = ((reg & 0xf) - 1) & 7;
++	buffer_index = reg & 0xf;
++	if (!buffer_index || buffer_index > 8) {
++		amvdec_abort(sess);
++		goto end;
++	}
++	buffer_index--;
 +	offset = amvdec_read_dos(core, MREG_FRAME_OFFSET);
 +	amvdec_dst_buf_done_idx(sess, buffer_index, offset, field);
 +
@@ -3622,7 +3633,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,302 @@
+@@ -0,0 +1,308 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3895,7 +3906,13 @@
 +	if (!reg)
 +		return IRQ_HANDLED;
 +
-+	buffer_index = ((reg & 0x7) - 1) & (MP4_NUM_BUFFERS - 1);
++	buffer_index = reg & 0x7;
++	if (!buffer_index || buffer_index > MP4_NUM_BUFFERS) {
++		amvdec_abort(sess);
++		amvdec_write_dos(core, MREG_BUFFEROUT, 0);
++		return IRQ_HANDLED;
++	}
++	buffer_index--;
 +	offset = amvdec_read_dos(core, MP4_OFFSET_REG);
 +
 +	if (reg & INTERLACE_FLAG)
@@ -3944,7 +3961,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,303 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -4212,7 +4229,13 @@
 +	if (!reg)
 +		return IRQ_HANDLED;
 +
-+	buffer_index = ((reg & 0x7) - 1) & (VC1_NUM_BUFFERS - 1);
++	buffer_index = reg & 0x7;
++	if (!buffer_index || buffer_index > VC1_NUM_BUFFERS) {
++		amvdec_abort(sess);
++		amvdec_write_dos(core, VC1_BUFFEROUT, 0);
++		return IRQ_HANDLED;
++	}
++	buffer_index--;
 +	offset = amvdec_read_dos(core, VC1_OFFSET_REG);
 +
 +	if (reg & INTERLACE_FLAG)

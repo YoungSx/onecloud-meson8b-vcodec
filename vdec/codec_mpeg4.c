@@ -270,7 +270,13 @@ static irqreturn_t codec_mpeg4_threaded_isr(struct amvdec_session *sess)
 	if (!reg)
 		return IRQ_HANDLED;
 
-	buffer_index = ((reg & 0x7) - 1) & (MP4_NUM_BUFFERS - 1);
+	buffer_index = reg & 0x7;
+	if (!buffer_index || buffer_index > MP4_NUM_BUFFERS) {
+		amvdec_abort(sess);
+		amvdec_write_dos(core, MREG_BUFFEROUT, 0);
+		return IRQ_HANDLED;
+	}
+	buffer_index--;
 	offset = amvdec_read_dos(core, MP4_OFFSET_REG);
 
 	if (reg & INTERLACE_FLAG)

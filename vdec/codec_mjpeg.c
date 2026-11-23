@@ -261,7 +261,13 @@ static irqreturn_t codec_mjpeg_threaded_isr(struct amvdec_session *sess)
 	if (!(reg & PICINFO_BUF_IDX_MASK))
 		return IRQ_HANDLED;
 
-	buffer_index = ((reg & PICINFO_BUF_IDX_MASK) - 1) & (MJPEG_NUM_BUFFERS - 1);
+	buffer_index = reg & PICINFO_BUF_IDX_MASK;
+	if (buffer_index > MJPEG_NUM_BUFFERS) {
+		amvdec_abort(sess);
+		amvdec_write_dos(core, MREG_FROM_AMRISC, 0);
+		return IRQ_HANDLED;
+	}
+	buffer_index--;
 	offset = amvdec_read_dos(core, MREG_FRAME_OFFSET);
 
 	if (reg & PICINFO_INTERLACE)
