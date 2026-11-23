@@ -12,3 +12,16 @@ stream lengths and FNV hashes independently obtained from libamcodec's
 `h263vld()` at `4eebd67b142837fbb418abf5390060d4639440ba`, plus truncation,
 output capacity, geometry and state isolation. Intermediate output is not stored
 as a fixture. Neither result executes hardware or proves decoded pixels.
+
+
+`h263-plus-164x100.h263` contains three synthetic I/P pictures from official
+FFmpeg 6.1.1: `testsrc2=size=164x100:rate=25`, `-frames:v 3 -c:v h263p
+-threads 1 -g 30 -q:v 10 -f h263`. It exercises custom dimensions, custom clock
+and the P-picture rounding bit. Size 4558 bytes; SHA256
+`dd95332b0205759976f983f12e43a8b572729a458ca230a9ca8b2f8443bf22ed`.
+The generated pattern uses the repository GPL-2.0 license. The C test checks
+intermediate lengths/hashes from the same pinned libamcodec reference, derives
+a UFEP=0 continuation without changing its macroblocks, and exercises a bounded
+1916x1080 INTER picture with a GOB header. The header/format tests cover rejected
+tools, truncation, session state, geometry and capacity. No output media or
+hardware acceptance results are fixtures.

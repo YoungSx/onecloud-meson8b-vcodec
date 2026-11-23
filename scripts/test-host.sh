@@ -13,7 +13,8 @@ for test in copy window capture pool jpeg esparser_padding hevc_sps hevc_tiles h
     if [[ "$test" == hevc_sps ]]; then
         "build/host-tests/$test" tests/fixtures/hevc-1080p-sps.hevc
     elif [[ "$test" == h263_vlc ]]; then
-        "build/host-tests/$test" tests/fixtures/h263-baseline-128x96.h263
+        "build/host-tests/$test" tests/fixtures/h263-baseline-128x96.h263 \
+          tests/fixtures/h263-plus-164x100.h263
     else
         "build/host-tests/$test"
     fi

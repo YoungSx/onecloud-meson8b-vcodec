@@ -8,8 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class H263FormatTests(unittest.TestCase):
-    def test_discrete_sizes_and_negotiated_picture_geometry(self):
+    def test_custom_sizes_and_negotiated_picture_geometry(self):
         source = (ROOT / "vdec/vdec.c").read_text()
+        negotiate = source[source.index("static const struct amvdec_format *\nvdec_try_fmt_common("):
+                           source.index("static int vdec_try_fmt(")]
         enum = source[source.index("static int vdec_enum_framesizes("):
                       source.index("static int\nvdec_decoder_cmd(")]
         source = (ROOT / "vdec/codec_mpeg4.c").read_text()
@@ -19,46 +21,99 @@ class H263FormatTests(unittest.TestCase):
 #include <assert.h>
 #include <errno.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define V4L2_PIX_FMT_H263 1
-#define V4L2_FRMSIZE_TYPE_DISCRETE 1
+#define min(a,b) ((a)<(b)?(a):(b))
+#define max(a,b) ((a)>(b)?(a):(b))
+#define V4L2_FRMSIZE_TYPE_STEPWISE 3
 #define V4L2_FRMSIZE_TYPE_CONTINUOUS 2
 #define SZ_1M 1048576
+#define V4L2_PIX_FMT_MPEG2 2
+#define V4L2_PIX_FMT_NV12M 3
+#define V4L2_PIX_FMT_YUV420M 4
+#define V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE 1
+#define V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE 2
+#define V4L2_FIELD_ANY 0
+#define V4L2_FIELD_NONE 1
+#define ALIGN(v,a) (((v)+(a)-1)&~((a)-1))
+#define clamp(v,lo,hi) min(max(v,lo),hi)
 #define min_t(t,a,b) ((t)(a)<(t)(b)?(t)(a):(t)(b))
-struct codec_mpeg4 {u8 *h263_output;};
-struct amvdec_format {u32 pixfmt,max_width,max_height;};
+#include "h263-vlc.h"
+struct codec_mpeg4 {u8 *h263_output;struct h263_context h263;};
+struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
 struct core {struct platform *platform;};
-struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height;void *priv;};
+struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size;void *priv;};
 struct file {void *private_data;};
 struct v4l2_frmsizeenum {u32 pixel_format,index,type;struct {u32 width,height;} discrete;
  struct {u32 min_width,max_width,step_width,min_height,max_height,step_height;} stepwise;};
 struct vb2_buffer {u8 *data;u32 size,capacity;};
+struct v4l2_plane_pix_format {u32 reserved[1],sizeimage,bytesperline;};
+struct v4l2_pix_format_mplane {struct v4l2_plane_pix_format plane_fmt[3];u32 reserved[1],width,height,pixelformat,num_planes,field;};
+struct v4l2_format {u32 type;struct {struct v4l2_pix_format_mplane pix_mp;} fmt;};
+static u32 amvdec_get_output_size_wh(u32 width,u32 height){return width*height;}
+static int vdec_supports_pixfmt_cap(const struct amvdec_format *fmt,u32 id){return fmt->pixfmts_cap[0]==id;}
 #define container_of(p,t,m) ((struct amvdec_session *)((char *)(p)-offsetof(struct amvdec_session,m)))
 static const struct amvdec_format *find_format(const struct amvdec_format *f,u32 n,u32 id){for(u32 i=0;i<n;i++)if(f[i].pixfmt==id)return f+i;return NULL;}
 static u8 *vb2_plane_vaddr(struct vb2_buffer *b,int plane){assert(!plane);return b->data;}
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,int plane){assert(!plane);return b->size;}
 static u32 vb2_plane_size(struct vb2_buffer *b,int plane){assert(!plane);return b->capacity;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!plane);b->size=n;}
-static int h263_translate(const u8 *input,u32 n,u8 *output,u32 cap,u32 w,u32 h){(void)input;assert(n==7&&cap==4608&&w==176&&h==144);memset(output,42,20);return 20;}
-#include "h263-header.h"
-''' + enum + inspect + r'''
-int main(void){
- struct amvdec_format formats[]={{1,704,576},{2,1920,1080}};struct platform p={formats,2};
- struct core c={&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=176,.height=144};
+''' + negotiate + enum + inspect + r'''
+int main(int argc,char **argv){
+ assert(argc==3);
+ struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}}};struct platform p={formats,2};
+ struct core c={&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=128,.height=96};
+ s.src_buffer_size=SZ_1M;
+ struct v4l2_format format={.type=1};
+ const u32 requested[][2]={{1,1},{163,99},{1930,1090}};
+ const u32 expected[][2]={{32,32},{164,100},{1920,1080}};
+ for(u32 i=0;i<3;i++){
+  format.fmt.pix_mp.pixelformat=1;format.fmt.pix_mp.width=requested[i][0];format.fmt.pix_mp.height=requested[i][1];
+  assert(vdec_try_fmt_common(&s,2,&format)==&formats[0]);
+  assert(format.fmt.pix_mp.width==expected[i][0]&&format.fmt.pix_mp.height==expected[i][1]);
+  assert(format.fmt.pix_mp.num_planes==1&&format.fmt.pix_mp.plane_fmt[0].sizeimage==SZ_1M);
+ }
+ format.type=2;format.fmt.pix_mp.width=163;format.fmt.pix_mp.height=99;
+ assert(vdec_try_fmt_common(&s,2,&format)==&formats[0]);
+ assert(format.fmt.pix_mp.width==164&&format.fmt.pix_mp.height==100&&format.fmt.pix_mp.num_planes==2);
+ assert(format.fmt.pix_mp.plane_fmt[0].bytesperline==192);
+ format.type=1;format.fmt.pix_mp.pixelformat=2;format.fmt.pix_mp.width=1;format.fmt.pix_mp.height=1;
+ assert(vdec_try_fmt_common(&s,2,&format)==&formats[1]);
+ assert(format.fmt.pix_mp.width==256&&format.fmt.pix_mp.height==144);
  struct file f={&s.fh};struct v4l2_frmsizeenum e={.pixel_format=1};
- for(u32 i=0;i<4;i++){e.index=i;assert(!vdec_enum_framesizes(&f,NULL,&e));assert(e.type==1);}
- e.index=4;assert(vdec_enum_framesizes(&f,NULL,&e)==-EINVAL);
+ assert(!vdec_enum_framesizes(&f,NULL,&e)&&e.type==3);
+ assert(e.stepwise.min_width==32&&e.stepwise.max_width==1920&&e.stepwise.step_width==4);
+ assert(e.stepwise.min_height==32&&e.stepwise.max_height==1080&&e.stepwise.step_height==4);
+ e.index=1;assert(vdec_enum_framesizes(&f,NULL,&e)==-EINVAL);
  e.pixel_format=2;e.index=0;assert(!vdec_enum_framesizes(&f,NULL,&e)&&e.type==2);
  e.index=1;assert(vdec_enum_framesizes(&f,NULL,&e)==-EINVAL);
- u8 header[5120]={0,0,0x80,2,8,4,0x1e};u8 translated[5120];struct codec_mpeg4 codec={translated};s.priv=&codec;
- struct vb2_buffer b={header,7,sizeof(header)};
- assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==20&&header[0]==42);
- header[0]=header[1]=0;header[2]=0x80;header[3]=2;header[4]=8;header[5]=4;b.size=7;s.width=352;
- assert(codec_mpeg4_inspect_input(&s,&b)==-EINVAL);
+ u8 input[20000],original[10000],translated[20000];
+ FILE *stream=fopen(argv[1],"rb");assert(stream);
+ assert(fread(original,1,sizeof(original),stream)==8271&&feof(stream));fclose(stream);
+ memcpy(input,original,8271);
+ struct codec_mpeg4 codec={.h263_output=translated};s.priv=&codec;
+ struct vb2_buffer b={input,5573,sizeof(input)};
+ assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==9985&&input[3]==0xb6);
+ memcpy(input,original,8271);b.size=5573;s.width=352;
+ assert(codec_mpeg4_inspect_input(&s,&b)==-EINVAL&&b.size==5573&&!memcmp(input,original,8271));
+ s.width=128;b.capacity=8192;
+ assert(codec_mpeg4_inspect_input(&s,&b)==-ENOSPC&&b.size==5573&&!memcmp(input,original,8271));
+ stream=fopen(argv[2],"rb");assert(stream);
+ assert(fread(original,1,sizeof(original),stream)==4558&&feof(stream));fclose(stream);
+ s.width=164;s.height=100;b.capacity=sizeof(input);
+ const u32 start[]={0,3391,3968,4558},length[]={7760,1856,1962};
+ for(u32 i=0;i<3;i++){
+  b.size=start[i+1]-start[i];memcpy(input,original+start[i],b.size);
+  assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==length[i]&&input[10]==(i==1));
+  assert(codec.h263.header.valid&&codec.h263.header.width==164&&codec.h263.header.height==100);
+ }
  s.fmt_out=&formats[1];b.data=NULL;b.size=0;assert(!codec_mpeg4_inspect_input(&s,&b));
  return 0;
 }
@@ -70,4 +125,6 @@ int main(void){
                             "-O1", "-fsanitize=address,undefined", "-fno-pie", "-no-pie",
                             "-I", str(ROOT / "vdec"), str(path / "test.c"),
                             "-o", str(path / "test")], check=True)
-            subprocess.run([str(path / "test")], check=True)
+            subprocess.run([str(path / "test"),
+                            str(ROOT / "tests/fixtures/h263-baseline-128x96.h263"),
+                            str(ROOT / "tests/fixtures/h263-plus-164x100.h263")], check=True)

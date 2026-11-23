@@ -14,7 +14,6 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
-#include "h263-header.h"
 #include "h263-vlc.h"
 
 /* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
@@ -53,6 +52,7 @@ struct codec_mpeg4 {
 	struct delayed_work drain_work;
 	bool draining;
 	u8 *h263_output;
+	struct h263_context h263;
 };
 
 static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
@@ -60,24 +60,18 @@ static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
 static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
 {
 	struct codec_mpeg4 *mpeg4 = sess->priv;
-	u32 width, height;
 	u32 capacity;
 	int ret;
 
 	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
 		return 0;
-	ret = h263_picture_geometry(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
-				    &width, &height);
-	if (ret)
-		return ret;
-	/* This firmware has no source-change event; require negotiated geometry. */
-	if (width != sess->width || height != sess->height)
-		return -EINVAL;
 	capacity = min_t(unsigned long, SZ_1M, vb2_plane_size(vb, 0));
 	if (capacity < 4608)
 		return -ENOSPC;
-	ret = h263_translate(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
-			     mpeg4->h263_output, capacity - 512, width, height);
+	/* This firmware has no source-change event; require negotiated geometry. */
+	ret = h263_translate(&mpeg4->h263, vb2_plane_vaddr(vb, 0),
+			     vb2_get_plane_payload(vb, 0), mpeg4->h263_output,
+			     capacity - 512, sess->width, sess->height);
 	if (ret < 0)
 		return ret;
 	memcpy(vb2_plane_vaddr(vb, 0), mpeg4->h263_output, ret);

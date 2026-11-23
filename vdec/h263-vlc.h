@@ -4,10 +4,10 @@
 #include "h263-header.h"
 #include "h263-tables.h"
 
-struct h263_reader {
-	const u8 *data;
-	u32 size, bit;
-	int error;
+struct h263_context {
+	struct h263_header_state header;
+	/* Per-session scratch keeps HD prediction rows off the kernel stack. */
+	int top[H263_MAX_WIDTH / 8 + 1][2];
 };
 
 struct h263_writer {
@@ -15,28 +15,6 @@ struct h263_writer {
 	u32 size, used;
 	int error;
 };
-
-static inline u32 h263_peek(struct h263_reader *r, u32 count)
-{
-	u32 value = 0, i;
-
-	if (count > 24 || r->bit > r->size * 8 || count > r->size * 8 - r->bit) {
-		r->error = -EINVAL;
-		return 0;
-	}
-	for (i = 0; i < count; i++)
-		value = value << 1 | ((r->data[(r->bit + i) / 8] >> (7 - (r->bit + i) % 8)) & 1);
-	return value;
-}
-
-static inline u32 h263_read(struct h263_reader *r, u32 count)
-{
-	u32 value = h263_peek(r, count);
-
-	if (!r->error)
-		r->bit += count;
-	return value;
-}
 
 static inline void h263_byte(struct h263_writer *w, u32 value)
 {
@@ -160,55 +138,54 @@ static inline int h263_block(struct h263_reader *r, struct h263_writer *w,
 	return r->error ? r->error : w->error;
 }
 
-/* Baseline I/P -> S805 h263_mc macroblock stream; no shared prediction state. */
-static inline int h263_translate(const u8 *input, u32 length, u8 *output, u32 capacity,
+/* I/P -> S805 h263_mc macroblock stream; one AU with a per-session PLUS header. */
+static inline int h263_translate(struct h263_context *context,
+				 const u8 *input, u32 length, u8 *output, u32 capacity,
 				 u32 expected_width, u32 expected_height)
 {
 	struct h263_reader r = { .data = input, .size = length };
 	struct h263_writer w = { .data = output, .size = capacity };
-	int top[90][2], left[2];
-	u32 width, height, x, y, component, temporal;
+	struct h263_header_state next = context->header;
+	struct h263_picture_header picture;
+	int (*top)[2] = context->top;
+	int left[2];
+	u32 width, height, mb_width, mb_height, gob_height, x, y, component;
 	bool picture_intra;
 	int quant, ret;
 
 	if (!output || length > 0x100000)
 		return -EINVAL;
-	ret = h263_picture_geometry(input, length, &width, &height);
-	if (ret || width != expected_width || height != expected_height)
+	ret = h263_parse_picture_header(&r, &next, &picture);
+	if (ret || picture.width != expected_width || picture.height != expected_height)
 		return ret ? ret : -EINVAL;
-	h263_read(&r, 22);
-	temporal = h263_read(&r, 8);
-	h263_read(&r, 8);
-	picture_intra = !h263_read(&r, 1);
-	h263_read(&r, 4);
-	quant = h263_read(&r, 5);
-	if (h263_read(&r, 1) || !quant)
-		return -EINVAL;
-	while (h263_read(&r, 1) && !r.error)
-		h263_read(&r, 8);
-	if (r.error)
-		return r.error;
+	width = picture.width;
+	height = picture.height;
+	mb_width = (width + 15) / 16;
+	mb_height = (height + 15) / 16;
+	gob_height = height <= 400 ? 1 : height <= 800 ? 2 : 4;
+	picture_intra = picture.intra;
+	quant = picture.quantizer;
 	h263_byte(&w, 0);
 	h263_byte(&w, 0);
 	h263_byte(&w, 1);
 	h263_byte(&w, 0xb6);
-	h263_byte(&w, temporal);
+	h263_byte(&w, picture.temporal);
 	h263_byte(&w, width >> 8);
 	h263_byte(&w, width);
 	h263_byte(&w, height >> 8);
 	h263_byte(&w, height);
 	h263_byte(&w, !picture_intra);
-	h263_byte(&w, 0);
-	for (x = 0; x < width / 8; x++) {
+	h263_byte(&w, picture.rounding);
+	for (x = 0; x < mb_width * 2; x++) {
 		top[x][0] = 999;
 		top[x][1] = 999;
 	}
-	top[width / 8][0] = 0;
-	top[width / 8][1] = 0;
-	for (y = 0; y < height / 16; y++) {
+	top[mb_width * 2][0] = 0;
+	top[mb_width * 2][1] = 0;
+	for (y = 0; y < mb_height; y++) {
 		left[0] = 0;
 		left[1] = 0;
-		for (x = 0; x < width / 16; x++) {
+		for (x = 0; x < mb_width; x++) {
 			bool intra, dquant;
 			int mcbpc, cbpy, cbp;
 
@@ -225,9 +202,9 @@ static inline int h263_translate(const u8 *input, u32 length, u8 *output, u32 ca
 				h263_read(&r, 2);
 				quant = h263_read(&r, 5);
 				if (r.error || !quant || x ||
-				    gob * (height == 576 ? 2 : 1) != y)
+				    gob * gob_height != y)
 					return -EINVAL;
-				for (component = 0; component < width / 8; component++) {
+				for (component = 0; component < mb_width * 2; component++) {
 					top[component][0] = 999;
 					top[component][1] = 999;
 				}
@@ -292,6 +269,10 @@ static inline int h263_translate(const u8 *input, u32 length, u8 *output, u32 ca
 			}
 		}
 	}
-	return r.error ? r.error : w.error ? w.error : (int)w.used;
+	if (r.error || w.error)
+		return r.error ? r.error : w.error;
+	/* A rejected or incomplete AU cannot supply state to a later UFEP=0 frame. */
+	context->header = next;
+	return w.used;
 }
 #endif
