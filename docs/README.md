@@ -21,6 +21,7 @@
 | 重建工作区、私有备份和不可丢失内容 | [Workspace migration](workspace-migration.md) |
 | 当前生产部署与精确来源 | [Deployment snapshot](rollout-status.md) |
 | 下一步开发 | [Roadmap](../ROADMAP.md) |
+| 与 S805 厂商能力的差距及新增源码验证 | [Codec parity](codec-parity.md) |
 
 研究与历史不属于当前安装步骤：
 
