@@ -152,6 +152,21 @@ PSNR、CPU 与延迟。
 
 ## 其他格式与应用
 
+当前源码提供 WMV3 的 `V4L2_PIX_FMT_VC1_ANNEX_L` 开发入口，尚未部署。
+直接客户端输入完整 Annex L/RCV：首个 OUTPUT 包包含 36 字节序列头和
+首幅图片，随后每包为 8 字节帧头加单幅图片；驱动生成厂商前缀并保留
+应用提供的 V4L2 时间戳。诊断客户端可按 RCV 时间戳喂入：
+
+```sh
+./res-switch-test /dev/video0 input.rcv VC1L 320 240
+```
+
+容量、尺寸或非 simple/main 输入失败，不截断图片。官方 FFmpeg 没有
+WMV3/Annex L 的 M2M 映射，不使用 WVC1 包装器冒充它。H.263 的开发入口
+接收原始 baseline I/P 单 AU，驱动有界转换为 h263_mc 中间流；支持 128×96、
+176×144、352×288、704×576，拒绝 PLUS/custom/可选工具和不匹配尺寸。
+候选内容、EOS、取消/重开必须实机验收。
+
 MPEG/VC-1/MJPEG 的输出及帧尾边界见[验证指南](validation.md)。MPEG-2
 输入到 H.264 编码可按以下方式调用，当前并发验收集中在 H.264 输入：
 

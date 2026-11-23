@@ -25,13 +25,23 @@ AVS 标准 UAPI/应用落点、WMV3 Annex L/RCV 封装也必须明确后再开�
 | 阶段测量 | 原 argv、有界超时、CPU/CMA、计数差值、独立完整软解 | 主机错误注入及实际软件命令通过；视频帧数/可选哈希，音频与有损质量另外验收。 |
 | GE2D | 独立标准 GREY M2M、canvas、源/目标 endian、probe 字节图案自检 | 实际命令 MMIO 测试、DMA 越界/超时/复位回归与 ARM 构建；没有实机像素，未接替 NEON。 |
 | HEVC tiles | 标准均匀余数分配、最多 5×5 网格、有界尺寸、MPRED rectangle/row jump/new tile、跨 tile 滤波 | 几何和实际 MPRED/SAO 函数 ASan/UBSan、ARM 构建；4×2 1080p 和 3×2 非均匀流由独立软件解码，候选未实机。 |
-| H.263 | 固定 h263_mc、标准 H263、MPEG-4 共用 mailbox/帧池、picture header、离散尺寸、EOS | 独立 C 固件字节比对、头部/协商尺寸及 EOS 失败回归、ARM 构建；baseline I/P，无 PLUS/custom/可选工具，尾帧和内容未实机。 |
+| H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化到厂商中间流、baseline I/P 和离散尺寸 | 独立 C 固件字节比对、12幅转换与厂商逐字节一致、状态/截断/容量回归、ARM构建；未实机内容/EOS，PLUS/custom/可选工具拒绝。 |
+| WMV3 | 标准 Annex L/RCV 的序列/单帧边界、厂商长度/校验前缀、VC-1 simple/main 选择 | 前缀/容量/尺寸/状态回归、5 图独立 RCV 软件参考、ARM 构建；未实机，无官方 WMV3 M2M 包装器。 |
 
 HEVC tile 几何遵守 H.265 均匀分区，例如 30 CTU/4 列为 `7/8/7/8`，
 不复制厂商旧 `7/7/7/9`。RPM 的非均匀宽/高按厂商值读取，最后一列/行由
 图像总尺寸推导；微码参数与真实 slice 内容仍需要 S805 样片验收。
 SAO scratch 保留厂商的整图大小/基地址协议，按列/行检查容量；不把仅有
 源码计算的 tile scratch 地址写成一个未经验证的新协议。
+
+WMV3 前缀参考固定
+[`libamcodec 4eebd67b142837fbb418abf5390060d4639440ba`](https://github.com/osmc/libamcodec/blob/4eebd67b142837fbb418abf5390060d4639440ba/amplayer/player/player_hwdec.c#L598)
+及同树 `player_av.c` 的逐帧前缀。独立重写有界协议转换，不搬入播放器或
+有全局状态/未检查缓冲的 VLC 实现。H.263 同树的 `h263vld()` 确认主机
+解析/VLC/反量化是固件输入协议的一部分；当前已补入该层，每次调用单独
+预测状态、输入位和输出字节边界。标准码表取自 FFmpeg n7.0.2
+`h263data.c`，原 LGPL-2.1+ 码表按第3节转为 GPL-2.0+，保留来源声明。
+初始 H.263 草稿仅喂原始 ES 的路径已修正，不作为可用能力交付。
 
 ## 已部署模块的短时性能快照
 

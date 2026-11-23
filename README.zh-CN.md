@@ -10,7 +10,7 @@
 
 | 路径 | 范围 |
 | --- | --- |
-| 解码 | H.264、HEVC Main 8-bit 已做图像内容检查；MPEG-1/2、MPEG-4 Part 2、VC-1 advanced、MJPEG 有已知帧尾或内容限制。新增 HEVC tiles 和 baseline H.263 源码仅有主机/ARM 检查，未部署验收。 |
+| 解码 | H.264、HEVC Main 8-bit 已做图像内容检查；MPEG-1/2、MPEG-4 Part 2、VC-1 advanced、MJPEG 有已知帧尾或内容限制。新增 HEVC tiles、baseline H.263、WMV3 Annex L 源码仅有主机/ARM 检查，未实机验收。 |
 | H.264 编码 | Baseline/Level 4.0；固定 QP 或 VBR 目标；YUV/RGB 输入、DMA-BUF、多分片、SPS 裁剪/VUI。 |
 | JPEG 编码 | 质量 1–100，全量程 YCbCr 输入，使用直接 V4L2 客户端。 |
 | 转码 | 一个解码会话加一个编码会话；已验收的 1080p 样片可在原 64 MiB CMA 内运行。 |
