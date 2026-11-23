@@ -50,17 +50,28 @@ left blank; that is a measured average policy, not a CPB guarantee.
 - [输入和错误修复](../patches/ffmpeg-7.0.2-v4l2-bugs.patch)：共享 NV12 软件帧
   只有 `buf[0]`，访问 `buf[1]` 会崩溃；使用 data/stride 并验证目标容量。
   编码 ERROR 和终止 dequeue 失败不能静默变为成功 EOF。
+- [像素比例方向修复](../patches/ffmpeg-7.0.2-v4l2-sar.patch)：CROPCAP的y/x
+  需要取倒数才能成为码流SAR的x/y。实际内核/驱动回调和FFmpeg 7.0.2函数
+  主机链路复现：SAR 12/11对应CROPCAP 11/12，原函数错误得到SAR 11/12，
+  修复后恢复12/11；另覆盖方形像素、NTSC比例、扩展比例和ioctl失败。
 
 Default builds re-extract the pinned official tarball. `--bugfixes` explicitly
-applies only the linked drain and input/error fixes; it adds no private options.
+applies only the linked drain, input/error and CROPCAP-to-SAR fixes; it adds no private options.
 The shared NV12 upload is covered by ASan/UBSan against the actual patched
 function. Silicon error tests remain in the dated evidence. Each build records
 `BUILD_VARIANT`, copied into runtime packages as `FFMPEG_BUILD_VARIANT`.
+
+驱动内部保留码流SAR为x/y，CROPCAP回调按规范返回y/x。本轮两种静态ARM工具构建及QEMU版本检查通过，但没有
+硬件播放/尺寸切换验收。未修改的FFmpeg 7.0.2在该查询路径上仍有非方形
+像素方向错误，不能声明此项原版兼容已验收。以上修复为独立可选bug补丁，
+没有向FFmpeg增加编码选项或私有控制。
 
 ## 社区与源码依据 / Primary references
 
 - [FFmpeg developer: use -b:v](https://ffmpeg.org/pipermail/ffmpeg-user/2021-August/053324.html).
 - [V4L2 standard options discussion](https://ffmpeg.org/pipermail/ffmpeg-devel/2020-February/256688.html).
+- [CROPCAP pixelaspect and type normalization](https://docs.kernel.org/userspace-api/media/v4l/vidioc-cropcap.html).
+- [FFmpeg 7.0.2 v4l2_get_sar](https://github.com/FFmpeg/FFmpeg/blob/n7.0.2/libavcodec/v4l2_context.c#L66).
 - [M2M controls are per open](https://forums.raspberrypi.com/viewtopic.php?t=294684).
 - [Proposed extra options are patches, not proof of upstream support](https://ffmpeg.org/pipermail/ffmpeg-devel/2022-March/294607.html).
 - [Pinned current encoder source](https://github.com/FFmpeg/FFmpeg/blob/465b494ef7c8dd206f5a147344a719e3522931a2/libavcodec/v4l2_m2m_enc.c).

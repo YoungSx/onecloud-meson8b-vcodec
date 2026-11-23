@@ -5,7 +5,9 @@ Apply it after the matching [Armbian baseline](../baseline/series). It adds
 runtime/decoder/encoder modules under drivers/media/platform/meson/meson8b-vcodec.
 The deployment still uses a removable runtime overlay.
 
-[ffmpeg-7.0.2-v4l2-drain.patch](ffmpeg-7.0.2-v4l2-drain.patch) is optional, applied only
+[ffmpeg-7.0.2-v4l2-drain.patch](ffmpeg-7.0.2-v4l2-drain.patch),
+[input/error fixes](ffmpeg-7.0.2-v4l2-bugs.patch) and
+[CROPCAP/SAR direction fix](ffmpeg-7.0.2-v4l2-sar.patch) are optional, applied only
 with `scripts/build-ffmpeg-test.sh --bugfixes`. Default builds and the production
 image use official unmodified FFmpeg.
 

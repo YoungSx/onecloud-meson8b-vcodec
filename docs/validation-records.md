@@ -82,6 +82,26 @@ stride，而当前驱动使用32字节。现已修正并添加全可见Y/U/V MAD
 原件完成工作区外本地SHA256归档校验，无永久公开附件。此次未部署/重启，
 没有硬件像素、EOS、CMA/吞吐或迅雷出厂系统对照结果，不构成追平验收。
 
+## 显示元数据工作机验证
+
+11-23 driver源`8ca1717`，5.15.79-meson原配置外部/additive的decoder均为
+SHA256 `104e695233bad1fe4b2e34c9d3b6db0bd9e03d573e526199b38fdb639de150c1`。
+原内核CROPCAP链路在缺selection回调时为ENOTTY，只补selection仍因旧
+pixelaspect类型判断为EINVAL；完整修复后两种CAPTURE类型均返回规范y/x。
+MPEG-4/VC-1标准/扩展/保留比例、H.263头状态与失败隔离、H.264原表行为，
+以及coded crop与COMPOSE原点，通过实际回调和内核函数ASan/UBSan回归。
+
+FFmpeg修复源`d2fa162`仅在已有`--bugfixes`下启用。固定7.0.2原函数将
+CROPCAP 11/12直接作为SAR；标准方向应为12/11，独立最小修复后通过。
+99项Python回归、C sanitizer检查、完整ARM内核/双模块构建和补丁零fuzz/严格checkpatch，
+以及两种FFmpeg静态ARM构建通过；QEMU版本检查不执行硬件。默认upstream
+源码逐字节核对官方tarball，保持默认产物为upstream；原版非方形像素查询
+仍有上述bug。默认Overlay既有phandle警告及静态工具DNS链接警告未改变。
+
+记录标识`legacy-aspect-8ca1717`，原件和两种工具在工作区外本地SHA256归档
+校验，无永久公开附件。本轮未部署/重启；无新硬件图片、EOS、CMA/吞吐
+和迅雷原版对照，不继承旧模块的验收，不宣称追平完成。
+
 ## 编码、质量与码率
 
 11-13/15 编码源 `bd1cb79` 到 `53cd705`/`2811493`：固定 QP、I/P、GOP、

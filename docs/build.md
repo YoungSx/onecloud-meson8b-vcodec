@@ -61,7 +61,7 @@ FFmpeg。v4l2-ctl 为静态 ioctl 工具。所有构建日志与产物位于忽�
 `build/`，CI 将上传交付归档。
 
 只有复现明确 bug 时才使用 `bash scripts/build-ffmpeg-test.sh --bugfixes`：
-它只应用 drain 与缓冲/错误修复，没有私有选项或峰值映射。产物记录
+它只应用drain、缓冲/错误和CROPCAP/SAR方向修复，没有私有选项或峰值映射。产物记录
 `BUILD_VARIANT`，运行包附 `FFMPEG_BUILD_VARIANT`；旧的私有码控实验
 不再作为兼容或发布基线。详见 [官方 FFmpeg 适配](ffmpeg-compatibility.md)。
 
