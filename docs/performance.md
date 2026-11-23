@@ -31,17 +31,19 @@ decoder `convert_ns` 和 encoder `copy_ns` 等计数差值。软件验图在计�
 
 ## GE2D 第一个验收边界
 
-[GE2D 驱动](../ge2d/meson8b-ge2d.c)独立使用标准 V4L2 M2M GREY 字节平面，
-MMAP/DMA-BUF 与 canvas；不接替当前 decoder 的 NEON 路径。S805 寄存器
+[GE2D 驱动](../ge2d/meson8b-ge2d.c)独立使用标准 V4L2 M2M GREY、连续 NV12
+和双平面 NV12M，MMAP/DMA-BUF 与 canvas；不接替当前 decoder 的 NEON 路径。S805 寄存器
 窗口为 `0xc1106280`，使用已有 G2D 时钟和 GE2D reset，避免套用 AXG 的
 直接地址寄存器。依据为 Hardkernel 固定提交
 [`5aed95d35d252cafc75ce613a3a0052285662de2`](https://github.com/hardkernel/linux/tree/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/display/ge2d)。
 
 驱动在 probe 时分配独立连续缓冲，硬件执行 512×32 字节图案的 big→little
 endian 转换并逐字节核对，再检查 512×32→256×16 的常量平面过滤结果。
+随后检查完整 NV12 的 Y 图案、两个不同色度分量，以及 NV12 常量平面缩小。
 失败不注册视频设备；命令有 100 ms 上限，超时
 后将 GE2D 保持在硬复位状态、拒绝新命令，先停止 DMA 再允许队列释放。
-普通 GREY 客户端使用 little→little，不借 FOURCC 暗示厂商字节序。
+普通客户端使用 little→little，不借 FOURCC 暗示厂商字节序。NV12 走厂商
+色度格式器与独立第二输出平面，不能用 GREY blit 插值交错的 U/V 字节。
 
 默认运行包和 Overlay 不启用 GE2D。测试入口需要在未加载 codec overlay
 的原设备树上生成带 `--ge2d` 的临时 overlay，并保留原安装/回退材料：
@@ -56,12 +58,24 @@ arm-linux-gnueabihf-gcc-11 -O2 -Wall -Wextra -Werror -static \
 ./ge2d-copy /dev/video2 512 32 10
 ./ge2d-copy /dev/video2 1920 1088 10
 ./ge2d-copy /dev/video2 1920 1088 10 1280 720
+./ge2d-copy /dev/video2 1920 1080 10 1920 1080 NV12M
+./ge2d-copy /dev/video2 1920 1080 10 1280 720 NV12
+GE2D_DMABUF=1 ./ge2d-copy /dev/video2 1920 1080 10 1280 720 NV12M
+./ge2d-copy /dev/video2 1920 1080 10 1280 720 NV12M 2 2 1280 720
 ```
 
-[客户端](../tests/ge2d-copy.c)比较每幅完整字节、大小和时间戳；缩小模式使用
-逐帧不同的常量平面，不能代替有纹理视频的滤波质量验证。GREY 输出可独立
-协商为输入的 1–1/4，使用厂商 bilinear 表与有界 phase/prescale 配置。
-需要进一步
-覆盖取消/重开、DMA-BUF、两平面图案和共享时钟/业务，再决定接入视频输出、
-裁剪与 NV12 缩放。当前仅有主机 MMIO/错误注入和 ARM 编译；没有 GE2D
-实机像素或性能验收，不能宣称已加速转码。
+[客户端](../tests/ge2d-copy.c)比较每幅两个平面的全部可见像素、payload、
+序列号和时间戳；行尾 padding 不当作图片。缩小模式使用逐帧不同的 Y 与
+U/V 常量，不能代替有纹理视频的滤波质量验证。`GE2D_DMABUF=1` 通过另一个
+不运行任务的 GE2D 句柄导出连续缓冲，导入测试队列；CPU 访问使用标准
+DMA-BUF 同步，不假设其他导出器支持连续物理地址。
+
+输出可独立协商为裁剪区域的 1–1/4，使用厂商 bilinear 表与有界 phase/
+prescale 配置。`VIDIOC_S_SELECTION` 支持 OUTPUT crop，NV12 坐标/尺寸必须
+为偶数；排队后拒绝格式或 crop 修改。两种 NV12 内存布局可互转，保留色彩、
+量程与 transfer 信息，不进行色彩矩阵转换。输入/输出各平面验证容量、32位
+DMA范围、对齐及重叠；错误输出清零两个平面的 payload。
+
+当前通过实际命令、格式、裁剪、队列和客户端的主机 ASan/UBSan 回归与 ARM
+构建。取消/重开、不同 DMA-BUF 导出器、纹理缩放及共享时钟/业务仍需实机，
+再决定接入 decoder 输出。没有 GE2D 实机像素或性能验收，不能宣称已加速转码。

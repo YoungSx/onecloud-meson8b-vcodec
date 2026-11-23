@@ -16,7 +16,7 @@
 | MJPEG 解码 | 固件解码、全量程输出和有界帧数检查 | 厂商色度处理，不能声明与软解逐字节相同。 |
 | H.264 编码 | Baseline/Level 4.0；YUV420/422/444、RGB 输入；固定 I/P QP、VBR、强制 IDR、GOP、多分片、SPS 裁剪/VUI/帧周期 | 无 Main/High/CABAC/B 帧编码；多分片整帧交付；单帧码流上限 1 MiB。RGB24 最宽 1376，其他具体布局见使用指南。 |
 | JPEG 编码 | 全量程 YCbCr，质量 1–100；历史 900 张 1080p 软解检查 | 与 AVC 共用 HCODEC，二者互斥；原版 FFmpeg 无本项目可用的 JPEG M2M 包装，使用直接客户端。 |
-| 输入 DMA / 输出转换 | 兼容连续 NV12M/NV21M DMA-BUF 输入可直读；解码输出有 NEON 字节序转换、异步交付 | 仍有 CPU 转换和拷贝，非端到端零拷贝；GE2D 未集成。 |
+| 输入 DMA / 输出转换 | 兼容连续 NV12M/NV21M DMA-BUF 输入可直读；解码输出有 NEON 字节序转换、异步交付；独立 GE2D 源码提供 NV12/NV12M 裁剪/缩小 | 仍有 CPU 转换和拷贝，非端到端零拷贝；GE2D 未实机，未接入decoder。 |
 | 会话与内存 | 已部署一路解码加一路编码；当前源码新增单 HCODEC 多会话逐帧调度 | 新调度仅主机/ARM 验证，未部署；每会话CMA按需分配，不保证多路1080p。第二 decoder STREAMON 仍为 EBUSY。 |
 | 加载与回滚 | 外部模块、运行时 overlay、固件及自动加载；保留原 kernel/boot DT/CMA | 旧版通过冷启动和 service restart；当前新包只通过热更新/短回归，未完成新的冷启动与异常重启验收。 |
 

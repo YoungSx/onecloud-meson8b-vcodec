@@ -23,7 +23,7 @@ AVS 标准 UAPI/应用落点、WMV3 Annex L/RCV 封装也必须明确后再开�
 | 项目 | 实现 | 验证与边界 |
 | --- | --- | --- |
 | 阶段测量 | 原 argv、有界超时、CPU/CMA、计数差值、独立完整软解 | 主机错误注入及实际软件命令通过；视频帧数/可选哈希，音频与有损质量另外验收。 |
-| GE2D | 独立标准 GREY M2M、canvas、源/目标 endian、1–1/4 缩小、probe 字节图案/常量缩小自检 | 实际命令 MMIO、phase/系数、DMA 越界/超时/复位回归与 ARM 构建；没有实机像素，未接替 NEON，NV12 待接入。 |
+| GE2D | 标准 GREY/NV12/NV12M M2M、四 canvas、色度格式器与第二输出、裁剪/1–1/4缩小、probe全平面自检 | 实际命令、格式/色彩/容量/DMA/裁剪/队列与客户端主机回归、ARM两入口一致；没有实机像素，未接替decoder的NEON。 |
 | HEVC tiles | 标准均匀余数分配、最多 5×5 网格、有界尺寸、MPRED rectangle/row jump/new tile、跨 tile 滤波 | 几何和实际 MPRED/SAO 函数 ASan/UBSan、ARM 构建；4×2 1080p 和 3×2 非均匀流由独立软件解码，候选未实机。 |
 | H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化到厂商中间流、baseline I/P 和离散尺寸 | 独立 C 固件字节比对、12幅转换与厂商逐字节一致、状态/截断/容量回归、ARM构建；未实机内容/EOS，PLUS/custom/可选工具拒绝。 |
 | WMV3 | 标准 Annex L/RCV 的序列/单帧边界、厂商长度/校验前缀、VC-1 simple/main 选择 | 前缀/容量/尺寸/状态回归、5 图独立 RCV 软件参考、ARM 构建；未实机，无官方 WMV3 M2M 包装器。 |
