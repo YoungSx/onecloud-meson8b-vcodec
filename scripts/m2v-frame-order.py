@@ -11,10 +11,14 @@ whose best match is worse than rounding.
     m2v-frame-order.py dump.nv12 sw.yuv --size 320x240
 """
 import argparse
+import importlib.util
+import math
+from pathlib import Path
 
-
-def align(v, a):
-    return (v + a - 1) // a * a
+spec = importlib.util.spec_from_file_location(
+    'frame_compare', Path(__file__).with_name('m4v-frame-compare.py'))
+compare = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(compare)
 
 
 def main():
@@ -23,31 +27,41 @@ def main():
     ap.add_argument("ref", help="software decode, plain yuv420p/nv12")
     ap.add_argument("--size", default="320x240")
     ap.add_argument("--window", type=int, default=2)
+    ap.add_argument('--canvas-align', type=int, choices=(32, 64), default=32,
+                    help='capture alignment; use 64 for historical dumps')
     ap.add_argument("--tolerance", type=float, default=0.5,
                     help="max luma MAD of an in-place match (default 0.5)")
     a = ap.parse_args()
-    w, h = (int(x) for x in a.size.split("x"))
-    stride = align(w, 64)
-    luma = align(stride * align(h, 64), 64 * 1024)
-    size, rsize = luma + luma // 2, w * h * 3 // 2
+    try:
+        w, h = (int(x) for x in a.size.split("x"))
+    except ValueError:
+        ap.error('--size must be WIDTHxHEIGHT')
+    if w < 2 or h < 2 or w % 2 or h % 2 or a.window < 0 or \
+            not math.isfinite(a.tolerance) or a.tolerance < 0:
+        ap.error('need positive even dimensions, nonnegative window and finite tolerance')
 
-    sw = open(a.ref, "rb").read()
-    ref = [sw[k * rsize:k * rsize + w * h:4] for k in range(len(sw) // rsize)]
-    raw = open(a.hw, "rb").read()
-    n = len(raw) // size
+    ref = [plane[::4] for plane in compare.luma_frames(Path(a.ref).read_bytes(), w, h, False)]
+    pictures = compare.luma_frames(Path(a.hw).read_bytes(), w, h, True, a.canvas_align)
+    n = len(pictures)
     off = []
-    for i in range(n):
-        base = i * size
-        pic = b"".join(raw[base + y * stride:base + y * stride + w]
-                       for y in range(h))[::4]
-        d, k = min((sum(abs(x - y) for x, y in zip(pic, ref[k])) / len(pic), k)
-                   for k in range(max(0, i - a.window),
-                                  min(len(ref), i + a.window + 1)))
+    for i, picture in enumerate(pictures):
+        pic = picture[::4]
+        candidates = range(max(0, i - a.window), min(len(ref), i + a.window + 1))
+        matches = [(sum(abs(x - y) for x, y in zip(pic, ref[k])) / len(pic), k)
+                   for k in candidates]
+        if not matches:
+            off.append((i, None, None))
+            continue
+        # Keep an equally good in-place match for visually identical adjacent pictures.
+        d, k = min(matches, key=lambda match: (match[0], match[1] != i, match[1]))
         if k != i or d > a.tolerance:
             off.append((i, k, round(d, 3)))
     print(f"hw_frames={n} ref_frames={len(ref)} not_in_place={off}")
-    return 1 if off or n != len(ref) else 0
+    return 1 if off or not n or not ref or n != len(ref) else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError) as error:
+        raise SystemExit(f'FAIL: {error}')
