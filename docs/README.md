@@ -5,7 +5,7 @@
 | 目的 / Task | 入口 / Guide |
 | --- | --- |
 | 当前能力、已验证范围与已知限制 | [Capabilities and validation](validation.md) |
-| 安装、升级、卸载、回滚 | [Installation](installation.md) |
+| OneCloud下载传输、部署验收、升级/卸载与回退 | [Installation](installation.md) |
 | 设备枚举、FFmpeg、JPEG、输入格式 | [Usage](usage.md) |
 | 官方 FFmpeg 标准参数与可选 bug 修复 | [FFmpeg compatibility](ffmpeg-compatibility.md) |
 | VBR、峰值/CPB、失败策略与观测 | [Rate control](rate-control.md) |

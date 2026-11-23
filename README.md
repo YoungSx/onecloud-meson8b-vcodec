@@ -32,7 +32,8 @@ paused. Do not treat the development deployment or CI as a stability release.
 1. Obtain a [release](https://github.com/YoungSx/onecloud-meson8b-vcodec/releases)
    or [cross-build](docs/build.md) on an external machine.
 2. Follow [installation and rollback](docs/installation.md). The package must
-   match the kernel ABI, board and live device-tree phandles. Verify checksums.
+   match the kernel ABI, board and live device-tree phandles. The guide covers
+   download/transfer, preflight, content checks, removal and version rollback.
 3. With codec clients stopped and a fresh backup path:
 
    ```sh

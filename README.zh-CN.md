@@ -28,7 +28,7 @@
 1. 获取[发行包](https://github.com/YoungSx/onecloud-meson8b-vcodec/releases)，
    或在外部机器[交叉构建](docs/build.md)。
 2. 阅读[安装与回滚](docs/installation.md)。包须匹配内核 ABI、板型及运行中
-   设备树的 phandle，先校验归档。
+   设备树的 phandle；指南包含下载传输、安装前检查、内容验收、卸载和旧版回退。
 3. 结束编解码客户端，使用新的备份路径安装：
 
    ```sh
