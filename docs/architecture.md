@@ -83,7 +83,7 @@ Meson8b H.264 最后 drain 批次可能按解码顺序返回，驱动按输入 P
 以 v7.3.4 为基准，可编译 `meson-vdec.ko`、全部 ARM DTB 并通过
 `dtbs_check`，采集字节序转换在 `0013` 中实现、其 NEON 主体在 `0014` 中；
 S805 实机验证仍缺，上游合入不在本项目范围内（见
-[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。
+[移植记录](research-validation.md)）。
 
 研究线 `0016` 已移植独立帧池，`0019` 同步 IRQ/EOS 与旧格式，`0020–0022`
 接入 HEVC、固定父钟及共享 genpd。27 个补丁构建与 schema 通过；新内核和

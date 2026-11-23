@@ -1,27 +1,0 @@
-ffmpeg version 7.0.2 Copyright (c) 2000-2024 the FFmpeg developers
-  built with gcc 11 (Ubuntu 11.5.0-1ubuntu1~24.04.1)
-  configuration: --arch=arm --cpu=cortex-a5 --target-os=linux --cross-prefix=arm-linux-gnueabihf- --cc=arm-linux-gnueabihf-gcc-11 --enable-cross-compile --disable-shared --enable-static --extra-ldflags=-static --disable-doc --disable-debug --disable-autodetect --disable-everything --enable-ffmpeg --enable-ffprobe --enable-avformat --enable-avcodec --enable-avfilter --enable-swscale --enable-swresample --enable-protocol=file --enable-demuxer='mov,hevc,h264,rawvideo,mjpeg' --enable-muxer='framehash,framemd5,null,rawvideo,hevc,h264,mjpeg' --enable-parser='hevc,h264,mjpeg' --enable-decoder='hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo' --enable-encoder='rawvideo,wrapped_avframe' --enable-bsf='hevc_mp4toannexb,h264_mp4toannexb' --enable-filter='buffer,buffersink,format,scale,null,setpts,psnr' --enable-v4l2-m2m
-  libavutil      59.  8.100 / 59.  8.100
-  libavcodec     61.  3.100 / 61.  3.100
-  libavformat    61.  1.100 / 61.  1.100
-  libavdevice    61.  1.100 / 61.  1.100
-  libavfilter    10.  1.100 / 10.  1.100
-  libswscale      8.  1.100 /  8.  1.100
-  libswresample   5.  1.100 /  5.  1.100
-Input #0, hevc, from '/root/venc-deploy/corrupt.hevc':
-  Duration: N/A, bitrate: N/A
-  Stream #0:0: Video: hevc (Main), yuv420p(tv), 320x240 [SAR 1:1 DAR 4:3], 25 fps, 25 tbr, 1200k tbn
-[hevc_v4l2m2m @ 0x3a8eb0] Using device /dev/video0
-[hevc_v4l2m2m @ 0x3a8eb0] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
-[hevc_v4l2m2m @ 0x3a8eb0] requesting formats: output=HEVC/none capture=NM12/yuv420p
-Stream mapping:
-  Stream #0:0 -> #0:0 (hevc (hevc_v4l2m2m) -> wrapped_avframe (native))
-Output #0, null, to 'pipe:':
-  Metadata:
-    encoder         : Lavf61.1.100
-  Stream #0:0: Video: wrapped_avframe, nv12(tv, progressive), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 200 kb/s, 25 fps, 25 tbn
-      Metadata:
-        encoder         : Lavc61.3.100 wrapped_avframe
-frame=    3 fps=0.0 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.08x    frame=    3 fps=3.0 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.04x    frame=    3 fps=2.0 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.0266x    frame=    3 fps=1.5 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.02x    frame=    3 fps=1.2 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.016x    frame=    3 fps=1.0 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.0133x    frame=    3 fps=0.9 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.0114x    frame=    3 fps=0.7 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.00999x    frame=    3 fps=0.7 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.00888x    frame=    3 fps=0.6 q=-0.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.00799x    [hevc_v4l2m2m @ 0x3a8eb0] capture POLLERR
-[out#0/null @ 0x34c2a0] video:1KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=    3 fps=0.6 q=-0.0 Lsize=N/A time=00:00:00.04 bitrate=N/A speed=0.00794x    

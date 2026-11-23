@@ -19,7 +19,7 @@ python3 scripts/extract-firmware.py --fetch
 
 内核基线是 Linux 5.15.79 加 Armbian OneCloud 补丁，来源版本与哈希见
 [构建指南](build.md)。HEVC stateful handler 的来源及 S805 协议差异见
-[HEVC 验收](../evidence/HEVC-ACCEPTANCE-2026-11-14.md)和
+[HEVC 验收](validation-records.md#解码与帧池)和
 [来源核查](history/hevc-feasibility.md)。
 
 ## 许可

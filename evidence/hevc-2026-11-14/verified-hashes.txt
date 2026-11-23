@@ -1,1 +1,0 @@
-HEVC Main 8-bit: 320x240 10/10, 1920x1080 B-frame 30/30, 854x480 crop 10/10 frame MD5 matches.

@@ -1,9 +1,0 @@
-make: Entering directory '/home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/build/runtime-kernel'
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.o
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.o
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_hevc.o
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.o
-  LD [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/meson-vdec.o
-  MODPOST /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/Module.symvers
-  LD [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/sources/linux-5.15.79/drivers/media/platform/meson/meson8b-vcodec/vdec/meson-vdec.ko
-make: Leaving directory '/home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/build/runtime-kernel'

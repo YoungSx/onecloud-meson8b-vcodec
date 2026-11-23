@@ -1,6 +1,0 @@
-PASS: complete source companion manifest checked
-PASS: existing destination rejected without mutation
-PASS: all eight firmware files reproduced from companion vendor sources
-PASS: source archive provenance overrides unrelated parent Git repository
-PASS: driver, firmware, overlay, config and kernel patch unchanged since installed bd1cb79
-PASS: clean baseline build reproduces all three installed module SHA-256 values

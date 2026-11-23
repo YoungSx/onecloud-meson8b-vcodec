@@ -1,6 +1,0 @@
-test_header_counter_bounds_and_start_cleanup (test_encoder_headers.EncoderHeaderTests.test_header_counter_bounds_and_start_cleanup) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.280s
-
-OK

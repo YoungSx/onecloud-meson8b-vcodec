@@ -1,9 +1,0 @@
-crw-rw---- 1 root video 81, 0 Nov 14 15:38 /dev/video0
-crw------- 1 root root  81, 1 Nov 14 15:38 /dev/video1
-[55477.844781] meson8b-runtime: applied volatile codec overlay 1
-[55477.878854] meson-vdec d0050000.video-decoder: registered meson-video-decoder as /dev/video0
-[55477.878880] meson-vdec d0050000.video-decoder: Meson8b capture uses separate references and CPU byte-order conversion
-[55477.918328] meson-venc d0050000.video-encoder: registered meson-video-encoder as /dev/video1
-[55478.918306] meson-vdec d0050000.video-decoder: loaded firmware meson/vdec/meson8b_h264.bin (36864 bytes)
-[55479.514565] meson-venc d0050000.video-encoder: loaded firmware meson/venc/meson8b_avc_enc.bin (16384 bytes)
-DONE

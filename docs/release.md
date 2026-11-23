@@ -19,6 +19,8 @@ SHA，构建读权限；只发布草稿的 job 获得 contents write。生产机
 
 Actions artifact `release-assets` 包含运行包、源码包、`SHA256SUMS` 和
 `PROVENANCE.json`；日志单独保留。CI 成功不等于当前二进制完成新的硬件验收。
+日志和原始验收附件仅保存为 CI artifact 或工作区外归档，不提交到 Git，
+也不随源码包携带。[仓库规则](repository-policy.md)规定摘要与长期原件的留存。
 
 ## 发布一个版本
 

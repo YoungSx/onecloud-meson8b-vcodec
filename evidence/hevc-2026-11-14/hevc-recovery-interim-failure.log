@@ -1,6 +1,0 @@
-hevc-truncated -11 0
-hevc-after-fw -11 10
-Traceback (most recent call last):
-  File "recovery.py", line 14, in <module>
-    fw.write_bytes(saved);assert decode('hevc-after-fw')==(0,10)
-AssertionError

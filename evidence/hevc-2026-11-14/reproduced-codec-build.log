@@ -1,7 +1,0 @@
-make: Entering directory '/home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/build/reproduction/linux-5.15.79'
-  MODPOST /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/Module.symvers
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/vdec/meson-vdec.mod.o
-  CC [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/venc/meson-venc.mod.o
-  LD [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/venc/meson-venc.ko
-  LD [M]  /home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/vdec/meson-vdec.ko
-make: Leaving directory '/home/ubuntu/.t3/scratch/2026-11-12-tailnet-wanos-wanos-root-wanos-4925bb16/meson8b-vcodec/build/reproduction/linux-5.15.79'

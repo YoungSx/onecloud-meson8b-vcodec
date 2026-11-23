@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exact committed sources plus pinned upstream archives for offline rebuilds.
+# Committed build inputs plus pinned upstream archives for offline rebuilds.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 dest=${1:?Usage: package-source.sh NEW_SOURCE_DIRECTORY [SOURCE_COMMIT]}
@@ -9,7 +9,8 @@ payload_commit=$(git -C "$root" rev-parse "${2:-HEAD}^{commit}")
 [[ -f "$root/sources/ffmpeg/ffmpeg-7.0.2.tar.xz" ]]
 [[ -f "$root/sources/v4l-utils/v4l-utils-1.22.1.tar.bz2" ]]
 mkdir -p "$dest/source" "$dest/sources/ffmpeg" "$dest/sources/vendor" "$dest/sources/v4l-utils"
-git -C "$root" archive "$payload_commit" | tar -xf - -C "$dest/source"
+git -C "$root" archive "$payload_commit" -- . ':!evidence' ':!private' ':!build' ':!sources' \
+  | tar -xf - -C "$dest/source"
 printf '%s\n' "$payload_commit" > "$dest/source/SOURCE_COMMIT"
 printf '%s\n' "$payload_commit" > "$dest/SOURCE_COMMIT"
 cp "$root/sources/linux-5.15.79.tar.xz" "$dest/sources/"
@@ -42,12 +43,14 @@ for relative, digest in {
         raise ValueError('Upstream archive checksum mismatch: ' + relative)
 PYCODE
 cat > "$dest/README.txt" <<'DOC'
-source/ is the exact committed tree identified by SOURCE_COMMIT.
+source/ contains committed sources identified by SOURCE_COMMIT, excluding
+retired report, private and generated directories.
 sources/ contains original Linux, FFmpeg and v4l-utils archives and the
 pinned vendor microcode sources. Copy sources/ into source/ for offline
 builds, then follow source/docs/build.md. Source archives need no Git
-checkout to build and package a runtime. Dated evidence is historical
-hardware acceptance, not a claim about every release build.
+checkout to build and package a runtime. docs/ contains concise,
+version-specific validation records. Raw reports and private archives
+are excluded from new source trees; see source/docs/repository-policy.md.
 DOC
 manifest=$(mktemp)
 trap 'rm -f "$manifest"' EXIT

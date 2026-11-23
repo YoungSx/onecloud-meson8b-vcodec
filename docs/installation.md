@@ -357,12 +357,7 @@ state最后一级必须不存在，位于持久存储且父目录存在。`apply
 临时Overlay；其余微码必须与已部署文件一致。主机清理和交叉构建通过，
 异常重启尚未实机验收。
 
-```sh
-sudo sh scripts/dev-swap.sh dev --overlay candidate.dtbo \
-  runtime/meson8b-runtime.ko vdec/meson-vdec.ko venc/meson-venc.ko
-sudo sh scripts/dev-swap.sh release
-```
-
-或在设备空闲、原服务已停且模块已卸载时使用新版
+旧的设备特定 `dev-swap.sh` 已随试验脚本归档，不再作为安装入口。
+在设备空闲、原服务已停且模块已卸载时使用新版
 `runtime-device.py load CHECKED_PACKAGE --temporary-overlay`；测试后用该加载器
 `unload`，核查清理结果，再启动原服务。此操作不安装自动加载或替换规范固件。

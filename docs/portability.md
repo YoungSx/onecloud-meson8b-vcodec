@@ -27,7 +27,7 @@ The next portable-kernel phase should use the existing DOS syscon/regmap and
 genpd/runtime-PM design, then static board DT/bindings and platform data for
 each supported SoC. Retain the runtime loader as the old-kernel deployment
 adapter. See [shared ownership](power-domain-design.md) and the
-[research port](../evidence/mainline-2026-11-16/PORT.md).
+[research port](research-validation.md).
 
 Research patches0016–0026 port the independent pool, IRQ/completion/EOS
 ordering, existing VDEC1 formats and HEVC Main8 protocol to Linux 7.3.4.
@@ -38,7 +38,7 @@ full kernel/modules,ARM DTB/binding and ODROID checks pass locally.
 Research support has not run on a board. Known stream/content limits remain.
 
 Another board/kernel still requires hardware validation, CAPTURE and dynamic
-resolution tests and a rescue route. [P0–P3 results](../evidence/p0-p3-2026-11-22/README.md)
+resolution tests and a rescue route. [P0–P3 results](validation-records.md)
 separate the build from hardware acceptance. CI now rebuilds this research
 series independently; it does not prove a board's decode or power behavior.
 

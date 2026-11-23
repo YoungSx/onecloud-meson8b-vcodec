@@ -1,4 +1,0 @@
-frame 0 bytes 12391 flags 0x4009 latency_us 42152
-frame 1 bytes 12447 flags 0x4009 latency_us 1932
-frame 2 bytes 12490 flags 0x4009 latency_us 1895
-PASS: 3 frames, ownership, busy format, timestamps, EOS, loop_us 50120

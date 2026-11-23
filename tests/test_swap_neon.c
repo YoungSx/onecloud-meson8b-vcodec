@@ -2,8 +2,7 @@
 /*
  * Pin the real NEON swap body against the scalar one, on a host whose
  * compiler has arm_neon.h. Including the driver source instead of a copy of
- * it is the point: the evidence copy under mainline-2026-11-16/neon-check
- * cannot drift out of agreement with what ships.
+ * it pins the implementation that ships rather than a saved experiment.
  */
 #include <assert.h>
 #include <stdint.h>

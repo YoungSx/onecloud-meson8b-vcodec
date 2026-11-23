@@ -1,42 +1,0 @@
-ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/  Copyright (c) 2000-2024 the FFmpeg developers
-  built with gcc 6.3.0 (Debian 6.3.0-18+deb9u1) 20170516
-  configuration: --enable-gpl --enable-version3 --enable-static --disable-debug --disable-ffplay --disable-indev=sndio --disable-outdev=sndio --cc=gcc --enable-fontconfig --enable-frei0r --enable-gnutls --enable-gmp --enable-libgme --enable-gray --enable-libfribidi --enable-libass --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-librubberband --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libvorbis --enable-libopus --enable-libtheora --enable-libvidstab --enable-libvo-amrwbenc --enable-libvpx --enable-libwebp --enable-libx264 --enable-libxml2 --enable-libxvid --enable-libzimg
-  libavutil      59.  8.100 / 59.  8.100
-  libavcodec     61.  3.100 / 61.  3.100
-  libavformat    61.  1.100 / 61.  1.100
-  libavdevice    61.  1.100 / 61.  1.100
-  libavfilter    10.  1.100 / 10.  1.100
-  libswscale      8.  1.100 /  8.  1.100
-  libswresample   5.  1.100 /  5.  1.100
-  libpostproc    58.  1.100 / 58.  1.100
-Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'baseline.mp4':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2avc1mp41
-    encoder         : Lavf60.16.100
-  Duration: 00:00:02.00, start: 0.000000, bitrate: 13883 kb/s
-  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 13878 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc60.31.102 libx264
-[h264_v4l2m2m @ 0x35e0460] Using device /dev/video0
-[h264_v4l2m2m @ 0x35e0460] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
-[h264_v4l2m2m @ 0x35e0460] requesting formats: output=H264/none capture=NM12/yuv420p
-Stream mapping:
-  Stream #0:0 -> #0:0 (h264 (h264_v4l2m2m) -> rawvideo (native))
-Output #0, framemd5, to '/tmp/concurrent-decoder.md5':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2avc1mp41
-    encoder         : Lavf61.1.100
-  Stream #0:0(und): Video: rawvideo (NV12 / 0x3231564E), nv12(progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 746496 kb/s, 30 fps, 30 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc61.3.100 rawvideo
-frame=    3 fps=0.0 q=-0.0 size=       0KiB time=00:00:00.10 bitrate=  30.1kbits/s speed= 0.2x    frame=   10 fps= 10 q=-0.0 size=       1KiB time=00:00:00.60 bitrate=  12.5kbits/s speed= 0.6x    frame=   29 fps= 19 q=-0.0 size=       2KiB time=00:00:01.23 bitrate=  15.9kbits/s speed=0.822x    frame=   47 fps= 23 q=-0.0 size=       4KiB time=00:00:01.83 bitrate=  17.0kbits/s speed=0.916x    [out#0/framemd5 @ 0x35de510] video:182250KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=   60 fps= 26 q=-0.0 Lsize=       5KiB time=00:00:02.00 bitrate=  20.1kbits/s speed=0.862x    
-DONE

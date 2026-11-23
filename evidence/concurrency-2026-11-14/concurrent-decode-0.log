@@ -1,13 +1,0 @@
-Input #0, h264, from '/tmp/concurrent-0.h264':
-  Duration: N/A, bitrate: N/A
-  Stream #0:0: Video: h264 (Baseline), yuv420p(progressive), 1920x1080, 25 fps, 1200k tbr, 1200k tbn
-Stream mapping:
-  Stream #0:0 -> #0:0 (h264 (native) -> wrapped_avframe (native))
-Output #0, null, to 'pipe:':
-  Metadata:
-    encoder         : Lavf61.1.100
-  Stream #0:0: Video: wrapped_avframe, yuv420p(progressive), 1920x1080, q=2-31, 200 kb/s, 25 fps, 25 tbn
-      Metadata:
-        encoder         : Lavc61.3.100 wrapped_avframe
-frame=   19 fps=0.0 q=-0.0 size=N/A time=00:00:00.76 bitrate=N/A speed=1.52x    frame=   39 fps= 39 q=-0.0 size=N/A time=00:00:01.56 bitrate=N/A speed=1.56x    [out#0/null @ 0x36d02e0] video:19KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=   60 fps= 40 q=-0.0 Lsize=N/A time=00:00:02.36 bitrate=N/A speed=1.58x    

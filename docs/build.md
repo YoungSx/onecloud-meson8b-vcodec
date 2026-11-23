@@ -12,6 +12,8 @@ cd onecloud-meson8b-vcodec
 
 构建仅依赖仓库和脚本固定的公开输入，不依赖旧工作区路径、SSH或原机headers。
 离线重建和精确部署二进制的保留方法见[工作区迁移](workspace-migration.md)。
+构建/测试日志写入忽略的 `build/`，逐次报告放到 `build/reports/`；不得提交
+输出日志、视频或临时部署脚本，详见[仓库规则](repository-policy.md)。
 
 ## 依赖与源码
 
@@ -79,7 +81,7 @@ make dtbo
 [patches/series](../patches/series)用于同样实现的源码树集成，入口为
 `CONFIG_VIDEO_MESON8B_VCODEC=m`。`patches/research/` 是单独的Linux v7.3.4研究系列，包含独立帧池和现有解码格式，
 不应用到5.15运行包；仅完成编译级移植验证
-（见[移植记录](../evidence/mainline-2026-11-16/PORT.md)）。未验证新的启动
+（见[移植记录](research-validation.md)）。未验证新的启动
 内核；运行包只安装模块/固件，不改 `/boot`。
 
 主线系列的可复现检查需要一份未打补丁的内核源码树：
