@@ -44,6 +44,23 @@ WMV3 前缀参考固定
 `h263data.c`，原 LGPL-2.1+ 码表按第3节转为 GPL-2.0+，保留来源声明。
 初始 H.263 草稿仅喂原始 ES 的路径已修正，不作为可用能力交付。
 
+## AVS 接口缺口与旧格式边界
+
+AVS JiZhun 的 S805 固件和厂商帧协议存在，不属于已证明的硬件缺失。
+本轮再次核对 Linux 5.15.79 UAPI 及主线固定提交
+[`b6a9fa34ce4187cb69d3c588a4bbffc31ce5db8f`](https://github.com/torvalds/linux/blob/b6a9fa34ce4187cb69d3c588a4bbffc31ce5db8f/include/uapi/linux/videodev2.h)，
+均没有 AVS 压缩 FOURCC；官方 FFmpeg 固定提交
+[`4155ce3d4a18cfa01112db57bcfcac6e1db8de30`](https://github.com/FFmpeg/FFmpeg/blob/4155ce3d4a18cfa01112db57bcfcac6e1db8de30/libavcodec/v4l2_fmt.c)
+的格式映射和 M2M decoder 表也没有 AVS。继续推进需单独定义可维护的
+标准 UAPI/应用落点，不能借用 MPEG4/VC1 标识，不能把 AVS2/AVS3 当成 AVS
+JiZhun。当前不开放该格式，完整追平目标仍未完成。
+
+旧格式 IRQ handler 已纠正一个确定的错误边界：MPEG-1/2 的1–8、
+MPEG-4/VC-1/MJPEG的1–4固件槽号先验证再转换为零起始索引。旧取模行为会
+把9或5之类越界通知别名到有效图片；当前错误通知终止队列并清邮箱，不交付
+或回收错误槽。实际 handler 主机回归覆盖正常、空通知、越界和零槽状态。
+这没有证明历史尾帧/B图损坏由同一机制引起，不能替代逐帧硬件对照。
+
 ## 已部署模块的短时性能快照
 
 2026-11-23 使用当前在役 `3c7d785` codec、原 `5.15.79-meson`/64 MiB CMA，

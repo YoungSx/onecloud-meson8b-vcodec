@@ -77,6 +77,8 @@ Linux 7.3.4 的27个研究补丁已包含独立帧池、既有解码格式、sys
 没有发现适用于 S805 的 HEVC 编码实现；AVS无当前标准接口实现/验收承诺。
 多编码会话已有未部署源码，见[厂商能力追平](codec-parity.md)和
 [编码硬件依据](encoding-feasibility.md)。
+AVS 的主线 UAPI/官方 FFmpeg 格式映射缺口已按固定提交重新核对；没有
+复用其他 codec FOURCC，仍不提供 AVS 解码入口。
 
 11-23[能力复核](capability-recheck.md)纠正了若干历史否定结论：H.263/AVS
 微码、WMV3、HEVC tiles、多编码实例和 GE2D 均有厂商源码依据，属于继续
