@@ -6,6 +6,7 @@
 
 | 主题 | 主记录 |
 | --- | --- |
+| 2026-11-23 被动失联采集、短时上线检查与SSD容量问题 | [Passive observer](passive-observer-2026-11-23/README.md) |
 | 2026-11-22 两轮 LAN/Tailnet离线分开调查、共享时钟选频复现与journal取证 | [Outage investigation](outage-investigation-2026-11-22/README.md) |
 | 2026-11-22 新驱动部署、IRQ/EOS/DMA/VUI、浏览器及研究线格式移植 | [Current development](development-2026-11-22/README.md) |
 | P0–P3 开发、恢复/性能/浏览器观察及设备中断 | [Current pass](p0-p3-2026-11-22/README.md) |

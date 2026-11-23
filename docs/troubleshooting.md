@@ -34,3 +34,39 @@
 失联的journal尾部未落盘，仍未定案。详见[逐轮调查](../evidence/outage-investigation-2026-11-22/README.md)。
 `journalctl -b -1`未显示不代表归档都不存在，必要时按`--file`和`_BOOT_ID`
 核对损坏/归档文件。加载ramoops模块也不等于配置了可保存崩溃日志的内存。
+
+## 正常运行时保留失联现场
+
+在已有持久磁盘的私有目录运行
+[`observe-network.py`](../scripts/observe-network.py)，用正常业务观测，不启动
+编解码压力任务。每10秒记录启动ID、uptime、网口carrier和累计收发/错误计数、
+IRQ/softirq、内存/换页、阻塞任务数、磁盘I/O与剩余容量/inode，并向该网口的默认网关发送一次ping。
+ping返回值与执行错误分开记录，缺失指标记录errno，不算作正常。
+
+```sh
+sudo systemd-run --unit=vcodec-network-observer --collect \
+  --property=RuntimeMaxSec=6h --property=UMask=0077 \
+  /usr/bin/python3 /path/to/scripts/observe-network.py \
+  --interface eth0 --seconds 21600 --interval 10 \
+  --log /path/to/private-persistent/network.jsonl
+```
+
+用`--storage /path/to/data-mount`另外观测数据盘容量；日志盘满时，应先选择
+有空间的持久目录，不能依赖满盘继续留证。root可用的保留块和普通进程可用
+空间分开记录，避免将“root还能写”当作应用还有空间。
+
+目录须已存在；替换上述两处路径。只运行一个实例，日志目录仅root可访问。
+每条JSON写入后fsync，轮转时亦同步目录；当前文件和`.previous`各最多4MiB。
+默认运行30分钟；示例运行6小时后退出，不注册开机任务。提前停止使用
+`sudo systemctl stop vcodec-network-observer.service`。
+磁盘写满/写失败会使采集退出，应检查unit状态和文件更新时间。
+
+此工具不修改时钟、链路或路由，不访问watchdog，不尝试自动恢复网络。
+网关ping失败只表示这条探测路径失败；结合另一台LAN设备的ARP/ping/端口
+记录以及本机计数增量判断。累计IRQ仍增长、uptime连续而外部LAN失败支持
+“本机仍运行”，但不单独定位PHY/MAC/DMA。最后一条记录后没有新记录既可能
+是主机卡住，也可能是采集或存储阻塞，不能据此直接认定CPU死锁。
+
+原始记录仅供私下取证。此采集不读取clock寄存器/任务堆栈，也不能代替串口、
+独立内核日志或已验证的crash buffer；异常断电后持久化还取决于磁盘缓存。
+第二轮失联根因仍待故障现场证据，生产持续负载保持暂停。

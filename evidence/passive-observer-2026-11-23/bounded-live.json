@@ -1,0 +1,74 @@
+{
+  "samples": 4,
+  "sample_span_seconds": 30.001817217998905,
+  "boot_id_unchanged": true,
+  "uptime_seconds": [
+    66309.45,
+    66319.44,
+    66329.45,
+    66339.45
+  ],
+  "gateway_probes": [
+    {
+      "returncode": 0
+    },
+    {
+      "returncode": 0
+    },
+    {
+      "returncode": 0
+    },
+    {
+      "returncode": 0
+    }
+  ],
+  "carrier": [
+    "1",
+    "1",
+    "1",
+    "1"
+  ],
+  "network_counter_deltas": {
+    "rx_packets": 623,
+    "tx_packets": 496,
+    "rx_errors": 0,
+    "tx_errors": 0
+  },
+  "proc_metrics": [
+    "diskstats",
+    "interrupts",
+    "loadavg",
+    "meminfo",
+    "net/softnet_stat",
+    "stat",
+    "uptime",
+    "vmstat"
+  ],
+  "filesystem_latest": {
+    "root": {
+      "bytes_available": 1295671296,
+      "bytes_free_including_reserved": 1620140032,
+      "bytes_total": 7373242368,
+      "inodes_available": 427214
+    },
+    "storage": {
+      "bytes_available": 0,
+      "bytes_free_including_reserved": 973139968,
+      "bytes_total": 117531873280,
+      "inodes_available": 7089188
+    }
+  },
+  "data_disk_after_cleanup": {
+    "bytes_available": 0,
+    "bytes_free_including_reserved": 973086720
+  },
+  "log_mode": "0o600",
+  "observer_sha256": "4f872c2638d544c1840fba8a7732c313ff1586c88b5ffd82a358261b370abc40",
+  "loopback_http": {
+    "5245": "200",
+    "8000": "200",
+    "7575": "200",
+    "8123": "200"
+  },
+  "codec_service": "active"
+}

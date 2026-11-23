@@ -1,0 +1,77 @@
+{
+  "removed": [
+    {
+      "bundle": "openlist-official-a137737",
+      "archive": "openlist-official-a137737-image.tar.gz",
+      "bytes": 161204590,
+      "sha256": "b20f1ba4f9910878a969740812afd461ff2b854ff496048254a38900e5800c88",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-official-a137737",
+      "archive": "onecloud-official-a137737-402b599-support.tar.gz",
+      "bytes": 189796070,
+      "sha256": "e70b40be1ff35aa9fd518f99fc2b00103c9beb956ee2797482d2d858298ec9c3",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-official-a137737",
+      "archive": "linux-5.15.79.tar.xz",
+      "bytes": 126467592,
+      "sha256": "cba39031dbc0eed0785b8afdc8c58cf23df83e47001b2354fa44486ae699c154",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-rate-delivery-29c7842",
+      "archive": "openlist-rate-delivery-29c7842-support.tar.gz",
+      "bytes": 187996763,
+      "sha256": "841d1fb39bf7d7f286bcc3c0f4121281bb2c70045f2b5b49b069e9afb044f244",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-rate-delivery-29c7842",
+      "archive": "openlist-onecloud-29c7842-image.tar.gz",
+      "bytes": 164561569,
+      "sha256": "fadb0ac8d482fce07af37ea3ffad4428ddc3bae8adb2f1c877a8a1c6c897fa8e",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-rate-delivery-29c7842",
+      "archive": "linux-5.15.79.tar.xz",
+      "bytes": 126467592,
+      "sha256": "cba39031dbc0eed0785b8afdc8c58cf23df83e47001b2354fa44486ae699c154",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-p0-p3-a137737",
+      "archive": "openlist-official-a845b34-image.tar.gz",
+      "bytes": 219536267,
+      "sha256": "9a307e9eddc671cd30092fd83f885fd3e0eb75558620b9bbdb1f8ec5d2bfabe5",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-rate-delivery-561d7e5",
+      "archive": "meson8b-rate-delivery-8909f98-support.tar.gz",
+      "bytes": 154454052,
+      "sha256": "45118fc5105b8a5370a48a5ff287435601263c46e7a258ae82db7a4cb9f99fc7",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "openlist-official-a137737",
+      "archive": "onecloud-official-a137737-d54eb77-support.tar.gz",
+      "bytes": 189795510,
+      "sha256": "eb1bd926b82535659eef3e1f01a0753adc46a86f663cb3b438de2842af1e0d05",
+      "retained_on_build_host": true
+    },
+    {
+      "bundle": "onecloud-vcodec-drain-1eb2416",
+      "archive": "linux-5.15.79.tar.xz",
+      "bytes": 126467592,
+      "sha256": "cba39031dbc0eed0785b8afdc8c58cf23df83e47001b2354fa44486ae699c154",
+      "retained_on_build_host": true
+    }
+  ],
+  "reclaimed_bytes": 1646747597,
+  "bytes_available": 446869504,
+  "bytes_free_including_reserved": 1663811584
+}

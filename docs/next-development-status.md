@@ -48,6 +48,17 @@ Development uses bounded checks and a transient, rotating, per-line-fsynced
 kernel log on persistent storage. It improves evidence retention but cannot
 capture every CPU/network hang. Raw production logs stay private.
 
+2026-11-23: the earlier temporary kernel reader is no longer running. A
+[bounded passive observer](../evidence/passive-observer-2026-11-23/README.md)
+now records network/IRQ/memory/storage counters during normal activity; its short
+deployment check passes. A separate six-hour observation has started, not finished.
+The data SSD had filled and Docker could not restart Arcane agent. Verified
+duplicate archives reclaimed about 1.53 GiB, ordinary available space recovers
+to about 426 MiB, and the stopped agent is started successfully. Capacity remains
+tight. Logs use the system partition. This new capacity finding does not establish
+the earlier outage's cause; stacks/serial and independent LAN observation are
+still missing.
+
 ## Further extensions
 
 GE2D/full zero-copy and per-slice early delivery are research gates. Existing
