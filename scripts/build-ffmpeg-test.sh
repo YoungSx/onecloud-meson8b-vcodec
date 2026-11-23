@@ -24,6 +24,7 @@ cd "$source_dir"
 if [[ "$variant" == bugfixes ]]; then
     patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-drain.patch"
     patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-bugs.patch"
+    patch -p1 --fuzz=0 < "$root/patches/ffmpeg-7.0.2-v4l2-sar.patch"
 fi
 ./configure --arch=arm --cpu=cortex-a5 --target-os=linux \
   --cross-prefix=arm-linux-gnueabihf- --cc=arm-linux-gnueabihf-gcc-11 \

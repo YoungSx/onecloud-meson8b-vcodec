@@ -77,3 +77,56 @@ int main(void){
                             '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
                             str(test), '-o', str(binary)], check=True)
             subprocess.run([str(binary)], check=True)
+
+
+    def test_cropcap_y_over_x_is_inverted_to_sample_aspect(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = pathlib.Path(directory)
+            shutil.copytree(ROOT / 'tests/fixtures/ffmpeg-v4l2', tree / 'libavcodec')
+            prefix = r"""
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#include <linux/videodev2.h>
+typedef struct AVRational {int num,den;} AVRational;
+typedef struct V4L2Context {unsigned int type;} V4L2Context;
+struct context {int fd;};
+static struct context context={41};
+static struct v4l2_fract reported;
+static int error;
+static struct context *ctx_to_m2mctx(V4L2Context *ctx){(void)ctx;return &context;}
+static int fake_ioctl(int fd,unsigned long request,struct v4l2_cropcap *cap){
+ assert(fd==41&&request==VIDIOC_CROPCAP&&cap->type==V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+ cap->pixelaspect=reported;return error;
+}
+#define ioctl fake_ioctl
+"""
+            cases = r"""
+int main(void){
+ V4L2Context ctx={V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE};
+ const int ratios[][2]={{1,1},{11,12},{9,8},{13,17}};
+ for(unsigned int i=0;i<4;i++){
+  reported=(struct v4l2_fract){ratios[i][0],ratios[i][1]};
+  AVRational sar=v4l2_get_sar(&ctx);
+  if(sar.num!=ratios[i][1]||sar.den!=ratios[i][0])return 1;
+ }
+ error=-1;AVRational sar=v4l2_get_sar(&ctx);assert(!sar.num&&sar.den==1);
+ return 0;
+}
+"""
+            for fixed in (False, True):
+                if fixed:
+                    for name in ('drain', 'bugs', 'sar'):
+                        subprocess.run(['patch', '-p1', '--batch', '--fuzz=0', '-i',
+                                        str(ROOT / f'patches/ffmpeg-7.0.2-v4l2-{name}.patch')],
+                                       cwd=tree, check=True, stdout=subprocess.DEVNULL)
+                source = (tree / 'libavcodec/v4l2_context.c').read_text()
+                body = source[source.index('static AVRational v4l2_get_sar('):
+                              source.index('static inline unsigned int v4l2_resolution_changed(')]
+                test, binary = tree / 'test.c', tree / 'test'
+                test.write_text(prefix + body + cases)
+                subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                                '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                                str(test), '-o', str(binary)], check=True)
+                result = subprocess.run([str(binary)], check=False)
+                self.assertEqual(result.returncode, 0 if fixed else 1)
