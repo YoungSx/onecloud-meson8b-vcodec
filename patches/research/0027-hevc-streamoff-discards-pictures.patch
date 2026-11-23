@@ -1,0 +1,21 @@
+Subject: [PATCH] media: meson: discard HEVC pictures during STREAMOFF
+
+The delivery worker is cancelled before codec stop. Flushing reference
+pictures here can schedule it again while the codec lock and workspace
+are being destroyed. STREAMOFF discards pending pictures; normal firmware
+EOS still flushes them.
+
+---
+diff --git a/drivers/staging/media/meson/vdec/codec_hevc.c b/drivers/staging/media/meson/vdec/codec_hevc.c
+--- a/drivers/staging/media/meson/vdec/codec_hevc.c
++++ b/drivers/staging/media/meson/vdec/codec_hevc.c
+@@ -804,7 +804,8 @@ static int codec_hevc_stop(struct amvdec_session *sess)
+ 
+ 	cancel_delayed_work_sync(&hevc->watchdog);
+ 	mutex_lock(&hevc->lock);
+-	codec_hevc_flush_output(sess);
++	/* STREAMOFF discards pictures; do not requeue work after cancellation. */
++	codec_hevc_forget_frames(hevc);
+ 
+ 	if (hevc->workspace_vaddr)
+ 		dma_free_coherent(core->dev, SIZE_WORKSPACE,

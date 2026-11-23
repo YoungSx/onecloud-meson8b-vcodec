@@ -6,6 +6,45 @@ ROOT = pathlib.Path(__file__).parents[1]
 
 
 class FirmwareDMATests(unittest.TestCase):
+    def test_encoder_orders_dma_and_cancels_before_error_cleanup(self):
+        source = (ROOT / 'venc/venc.c').read_text()
+        start = source.index('static int venc_loadmc(')
+        end = source.index('\n/* Vendor avc_canvas_init', start)
+        code = r'''
+#include <assert.h>
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
+typedef uint32_t u32;
+#define VENC_MC_SIZE 16384
+#define VENC_WORKSPACE 0
+#define HZ 100
+#define time_before(a,b) ((a)<(b))
+#define dev_err(...) ((void)0)
+enum {HCODEC_MPSR,HCODEC_CPSR,HCODEC_IMEM_DMA_ADR,HCODEC_IMEM_DMA_COUNT,HCODEC_IMEM_DMA_CTRL};
+struct venc_core {void *dev;};
+struct firmware {const void *data;};
+struct venc_ctx {struct venc_core *core;struct firmware *fw;struct {void *vaddr;} buffers[1];struct {u32 assit;} mem;};
+static unsigned long jiffies;
+static int ordered,active,timeout,kicks,cancels,flushes;
+static unsigned char image[VENC_MC_SIZE],memory[VENC_MC_SIZE];
+#define dma_wmb() (ordered=1)
+static void schedule(void){jiffies++;}
+static void venc_write(struct venc_core *c,int reg,u32 value){(void)c;if(reg==HCODEC_IMEM_DMA_CTRL){if(value&0x8000){assert(ordered && !memcmp(image,memory,sizeof(image)));active=1;kicks++;}else{assert(active);active=0;cancels++;}}}
+static u32 venc_read(struct venc_core *c,int reg){(void)c;if(reg!=HCODEC_IMEM_DMA_CTRL)return 0;if(!active && cancels)flushes++;if(active && !timeout)active=0;return active?0x8000:0;}
+'''
+        code += source[start:end]
+        code += r'''
+int main(void){struct venc_core c={0};struct firmware f={image};struct venc_ctx ctx={.core=&c,.fw=&f,.buffers={{memory}},.mem={4096}};memset(image,0x5a,sizeof(image));assert(!venc_loadmc(&ctx));assert(kicks==1 && !active && !cancels);timeout=1;ordered=0;assert(venc_loadmc(&ctx)==-ETIMEDOUT);assert(kicks==2 && cancels==1 && flushes==1 && !active);return 0;}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory)
+            (path / 'check.c').write_text(code)
+            subprocess.run(['cc', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            str(path / 'check.c'), '-o', str(path / 'check')], check=True)
+            subprocess.run([str(path / 'check')], check=True)
+
     def test_ordering_and_timeout_cancel(self):
         for name in ["vdec_1", "vdec_hevc"]:
             with self.subTest(engine=name):
