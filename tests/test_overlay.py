@@ -60,6 +60,9 @@ class OverlayTests(unittest.TestCase):
             self.assertIn('reg = <0xc1106280 0x12c>;', text)
             self.assertIn('clocks = <1 49>;', text)
             self.assertIn('resets = <4 70>;', text)
+            self.assertIn('ge2d: blitter@c1106280', text)
+            self.assertIn('amlogic,ge2d = <&ge2d>;', text)
+            self.assertNotIn('amlogic,ge2d =', overlay.render(root))
 
 
 if __name__ == '__main__':
