@@ -1,0 +1,21 @@
+dtc -@ -I dts -O dtb -o firmware/meson/vdec/meson8b-runtime.dtbo meson8b-runtime.dts
+meson8b-runtime.dts:9.17-63: Warning (reg_format): /fragment@0/__overlay__/video-decoder@d0050000:reg: property has invalid length (16 bytes) (#address-cells == 2, #size-cells == 1)
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (pci_device_reg): Failed prerequisite 'reg_format'
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (pci_device_bus_num): Failed prerequisite 'reg_format'
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (simple_bus_reg): Failed prerequisite 'reg_format'
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (i2c_bus_reg): Failed prerequisite 'reg_format'
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (spi_bus_reg): Failed prerequisite 'reg_format'
+meson8b-runtime.dts:7.36-20.15: Warning (avoid_default_addr_size): /fragment@0/__overlay__/video-decoder@d0050000: Relying on default #address-cells value
+meson8b-runtime.dts:7.36-20.15: Warning (avoid_default_addr_size): /fragment@0/__overlay__/video-decoder@d0050000: Relying on default #size-cells value
+meson8b-runtime.dts:21.36-32.15: Warning (avoid_default_addr_size): /fragment@0/__overlay__/video-encoder@d0050000: Relying on default #address-cells value
+meson8b-runtime.dts:21.36-32.15: Warning (avoid_default_addr_size): /fragment@0/__overlay__/video-encoder@d0050000: Relying on default #size-cells value
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (avoid_unnecessary_addr_size): Failed prerequisite 'avoid_default_addr_size'
+firmware/meson/vdec/meson8b-runtime.dtbo: Warning (unique_unit_address): Failed prerequisite 'avoid_default_addr_size'
+meson8b-runtime.dts:13.17-82: Warning (clocks_property): /fragment@0/__overlay__/video-decoder@d0050000:clocks: cell 0 is not a phandle reference
+meson8b-runtime.dts:13.17-82: Warning (clocks_property): /fragment@0/__overlay__/video-decoder@d0050000:clocks: Could not get phandle node for (cell 0)
+meson8b-runtime.dts:27.17-42: Warning (clocks_property): /fragment@0/__overlay__/video-encoder@d0050000:clocks: cell 0 is not a phandle reference
+meson8b-runtime.dts:27.17-42: Warning (clocks_property): /fragment@0/__overlay__/video-encoder@d0050000:clocks: Could not get phandle node for (cell 0)
+meson8b-runtime.dts:15.17-33: Warning (resets_property): /fragment@0/__overlay__/video-decoder@d0050000:resets: cell 0 is not a phandle reference
+meson8b-runtime.dts:15.17-33: Warning (resets_property): /fragment@0/__overlay__/video-decoder@d0050000:resets: Could not get phandle node for (cell 0)
+meson8b-runtime.dts:7.36-20.15: Warning (interrupts_property): /fragment@0/__overlay__/video-decoder@d0050000: Missing interrupt-parent
+meson8b-runtime.dts:21.36-32.15: Warning (interrupts_property): /fragment@0/__overlay__/video-encoder@d0050000: Missing interrupt-parent

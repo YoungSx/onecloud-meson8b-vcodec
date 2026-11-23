@@ -6,6 +6,9 @@
 
 | 主题 | 主记录 |
 | --- | --- |
+| 2026-11-23 P0部署与有界硬件验收：内容、关闭/重开、编码及固件恢复 | [P0 deployment](p0-deploy-2026-11-23/README.md) |
+| 2026-11-23 P0 离线修复：HEVC关闭、编码DMA与头长度，主机/ARM构建 | [P0 host development](p0-offline-2026-11-23/README.md) |
+| 2026-11-23 否定结论复核、固定厂商源码与 GE2D/tile/微码本地检查 | [Capability recheck](capability-recheck-2026-11-23/README.md) |
 | 2026-11-23 被动失联采集、短时上线检查与SSD容量问题 | [Passive observer](passive-observer-2026-11-23/README.md) |
 | 2026-11-22 两轮 LAN/Tailnet离线分开调查、共享时钟选频复现与journal取证 | [Outage investigation](outage-investigation-2026-11-22/README.md) |
 | 2026-11-22 新驱动部署、IRQ/EOS/DMA/VUI、浏览器及研究线格式移植 | [Current development](development-2026-11-22/README.md) |

@@ -1,0 +1,20 @@
+test_encoder_orders_dma_and_cancels_before_error_cleanup (test_firmware_dma.FirmwareDMATests.test_encoder_orders_dma_and_cancels_before_error_cleanup) ... check: /tmp/tmpdxnq288s/check.c:21: venc_write: Assertion `ordered && !memcmp(image,memory,sizeof(image))' failed.
+ERROR
+test_ordering_and_timeout_cancel (test_firmware_dma.FirmwareDMATests.test_ordering_and_timeout_cancel) ... ok
+
+======================================================================
+ERROR: test_encoder_orders_dma_and_cancels_before_error_cleanup (test_firmware_dma.FirmwareDMATests.test_encoder_orders_dma_and_cancels_before_error_cleanup)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<workspace>/tests/test_firmware_dma.py", line 46, in test_encoder_orders_dma_and_cancels_before_error_cleanup
+    subprocess.run([str(path / 'check')], check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/conda/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/tmp/tmpdxnq288s/check']' died with <Signals.SIGABRT: 6>.
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.553s
+
+FAILED (errors=1)

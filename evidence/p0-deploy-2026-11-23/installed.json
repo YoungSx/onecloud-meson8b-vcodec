@@ -1,0 +1,39 @@
+{
+  "status": "installed-smoke-passed",
+  "checks": [
+    {
+      "name": "h264-320x240-smoke",
+      "matching_pictures": 50,
+      "exit": 0
+    },
+    {
+      "name": "hevc-1080p",
+      "matching_pictures": 30,
+      "exit": 0
+    }
+  ],
+  "service": "active",
+  "pool_slots": "0",
+  "pool_bytes": "0",
+  "services": {
+    "5245": 200,
+    "8000": 200,
+    "8080": 200,
+    "8123": 200
+  },
+  "modules": {
+    "meson-venc.ko": "7d31095d1fa82a4565f3175d20badb5e3ed3ec7d476065d16b895cafbe1817d2",
+    "meson8b-runtime.ko": "7ca640be512c76d71d2b3606c2a1bf4b0d7f3ca0db12896706ee6649abd6cb32",
+    "meson-vdec.ko": "34953c44cdfcaa997f96157a4036b6899bd9c6136a0111bf6c52ccdcedca6baa"
+  },
+  "source_commit": "3c7d7854bcab3b93a716b7da84002015913082f0",
+  "boot_unchanged": true,
+  "business_restarted": false,
+  "firmware_unchanged": true,
+  "runtime_and_overlay_reused": true,
+  "original_installation_preserved": true,
+  "package_manifest_sha256": "b7f4de1704401cd4c107a1d1d9e75e2467e9a21929c0d4849ada992d3020ecff",
+  "source_state_sha256": "d47f352ae49ec8a61840565482e0d8e40f6342012ad8aa7bad8b54ca230a5d9d",
+  "cold_boot_tested": false,
+  "long_stability_tested": false
+}

@@ -21,6 +21,7 @@
 研究与历史不属于当前安装步骤：
 
 - [编码硬件可行性](encoding-feasibility.md)：为何不承诺 S805 HEVC 硬编。
+- [能力否定结论复核](capability-recheck.md)：重新核查 H.263/AVS、GE2D、tiles、多会话及高级编码工具。
 - [共享电源域设计](power-domain-design.md)、[上游结论](linux-media-rfc.md)：Linux 7.3.4 研究系列的背景，未实机启动。
 - [日期证据索引](../evidence/README.md)：保留成功、失败、被否决实验及其版本，不能跨版本继承验收。
 - [历史资料](history/README.md)：早期阻断、旧计划与旧部署记录。
