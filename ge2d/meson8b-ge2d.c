@@ -17,6 +17,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include "../runtime/meson8b-runtime.h"
 #include "ge2d-layout.h"
+#include "ge2d-scale.h"
 
 #define GEN_CTRL0 0x00
 #define GEN_CTRL1 0x04
@@ -49,6 +50,8 @@
 #define MATRIX_CTRL 0xa8
 #define ALU_CTRL 0xb0
 #define DP_ONOFF 0xcc
+#define SCALE_IDX 0xd0
+#define SCALE_COEF 0xd4
 #define OUTSIDE_ALPHA 0xd8
 #define ANTIFLICK 0xe0
 #define GEN_CTRL3 0x120
@@ -76,7 +79,7 @@ struct meson8b_ge2d {
 struct ge2d_ctx {
 	struct v4l2_fh fh;
 	struct meson8b_ge2d *core;
-	struct v4l2_pix_format_mplane format;
+	struct v4l2_pix_format_mplane input, output;
 	u32 sequence;
 };
 
@@ -101,17 +104,24 @@ static int ge2d_reset(struct meson8b_ge2d *core)
 }
 
 /* Source and destination remain held until command completion or reset. */
-static int ge2d_copy(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
-		     u32 width, u32 height, bool src_little_endian)
+static int ge2d_blit(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
+		     u32 width, u32 height, u32 out_width, u32 out_height,
+		     bool src_little_endian)
 {
-	u32 stride, size, status, x = width - 1, y = height - 1;
+	u32 stride, size, out_stride, out_size, status, x = width - 1, y = height - 1;
+	u32 hstep, vstep, misc, phase;
+	bool preh, prev;
 	int ret;
 
 	if (core->offline)
 		return -EIO;
 	ret = meson8b_ge2d_layout(width, height, &stride, &size);
+	if (ret || meson8b_ge2d_layout(out_width, out_height, &out_stride, &out_size) ||
+	    meson8b_ge2d_phase(width, out_width, &hstep, &preh) ||
+	    meson8b_ge2d_phase(height, out_height, &vstep, &prev))
+		return -EINVAL;
 	if (ret || ((src | dst) & 7) || src > U32_MAX || dst > U32_MAX ||
-	    size - 1 > U32_MAX - src || size - 1 > U32_MAX - dst)
+	    size - 1 > U32_MAX - src || out_size - 1 > U32_MAX - dst)
 		return -EINVAL;
 	ret = ge2d_reset(core);
 	if (ret)
@@ -121,8 +131,8 @@ static int ge2d_copy(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
 				  MESON_CANVAS_BLKMODE_LINEAR, 0);
 	if (ret)
 		return ret;
-	ret = meson_canvas_config(core->canvas, core->dst_canvas, dst, stride,
-				  height, MESON_CANVAS_WRAP_NONE,
+	ret = meson_canvas_config(core->canvas, core->dst_canvas, dst, out_stride,
+				  out_height, MESON_CANVAS_WRAP_NONE,
 				  MESON_CANVAS_BLKMODE_LINEAR, 0);
 	if (ret)
 		return ret;
@@ -135,25 +145,36 @@ static int ge2d_copy(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
 	ge2d_write(core, DST_CANVAS, core->dst_canvas);
 	ge2d_write(core, SRC_CLIPX, x);
 	ge2d_write(core, SRC_CLIPY, y);
-	ge2d_write(core, DST_CLIPX, x);
-	ge2d_write(core, DST_CLIPY, y);
-	ge2d_write(core, SRC2_CLIPX, x);
-	ge2d_write(core, SRC2_CLIPY, y);
+	ge2d_write(core, DST_CLIPX, out_width - 1);
+	ge2d_write(core, DST_CLIPY, out_height - 1);
+	ge2d_write(core, SRC2_CLIPX, out_width - 1);
+	ge2d_write(core, SRC2_CLIPY, out_height - 1);
 	ge2d_write(core, SRC_X, x);
 	/* Vendor command extends the read region; clipping retains the image. */
 	ge2d_write(core, SRC_Y, height);
-	ge2d_write(core, SRC2_X, x);
-	ge2d_write(core, SRC2_Y, y);
-	ge2d_write(core, DST_X, x);
-	ge2d_write(core, DST_Y, y);
+	ge2d_write(core, SRC2_X, out_width - 1);
+	ge2d_write(core, SRC2_Y, out_height - 1);
+	ge2d_write(core, DST_X, out_width - 1);
+	ge2d_write(core, DST_Y, out_height - 1);
 	ge2d_write(core, SRC_FMT, 0);
 	ge2d_write(core, OUTSIDE_ALPHA, 0);
 	ge2d_write(core, MATRIX_CTRL, 0);
 	ge2d_write(core, ANTIFLICK, 0);
 	ge2d_write(core, DP_ONOFF, 0);
-	ge2d_write(core, SC_MISC, (4 << 4) | 4);
-	ge2d_write(core, HSC_STEP, 1 << 24);
-	ge2d_write(core, VSC_STEP, 1 << 24);
+	misc = (4 << 4) | 4;
+	misc |= (preh ? BIT(14) : 0) | (prev ? BIT(13) : 0);
+	misc |= (width != out_width ? BIT(11) : 0) | (height != out_height ? BIT(12) : 0);
+	if (width != out_width || height != out_height) {
+		ge2d_write(core, SCALE_IDX, 0);
+		for (phase = 0; phase < 33; phase++)
+			ge2d_write(core, SCALE_COEF, meson8b_ge2d_bilinear(phase));
+		ge2d_write(core, SCALE_IDX, 0x100);
+		for (phase = 0; phase < 33; phase++)
+			ge2d_write(core, SCALE_COEF, meson8b_ge2d_bilinear(phase));
+	}
+	ge2d_write(core, SC_MISC, misc);
+	ge2d_write(core, HSC_STEP, hstep);
+	ge2d_write(core, VSC_STEP, vstep);
 	ge2d_write(core, HSC_SLOPE, 0);
 	ge2d_write(core, VSC_SLOPE, 0);
 	ge2d_write(core, HSC_INI, 0);
@@ -175,6 +196,12 @@ static int ge2d_copy(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
 	}
 	dma_rmb();
 	return 0;
+}
+
+static int ge2d_copy(struct meson8b_ge2d *core, dma_addr_t src, dma_addr_t dst,
+		     u32 width, u32 height, bool src_little_endian)
+{
+	return ge2d_blit(core, src, dst, width, height, width, height, src_little_endian);
 }
 
 static int ge2d_selftest(struct meson8b_ge2d *core)
@@ -201,6 +228,18 @@ static int ge2d_selftest(struct meson8b_ge2d *core)
 				ret = -EIO;
 				break;
 			}
+	if (!ret) {
+		/* A constant plane must survive horizontal and vertical filtering. */
+		memset(src, 0x39, size);
+		memset(dst, 0xa5, size);
+		ret = ge2d_blit(core, src_dma, dst_dma, 512, 32, 256, 16, true);
+		if (!ret)
+			for (i = 0; i < 256 * 16; i++)
+				if (dst[i] != 0x39) {
+					ret = -EIO;
+					break;
+				}
+	}
 	dma_free_coherent(core->dev, size, dst, dst_dma);
 free_src:
 	dma_free_coherent(core->dev, size, src, src_dma);
@@ -216,13 +255,14 @@ static void ge2d_work(struct work_struct *work)
 	int ret = -EINVAL;
 
 	if (src && dst) {
-		ret = ge2d_copy(core, vb2_dma_contig_plane_dma_addr(&src->vb2_buf, 0),
+		ret = ge2d_blit(core, vb2_dma_contig_plane_dma_addr(&src->vb2_buf, 0),
 				vb2_dma_contig_plane_dma_addr(&dst->vb2_buf, 0),
-				ctx->format.width, ctx->format.height, true);
+				ctx->input.width, ctx->input.height,
+				ctx->output.width, ctx->output.height, true);
 		v4l2_m2m_buf_copy_metadata(src, dst, true);
 		dst->sequence = ctx->sequence++;
 		vb2_set_plane_payload(&dst->vb2_buf, 0,
-				      ret ? 0 : ctx->format.plane_fmt[0].sizeimage);
+				      ret ? 0 : ctx->output.plane_fmt[0].sizeimage);
 	}
 	if (src)
 		v4l2_m2m_buf_done(src, ret ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
@@ -249,7 +289,8 @@ static int ge2d_queue_setup(struct vb2_queue *queue, unsigned int *buffers,
 			    struct device *alloc_devs[])
 {
 	struct ge2d_ctx *ctx = vb2_get_drv_priv(queue);
-	u32 size = ctx->format.plane_fmt[0].sizeimage;
+	u32 size = V4L2_TYPE_IS_OUTPUT(queue->type) ? ctx->input.plane_fmt[0].sizeimage :
+		   ctx->output.plane_fmt[0].sizeimage;
 
 	if (*planes)
 		return *planes == 1 && sizes[0] >= size ? 0 : -EINVAL;
@@ -261,7 +302,8 @@ static int ge2d_queue_setup(struct vb2_queue *queue, unsigned int *buffers,
 static int ge2d_prepare(struct vb2_buffer *buffer)
 {
 	struct ge2d_ctx *ctx = vb2_get_drv_priv(buffer->vb2_queue);
-	u32 size = ctx->format.plane_fmt[0].sizeimage;
+	u32 size = V4L2_TYPE_IS_OUTPUT(buffer->type) ? ctx->input.plane_fmt[0].sizeimage :
+		   ctx->output.plane_fmt[0].sizeimage;
 
 	if (buffer->planes[0].data_offset || vb2_plane_size(buffer, 0) < size ||
 	    (V4L2_TYPE_IS_OUTPUT(buffer->type) &&
@@ -380,7 +422,7 @@ static int ge2d_get_fmt(struct file *file, void *priv, struct v4l2_format *forma
 {
 	struct ge2d_ctx *ctx = container_of(priv, struct ge2d_ctx, fh);
 
-	format->fmt.pix_mp = ctx->format;
+	format->fmt.pix_mp = V4L2_TYPE_IS_OUTPUT(format->type) ? ctx->input : ctx->output;
 	return 0;
 }
 
@@ -392,7 +434,18 @@ static int ge2d_set_fmt(struct file *file, void *priv, struct v4l2_format *forma
 	    vb2_is_busy(v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx)))
 		return -EBUSY;
 	ge2d_try_fmt(file, priv, format);
-	ctx->format = format->fmt.pix_mp;
+	if (V4L2_TYPE_IS_OUTPUT(format->type)) {
+		ctx->input = format->fmt.pix_mp;
+		ctx->output = ctx->input;
+	} else {
+		u32 step;
+		bool pre;
+
+		if (meson8b_ge2d_phase(ctx->input.width, format->fmt.pix_mp.width, &step, &pre) ||
+		    meson8b_ge2d_phase(ctx->input.height, format->fmt.pix_mp.height, &step, &pre))
+			return -EINVAL;
+		ctx->output = format->fmt.pix_mp;
+	}
 	return 0;
 }
 
@@ -427,7 +480,8 @@ static int ge2d_open(struct file *file)
 		return -ENOMEM;
 	ctx->core = core;
 	ge2d_try_fmt(file, NULL, &format);
-	ctx->format = format.fmt.pix_mp;
+	ctx->input = format.fmt.pix_mp;
+	ctx->output = ctx->input;
 	v4l2_fh_init(&ctx->fh, core->video);
 	mutex_lock(&core->lock);
 	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(core->m2m, ctx, ge2d_queue_init);

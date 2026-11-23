@@ -30,15 +30,19 @@ typedef uint32_t u32;
 #define ENCODER_SEQUENCE_DONE 3
 #define ENCODER_PICTURE_DONE 4
 #define VLC_TOTAL_BYTES 5
+#define HCODEC_ASSIST_MBOX2_MASK 6
 #define GFP_KERNEL 0
 #define dev_err(...) ((void)0)
 #define dev_info(...) ((void)0)
 #define kfree(p) free(p)
 struct firmware {size_t size;};
-struct venc_core {void *dev,*canvas;bool running;u32 hw_status;};
+struct venc_core {void *dev,*canvas;bool running,done_pending;u32 hw_status;int irq;};
+#define WRITE_ONCE(x,v) ((x)=(v))
+static void synchronize_irq(int irq){(void)irq;}
+static void venc_write(struct venc_core *c,int r,int v){(void)c;(void)r;(void)v;}
 struct venc_ctx {struct venc_core *core;struct {int *lock;} ctrl_handler;
  unsigned dst_fmt,coded_width,slice_cfg,canvas[9],idr_pic_id,frame_number,poc_lsb,sps_pps_size;
- const struct firmware *fw;void *sps_pps;bool sps_pps_valid;};
+ const struct firmware *fw;void *sps_pps;bool sps_pps_valid,initialized;};
 static const struct firmware firmware={VENC_MC_SIZE};
 static unsigned counts[2],reads,commands,stops,poweroffs,releases,freed,canvas_freed;
 static unsigned char stream[VENC_BITSTREAM_SIZE];

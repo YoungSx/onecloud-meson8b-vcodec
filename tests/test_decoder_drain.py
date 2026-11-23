@@ -20,15 +20,12 @@ class DecoderDrainTests(unittest.TestCase):
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
-typedef uint8_t u8;typedef uint32_t u32;
-#define V4L2_PIX_FMT_H263 1
-struct format {unsigned pixfmt;};
-struct amvdec_session {void *priv,*core;struct format *fmt_out;};
+typedef uint8_t u8;
+struct amvdec_session {void *priv,*core;};
 static const u8 eos_sequence[1024];
-static const u8 h263_eos[3];
-static int writes,scheduled,aborted,result,length;
+static int writes,scheduled,aborted,result;
 static int esparser_queue_eos(void *core,const u8 *data,unsigned int len) {
-    (void)core;(void)data;length=len;writes++;return result;
+    (void)core;(void)data;(void)len;writes++;return result;
 }
 static void amvdec_abort(struct amvdec_session *s) {(void)s;aborted++;}
 static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;scheduled++;}
@@ -37,8 +34,7 @@ static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;s
                 body += source[start:end]
                 body += r"""
 int main(void) {
-    struct CODEC c={0};struct format f={0};struct amvdec_session s={.priv=&c,.fmt_out=&f};
-    (void)h263_eos;
+    struct CODEC c={0};struct amvdec_session s={.priv=&c};
     int errors[]={-ENOMEM,-ETIMEDOUT,-EINTR};
     for(unsigned int i=0;i<sizeof(errors)/sizeof(errors[0]);i++) {
         result=errors[i];DRAIN(&s);

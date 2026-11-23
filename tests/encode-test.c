@@ -632,7 +632,8 @@ int main(int argc, char **argv)
 	if (!stream || (!ref && strcmp(argv[3], "/dev/null"))) die("fopen");
 	fd = open(argv[1], O_RDWR | O_NONBLOCK); if (fd < 0) die("open");
 	int other = open(argv[1], O_RDWR | O_NONBLOCK);
-	if (other >= 0 || errno != EBUSY) { fprintf(stderr, "HCODEC ownership failed\n"); return 1; }
+	if (other >= 0) close(other);
+	else if (errno != EBUSY) die("second encoder open");
 	struct v4l2_format f = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
 	f.fmt.pix_mp.width = w; f.fmt.pix_mp.height = h;
 	f.fmt.pix_mp.pixelformat = as->fourcc;

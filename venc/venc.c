@@ -49,6 +49,7 @@
  * Ethernet RGMII clock on OneCloud).
  */
 #define ENC_HCODEC_RATE		318750000
+#define VENC_MAX_INSTANCES	8
 
 /*
  * Chroma QP derived from luma QP (H.264 chroma QP table, clipped at 39
@@ -740,6 +741,7 @@ static int venc_wait_cmd(struct venc_core *core, u32 done_code)
 static irqreturn_t venc_isr(int irq, void *data)
 {
 	struct venc_core *core = data;
+	struct venc_ctx *ctx = READ_ONCE(core->ctx);
 	u32 status;
 
 	/* clear mailbox interrupt first, then sample the status */
@@ -747,9 +749,9 @@ static irqreturn_t venc_isr(int irq, void *data)
 	status = venc_read(core, HENC_SCRATCH_0);
 	core->hw_status = status;
 
-	if (!core->done_pending)
+	if (!READ_ONCE(core->done_pending) || !ctx)
 		return IRQ_HANDLED;
-	if (core->ctx->dst_fmt == V4L2_PIX_FMT_JPEG) {
+	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG) {
 		if (status == JPEGENC_DONE) {
 			core->done_pending = false;
 			complete(&core->done);
@@ -805,12 +807,18 @@ static void venc_buffspec_init(struct venc_ctx *ctx)
 static int venc_hw_init(struct venc_ctx *ctx)
 {
 	struct venc_core *core = ctx->core;
+	u32 dblk_canvas = ctx->dblk_canvas, ref_canvas = ctx->ref_canvas;
 	int ret;
 
 	ret = venc_poweron(core);
 	if (ret)
 		return ret;
 	venc_buffspec_init(ctx);
+	/* Restoring a session must retain which reference was last reconstructed. */
+	if (ctx->initialized) {
+		ctx->dblk_canvas = dblk_canvas;
+		ctx->ref_canvas = ref_canvas;
+	}
 	venc_canvas_init(ctx);
 	venc_write(core, HCODEC_ASSIST_MMC_CTRL1, 0x2);
 
@@ -1067,7 +1075,7 @@ static int venc_hw_start(struct venc_ctx *ctx)
 	dev_info(core->dev, "loaded firmware %s (%zu bytes)\n",
 		 fw_name, ctx->fw->size);
 	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG)
-		return 0;
+		goto initialized;
 
 	/* harvest SPS + PPS with the vendor SEQUENCE/PICTURE commands */
 	ret = venc_start_cmd(ctx, ENCODER_SEQUENCE);
@@ -1108,13 +1116,18 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		goto err_stop_hw;
 	}
 
+initialized:
+	ctx->initialized = true;
 	return 0;
 
 err_stop_hw:
+	WRITE_ONCE(core->done_pending, false);
+	venc_write(core, HCODEC_ASSIST_MBOX2_MASK, 0);
+	venc_amrisc_stop(core);
+	synchronize_irq(core->irq);
 	kfree(ctx->sps_pps);
 	ctx->sps_pps = NULL;
 	ctx->sps_pps_valid = false;
-	venc_amrisc_stop(core);
 	venc_poweroff(core);
 	core->running = false;
 err_canvas:
@@ -1144,15 +1157,57 @@ static void venc_session_release(struct venc_ctx *ctx)
 	release_firmware(ctx->fw);
 	ctx->fw = NULL;
 	venc_free_buffers(ctx);
-	core->running = false;
+	ctx->initialized = false;
 }
 
 static void venc_hw_stop(struct venc_ctx *ctx)
 {
-	ctx->core->done_pending = false;
-	venc_amrisc_stop(ctx->core);
-	venc_poweroff(ctx->core);
-	venc_session_release(ctx);
+	struct venc_core *core = ctx->core;
+
+	if (core->ctx == ctx) {
+		WRITE_ONCE(core->done_pending, false);
+		if (core->running) {
+			venc_write(core, HCODEC_ASSIST_MBOX2_MASK, 0);
+			venc_amrisc_stop(core);
+			synchronize_irq(core->irq);
+			venc_poweroff(core);
+		} else {
+			synchronize_irq(core->irq);
+		}
+		core->running = false;
+		WRITE_ONCE(core->ctx, NULL);
+	}
+	if (ctx->initialized)
+		venc_session_release(ctx);
+}
+
+/* V4L2 schedules one frame at a time; restore a retained session on ownership change. */
+static int venc_activate(struct venc_ctx *ctx)
+{
+	struct venc_core *core = ctx->core;
+	int ret;
+
+	if (core->ctx == ctx && core->running)
+		return 0;
+	if (core->running) {
+		WRITE_ONCE(core->done_pending, false);
+		venc_write(core, HCODEC_ASSIST_MBOX2_MASK, 0);
+		venc_amrisc_stop(core);
+		synchronize_irq(core->irq);
+		venc_poweroff(core);
+		core->running = false;
+	}
+	WRITE_ONCE(core->ctx, ctx);
+	ret = ctx->initialized ? venc_hw_init(ctx) : venc_hw_start(ctx);
+	if (ret) {
+		core->running = false;
+		if (ctx->initialized)
+			venc_session_release(ctx);
+		WRITE_ONCE(core->ctx, NULL);
+		return ret;
+	}
+	core->running = true;
+	return 0;
 }
 
 /*
@@ -1172,6 +1227,7 @@ static void venc_light_reset(struct venc_ctx *ctx)
 	if (ret) {
 		dev_err(core->dev, "hardware re-init failed (%d)\n", ret);
 		venc_session_release(ctx);
+		core->running = false;
 	}
 }
 
@@ -1503,8 +1559,9 @@ static void venc_stop_streaming(struct vb2_queue *vq)
 	struct vb2_v4l2_buffer *buf;
 
 	cancel_work_sync(&ctx->work);
-	if (core->running)
-		venc_hw_stop(ctx);
+	mutex_lock(&core->session_lock);
+	venc_hw_stop(ctx);
+	mutex_unlock(&core->session_lock);
 	mutex_lock(ctx->ctrl_handler.lock);
 	ctx->rc_restart = true;
 	memset(&ctx->recovery, 0, sizeof(ctx->recovery));
@@ -1731,6 +1788,7 @@ static void venc_work(struct work_struct *work)
 	struct vb2_v4l2_buffer *src, *dst;
 	enum vb2_buffer_state state = VB2_BUF_STATE_DONE;
 	bool new_session = false, idr = true;
+	bool force_reset = false;
 	int ret;
 
 	src = v4l2_m2m_next_src_buf(m2m_ctx);
@@ -1746,23 +1804,26 @@ static void venc_work(struct work_struct *work)
 		goto out;
 	}
 
-	if (!core->running) {
-		ret = venc_hw_start(ctx);
-		if (ret) {
-			dev_err(core->dev, "session start failed (%d)\n", ret);
-			/* Allocation/firmware failure is terminal for these queues. */
-			vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
-			vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
-			state = VB2_BUF_STATE_ERROR;
-			goto out;
-		}
-		new_session = true;
+	mutex_lock(&core->session_lock);
+	new_session = !ctx->initialized;
+	force_reset = core->ctx != ctx;
+	ret = venc_activate(ctx);
+	if (ret) {
+		dev_err(core->dev, "session start failed (%d)\n", ret);
+		/* Allocation/firmware failure is terminal for these queues. */
+		vb2_queue_error(v4l2_m2m_get_src_vq(m2m_ctx));
+		vb2_queue_error(v4l2_m2m_get_dst_vq(m2m_ctx));
+		state = VB2_BUF_STATE_ERROR;
+		mutex_unlock(&core->session_lock);
+		goto out;
 	}
 
 	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG) {
 		ret = venc_encode_jpeg(ctx, &src->vb2_buf, &dst->vb2_buf);
 	} else {
 		idr = venc_pick_picture(ctx, new_session);
+		if (force_reset)
+			core->need_reset = true;
 		ret = venc_encode_frame(ctx, &src->vb2_buf, &dst->vb2_buf, idr);
 		ret = venc_account_picture(ctx, idr,
 				     vb2_get_plane_payload(&dst->vb2_buf, 0), ret);
@@ -1780,6 +1841,7 @@ static void venc_work(struct work_struct *work)
 	}
 	if (ret)
 		state = VB2_BUF_STATE_ERROR;
+	mutex_unlock(&core->session_lock);
 
 out:
 	v4l2_m2m_buf_copy_metadata(src, dst, false);
@@ -2125,7 +2187,7 @@ static int venc_open(struct file *file)
 	int ret;
 
 	mutex_lock(&core->lock);
-	if (core->ctx) {
+	if (core->instances == VENC_MAX_INSTANCES) {
 		mutex_unlock(&core->lock);
 		return -EBUSY;
 	}
@@ -2234,7 +2296,7 @@ static int venc_open(struct file *file)
 	ctx->fh.ctrl_handler = hdl;
 	v4l2_fh_add(&ctx->fh);
 
-	core->ctx = ctx;
+	core->instances++;
 	mutex_unlock(&core->lock);
 
 	return 0;
@@ -2252,18 +2314,18 @@ static int venc_release(struct file *file)
 	struct venc_ctx *ctx = venc_fh_to_ctx(file);
 	struct venc_core *core = ctx->core;
 
-	cancel_work_sync(&ctx->work);
-	if (core->running)
-		venc_hw_stop(ctx);
-
+	/* Cancel through M2M so a scheduled job still gets its finish notification. */
+	mutex_lock(&core->lock);
 	v4l2_m2m_ctx_release(ctx->m2m_ctx);
+	mutex_lock(&core->session_lock);
+	venc_hw_stop(ctx);
+	mutex_unlock(&core->session_lock);
+
 	v4l2_fh_del(&ctx->fh);
 	v4l2_ctrl_handler_free(&ctx->ctrl_handler);
 	v4l2_fh_exit(&ctx->fh);
 
-	mutex_lock(&core->lock);
-	if (core->ctx == ctx)
-		core->ctx = NULL;
+	core->instances--;
 	mutex_unlock(&core->lock);
 
 	kfree(ctx);
@@ -2335,6 +2397,7 @@ static int venc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, core);
 	init_completion(&core->done);
 	mutex_init(&core->lock);
+	mutex_init(&core->session_lock);
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dos");
 	if (!r || r->start != 0xd0050000 || resource_size(r) != SZ_64K)
@@ -2374,6 +2437,7 @@ static int venc_probe(struct platform_device *pdev)
 	irq = platform_get_irq_byname(pdev, "venc");
 	if (irq < 0)
 		return irq;
+	core->irq = irq;
 
 	ret = devm_request_irq(dev, irq, venc_isr, 0, "venc", core);
 	if (ret)

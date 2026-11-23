@@ -42,7 +42,7 @@ struct venc_core {
 	struct clk *dos_clk;
 	struct clk *hcodec_clk;
 
-	struct venc_ctx *ctx;		/* single active instance */
+	struct venc_ctx *ctx;		/* hardware owner, separate from open handles */
 	struct dentry *debugfs;
 	/* frames read straight from a DMA-BUF / copied into staging, copy time */
 	u64 direct_frames, copied_frames, copy_ns;
@@ -61,6 +61,9 @@ struct venc_core {
 	bool done_pending;
 	struct completion done;
 	struct mutex lock;
+	struct mutex session_lock; /* hardware activation and session teardown */
+	u32 instances;
+	int irq;
 };
 
 /* Raw input format; see venc_formats[] */
@@ -146,6 +149,7 @@ struct venc_ctx {
 	bool sps_pps_valid;
 	u32 sps_pps_size;
 	void *sps_pps;
+	bool initialized;
 };
 
 enum venc_buffer_id {
