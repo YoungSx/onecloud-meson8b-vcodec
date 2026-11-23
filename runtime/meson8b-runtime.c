@@ -78,6 +78,7 @@ static int meson8b_remove_overlay(void)
 	 */
 	meson8b_destroy_codec("amlogic,meson8b-vdec");
 	meson8b_destroy_codec("amlogic,meson8b-venc");
+	meson8b_destroy_codec("amlogic,meson8b-ge2d");
 	flush_workqueue(system_long_wq);
 	return of_overlay_remove(&overlay_id);
 }

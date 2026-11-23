@@ -43,8 +43,8 @@ config VIDEO_MESON8B_VCODEC
     makefile = Path('drivers/media/platform/Makefile')
     before = (source / makefile).read_text()
     result.append(diff(makefile, before, before + '\nobj-$(CONFIG_VIDEO_MESON8B_VCODEC) += meson/meson8b-vcodec/\n'))
-    result.append(diff(TARGET / 'Makefile', '', '# SPDX-License-Identifier: GPL-2.0\nobj-m += runtime/ vdec/ venc/\n'))
-    for directory in ('runtime', 'vdec', 'venc'):
+    result.append(diff(TARGET / 'Makefile', '', '# SPDX-License-Identifier: GPL-2.0\nobj-m += runtime/ vdec/ venc/ ge2d/\n'))
+    for directory in ('runtime', 'vdec', 'venc', 'ge2d'):
         for path in sorted((ROOT / directory).iterdir()):
             if path.name == 'Makefile' or path.suffix in ('.c', '.h') and '.mod.' not in path.name:
                 result.append(diff(TARGET / directory / path.name, '', path.read_text()))

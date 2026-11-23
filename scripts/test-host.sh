@@ -7,7 +7,7 @@ python3 scripts/extract-firmware.py --fetch
 python3 -m unittest discover -s tests -v
 python3 -I scripts/m4v-frame-compare.py --self-test
 shellcheck scripts/*.sh
-for test in copy window capture pool jpeg esparser_padding hevc_sps rate_control rate_limit h264_sps; do
+for test in copy window capture pool jpeg esparser_padding hevc_sps rate_control rate_limit h264_sps ge2d_layout; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
       -fno-pie -no-pie "tests/test_$test.c" -o "build/host-tests/$test" -lm
     if [[ "$test" == hevc_sps ]]; then
@@ -25,7 +25,7 @@ if printf '#include <arm_neon.h>\n' | cc -E -x c - >/dev/null 2>&1; then
 else
     echo 'skip: no arm_neon.h on this host' >&2
 fi
-for client in encode-test overflow-queue; do
+for client in encode-test overflow-queue ge2d-copy; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined "tests/$client.c" \
       -o "build/host-tests/$client"
 done

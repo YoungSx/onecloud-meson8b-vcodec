@@ -39,13 +39,13 @@ make KDIR="$kernel" modules -j"$jobs"
 make -C "$kernel" ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- \
   CC=arm-linux-gnueabihf-gcc-11 LOCALVERSION=-meson \
   M="$kernel/drivers/media/platform/meson/meson8b-vcodec" -j"$jobs" modules
-for directory in runtime vdec venc; do
+for directory in runtime vdec venc ge2d; do
     for source in "$root/$directory/"*.c "$root/$directory/"*.h "$root/$directory/Makefile"; do
         [[ "$source" != *.mod.c ]] || continue
         cmp "$source" "$kernel/drivers/media/platform/meson/meson8b-vcodec/$directory/$(basename "$source")"
     done
 done
-for module in runtime/meson8b-runtime.ko vdec/meson-vdec.ko venc/meson-venc.ko; do
+for module in runtime/meson8b-runtime.ko vdec/meson-vdec.ko venc/meson-venc.ko ge2d/meson8b-ge2d.ko; do
     [[ $(modinfo -F vermagic "$module") == '5.15.79-meson '* ]]
 done
 [[ $(modinfo -F depends vdec/meson-vdec.ko) == *meson8b-runtime* ]]

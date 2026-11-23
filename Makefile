@@ -3,6 +3,7 @@ ifneq ($(KERNELRELEASE),)
 obj-m += runtime/
 obj-m += vdec/
 obj-m += venc/
+obj-m += ge2d/
 else
 KDIR ?= /lib/modules/$(shell uname -r)/build
 ARCH ?= arm

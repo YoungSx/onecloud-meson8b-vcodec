@@ -51,6 +51,16 @@ class OverlayTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 overlay.render(root)
 
+    def test_ge2d_is_explicit_and_uses_the_existing_clock_provider(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            self.fixture(root)
+            self.assertNotIn('blitter@', overlay.render(root))
+            text = overlay.render(root, ge2d=True)
+            self.assertIn('reg = <0xc1106280 0x12c>;', text)
+            self.assertIn('clocks = <1 49>;', text)
+            self.assertIn('resets = <4 70>;', text)
+
 
 if __name__ == '__main__':
     unittest.main()

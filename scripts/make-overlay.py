@@ -22,7 +22,7 @@ def provider(tree, compatible):
     return handle
 
 
-def render(tree):
+def render(tree, ge2d=False):
     for compat in [b'xunlei,onecloud', b'amlogic,meson8b']:
         if compat not in strings(tree / 'compatible'):
             raise ValueError('This overlay requires an OneCloud Meson8b board')
@@ -37,6 +37,18 @@ def render(tree):
     canvas = provider(tree, 'amlogic,meson8b-canvas')
     pmu = provider(tree, 'amlogic,meson8b-pmu')
     reset = provider(tree, 'amlogic,meson8b-reset')
+    if ge2d and any(b'amlogic,meson8b-ge2d' in strings(p) for p in tree.rglob('compatible')):
+        raise ValueError('A GE2D node already exists')
+    ge2d_node = f'''
+            blitter@c1106280 {{
+                compatible = "amlogic,meson8b-ge2d";
+                reg = <0xc1106280 0x12c>;
+                clocks = <{clkc} 49>;
+                resets = <{reset} 70>;
+                amlogic,canvas = <{canvas}>;
+                status = "okay";
+            }};
+''' if ge2d else ''
     return f'''/dts-v1/;
 /plugin/;
 / {{
@@ -69,7 +81,7 @@ def render(tree):
                 amlogic,canvas = <{canvas}>;
                 status = "okay";
             }};
-        }};
+{ge2d_node}        }};
     }};
 }};
 '''
@@ -79,8 +91,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tree', type=pathlib.Path, default=pathlib.Path('/sys/firmware/devicetree/base'))
     parser.add_argument('--output', type=pathlib.Path, required=True, help='New .dts file; compile externally with dtc -@')
+    parser.add_argument('--ge2d', action='store_true', help='Include the opt-in GE2D hardware verification device')
     args = parser.parse_args()
-    text = render(args.tree)
+    text = render(args.tree, args.ge2d)
     with args.output.open('x') as stream:
         stream.write(text)
 
