@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +21,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <linux/videodev2.h>
+typedef uint8_t u8;
+typedef uint32_t u32;
+#include "../vdec/wmv3-header.h"
 
 #define N_OUT 4
 #define MAX_CAP 32
@@ -52,6 +57,22 @@ static FILE *hashf;
 static unsigned long pictures;
 static unsigned long streamoff_after;
 static int streamoff_capture_first;
+static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+
+static void packet_timestamp(struct v4l2_buffer *buffer, const unsigned char *packet,
+			     size_t size, size_t index)
+{
+	size_t offset = index ? 0 : 36;
+	uint32_t milliseconds;
+
+	if (out_fourcc != V4L2_PIX_FMT_VC1_ANNEX_L || size < offset + 8)
+		return;
+	milliseconds = wmv3_le32(packet + offset + 4);
+	buffer->timestamp.tv_sec = milliseconds / 1000;
+	buffer->timestamp.tv_usec = milliseconds % 1000 * 1000;
+	if (packet[offset + 3] & 0x80)
+		buffer->flags |= V4L2_BUF_FLAG_KEYFRAME;
+}
 
 static int dump_frame(struct v4l2_buffer *b)
 {
@@ -98,8 +119,6 @@ static int stop_early(unsigned long frames)
 	       streamoff_capture_first);
 	return 1;
 }
-
-static unsigned out_fourcc = V4L2_PIX_FMT_H264;
 
 static void setup_output(int w, int h)
 {
@@ -393,6 +412,27 @@ int main(int argc, char **argv)
 				chunks[nchunks++] = next - pos;
 				pos = next;
 			}
+		} else if (out_fourcc == V4L2_PIX_FMT_VC1_ANNEX_L) {
+			if (eslen < 44 || esbuf[3] != 0xc5 ||
+			    esbuf[4] != 4 || esbuf[5] || esbuf[6] || esbuf[7]) {
+				fprintf(stderr, "expected Annex L sequence and first frame\n");
+				return 2;
+			}
+			while (pos < eslen) {
+				long frame = pos ? pos : 36;
+				size_t size;
+
+				if (frame + 8 > eslen)
+					return 2;
+				size = esbuf[frame] | (size_t)esbuf[frame + 1] << 8 |
+				       (size_t)esbuf[frame + 2] << 16;
+				if (!size || size > (size_t)(eslen - frame - 8)) {
+					fprintf(stderr, "truncated Annex L frame\n");
+					return 2;
+				}
+				chunks[nchunks++] = frame + 8 + size - pos;
+				pos = frame + 8 + size;
+			}
 		} else if (out_fourcc == V4L2_PIX_FMT_H263) {
 			while (pos < eslen) {
 				long next = eslen;
@@ -460,6 +500,7 @@ int main(int argc, char **argv)
 		b.length = 1;
 		b.m.planes = planes;
 		planes[0].bytesused = chunks[0];
+		packet_timestamp(&b, esbuf, chunks[0], 0);
 		xioctl(VIDIOC_QBUF, &b, "QBUF(OUTPUT)");
 		out_queued++;
 		chunk_idx = 1;
@@ -519,6 +560,7 @@ int main(int argc, char **argv)
 				b.length = 1;
 				b.m.planes = planes;
 				planes[0].bytesused = chunk;
+				packet_timestamp(&b, esbuf + espos - chunk, chunk, chunk_idx - 1);
 				xioctl(VIDIOC_QBUF, &b, "QBUF(OUTPUT)");
 			}
 			continue;

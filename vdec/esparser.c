@@ -337,7 +337,12 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		if (esparser_vififo_get_free_space(sess) < payload_size ||
 		    atomic_read(&sess->esparser_queued_bufs) >= num_dst_bufs)
 			return -EAGAIN;
-	} else if (esparser_vififo_get_free_space(sess) < payload_size) {
+	} else if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 &&
+		   esparser_vififo_get_free_space(sess) < SZ_1M) {
+		/* Reserve the bounded translated payload before removing its raw AU. */
+		return -EAGAIN;
+	} else if (esparser_vififo_get_free_space(sess) < payload_size +
+		   (sess->fmt_out->pixfmt == V4L2_PIX_FMT_VC1_ANNEX_L ? 14 : 0)) {
 		return -EAGAIN;
 	}
 
@@ -347,6 +352,8 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		amvdec_abort(sess);
 		return 0;
 	}
+	/* Annex L preparation may replace the userspace header with a vendor one. */
+	payload_size = vb2_get_plane_payload(vb, 0);
 
 	offset = esparser_get_offset(sess);
 

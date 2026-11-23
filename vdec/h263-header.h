@@ -17,7 +17,7 @@ static inline int h263_picture_geometry(const u8 *data, u32 length,
 	if (!format || format >= ARRAY_SIZE(widths))
 		return -EOPNOTSUPP;
 	/* Initial port accepts baseline I/P without optional coding tools. */
-	if ((data[4] & 1) || (data[5] & 0xe0))
+	if ((data[4] & 0xe1) || (data[5] & 0xe0))
 		return -EOPNOTSUPP;
 	*width = widths[format];
 	*height = heights[format];

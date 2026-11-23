@@ -7,11 +7,13 @@ python3 scripts/extract-firmware.py --fetch
 python3 -m unittest discover -s tests -v
 python3 -I scripts/m4v-frame-compare.py --self-test
 shellcheck scripts/*.sh
-for test in copy window capture pool jpeg esparser_padding hevc_sps hevc_tiles h263_header rate_control rate_limit h264_sps ge2d_layout; do
+for test in copy window capture pool jpeg esparser_padding hevc_sps hevc_tiles h263_header h263_vlc wmv3_header rate_control rate_limit h264_sps ge2d_layout; do
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
       -fno-pie -no-pie "tests/test_$test.c" -o "build/host-tests/$test" -lm
     if [[ "$test" == hevc_sps ]]; then
         "build/host-tests/$test" tests/fixtures/hevc-1080p-sps.hevc
+    elif [[ "$test" == h263_vlc ]]; then
+        "build/host-tests/$test" tests/fixtures/h263-baseline-128x96.h263
     else
         "build/host-tests/$test"
     fi

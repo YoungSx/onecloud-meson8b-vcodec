@@ -13,6 +13,7 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
+#include "wmv3-header.h"
 
 /*
  * The ucode addresses its workspace at DCAC_BUFF_START_ADDR and
@@ -53,7 +54,24 @@ struct codec_vc1 {
 	struct amvdec_session *sess;
 	struct delayed_work drain_work;
 	bool draining;
+	bool sequence_seen;
 };
+
+static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
+{
+	struct codec_vc1 *vc1 = sess->priv;
+	int size;
+
+	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_VC1_ANNEX_L)
+		return 0;
+	size = wmv3_prepare_packet(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
+				   vb2_plane_size(vb, 0), sess->width, sess->height,
+				   &vc1->sequence_seen);
+	if (size < 0)
+		return size;
+	vb2_set_plane_payload(vb, 0, size);
+	return 0;
+}
 
 /* End of sequence, then one frame start. Same firmware rule as MPEG1/2:
  * a picture completes only when the next one starts, so the end code alone
@@ -112,8 +130,8 @@ static int codec_vc1_start(struct amvdec_session *sess)
 	amvdec_write_dos_bits(core, VLD_MEM_VIFIFO_CONTROL,
 			      (2 << MEM_FIFO_CNT_BIT) | (8 << 18));
 	amvdec_write_dos(core, PSCALE_CTRL, 0);
-	/* advanced profile (WVC1) stream format; 0 would select WMV3 */
-	amvdec_write_dos(core, VC1_FORMAT_REG, 1);
+	amvdec_write_dos(core, VC1_FORMAT_REG,
+			 sess->fmt_out->pixfmt == V4L2_PIX_FMT_VC1_ANNEX_G);
 	amvdec_write_dos(core, VC1_SOS_COUNT, 0);
 	amvdec_write_dos(core, VC1_BUFFERIN, 0);
 	amvdec_write_dos(core, VC1_BUFFEROUT, 0);
@@ -275,4 +293,5 @@ struct amvdec_codec_ops codec_vc1_ops = {
 	.recycle = codec_vc1_recycle,
 	.drain = codec_vc1_drain,
 	.resume = codec_vc1_resume,
+	.inspect_input = codec_vc1_inspect_input,
 };

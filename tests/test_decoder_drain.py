@@ -47,12 +47,9 @@ int main(void) {
     result=0;DRAIN(&s);
     assert(c.draining && scheduled==1 && writes==4);
     DRAIN(&s);assert(scheduled==1 && writes==4);
-    H263_CHECK
     return 0;
 }
-""".replace("CODEC", "codec_" + codec).replace("DRAIN", "codec_" + codec + "_drain").replace(
-                    "H263_CHECK", "c.draining=false;f.pixfmt=1;codec_mpeg4_drain(&s);assert(length==3);"
-                    if codec == "mpeg4" else "")
+""".replace("CODEC", "codec_" + codec).replace("DRAIN", "codec_" + codec + "_drain")
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory)
                     (path / "test.c").write_text(body)

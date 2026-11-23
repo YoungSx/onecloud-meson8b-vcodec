@@ -36,6 +36,11 @@ int main(void) {
     check(V4L2_PIX_FMT_H264,0x41,0x40,0,0,1);
     check(V4L2_PIX_FMT_HEVC,0x02,1,0x80,1,1);
     check(V4L2_PIX_FMT_HEVC,0x02,1,0,0,1);
+    unsigned char packet[47]={0};packet[40]=0x39;packet[41]=0x30;packet[39]=0x80;
+    struct v4l2_buffer b={0};out_fourcc=V4L2_PIX_FMT_VC1_ANNEX_L;
+    packet_timestamp(&b,packet,sizeof(packet),0);
+    assert(b.timestamp.tv_sec==12 && b.timestamp.tv_usec==345000);
+    assert(b.flags&V4L2_BUF_FLAG_KEYFRAME);
     return 0;
 }
 """

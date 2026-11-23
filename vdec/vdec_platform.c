@@ -92,9 +92,19 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	}, {
-		/* advanced profile (WVC1); simple/main (WMV3) would need
-		 * the VC1_FORMAT_REG select left at 0 */
+		/* Advanced profile uses Annex G; simple/main uses Annex L below. */
 		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_G,
+		.min_buffers = 4,
+		.max_buffers = 4,
+		.max_width = 1920,
+		.max_height = 1080,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_vc1_ops,
+		.firmware_path = "meson/vdec/meson8b_vc1.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
+		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_L,
 		.min_buffers = 4,
 		.max_buffers = 4,
 		.max_width = 1920,
