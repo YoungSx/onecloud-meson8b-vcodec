@@ -278,6 +278,7 @@ static int venc_loadmc(struct venc_ctx *ctx)
 	venc_read(core, HCODEC_MPSR);
 
 	timeout = jiffies + HZ;
+	dma_wmb();
 	venc_write(core, HCODEC_IMEM_DMA_ADR, ctx->mem.assit);
 	venc_write(core, HCODEC_IMEM_DMA_COUNT, 0x1000);
 	venc_write(core, HCODEC_IMEM_DMA_CTRL, 0x8000 | (7 << 16));
@@ -287,7 +288,9 @@ static int venc_loadmc(struct venc_ctx *ctx)
 			schedule();
 		} else {
 			dev_err(core->dev, "hcodec microcode load failed\n");
-			return -EBUSY;
+			venc_write(core, HCODEC_IMEM_DMA_CTRL, 0);
+			venc_read(core, HCODEC_IMEM_DMA_CTRL);
+			return -ETIMEDOUT;
 		}
 	}
 	return 0;
@@ -1072,22 +1075,30 @@ static int venc_hw_start(struct venc_ctx *ctx)
 		ret = venc_wait_cmd(core, ENCODER_SEQUENCE_DONE);
 	if (!ret) {
 		ctx->sps_pps_size = venc_read(core, VLC_TOTAL_BYTES);
+		if (!ctx->sps_pps_size || ctx->sps_pps_size > VENC_BITSTREAM_SIZE) {
+			ret = -EIO;
+			goto err_stop_hw;
+		}
 		ret = venc_start_cmd(ctx, ENCODER_PICTURE);
 	}
 	if (!ret)
 		ret = venc_wait_cmd(core, ENCODER_PICTURE_DONE);
 	if (!ret) {
-		u32 pps = venc_read(core, VLC_TOTAL_BYTES) - ctx->sps_pps_size;
+		u32 size = venc_read(core, VLC_TOTAL_BYTES);
 
-		ctx->sps_pps = kmalloc(ctx->sps_pps_size + pps, GFP_KERNEL);
+		/* Reject corrupt firmware counters before subtracting or copying. */
+		if (size <= ctx->sps_pps_size || size > VENC_BITSTREAM_SIZE) {
+			ret = -EIO;
+			goto err_stop_hw;
+		}
+
+		ctx->sps_pps = kmalloc(size, GFP_KERNEL);
 		if (!ctx->sps_pps) {
 			ret = -ENOMEM;
 			goto err_stop_hw;
 		}
-		memcpy(ctx->sps_pps,
-		       venc_stream_vaddr(ctx),
-		       ctx->sps_pps_size + pps);
-		ctx->sps_pps_size += pps;
+		memcpy(ctx->sps_pps, venc_stream_vaddr(ctx), size);
+		ctx->sps_pps_size = size;
 		ctx->sps_pps_valid = true;
 		ret = venc_update_sps(ctx);
 	}

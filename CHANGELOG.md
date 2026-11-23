@@ -7,6 +7,11 @@ changed.
 
 ## Unreleased
 
+- Discard pending HEVC pictures during STREAMOFF instead of scheduling delivery
+  while codec state is being destroyed; keep normal EOS flushing unchanged.
+- Order HCODEC firmware DMA and cancel it on timeout; reject invalid SPS/PPS
+  byte counters before allocating or copying headers. Add host failure regressions.
+
 - Defer EOS until its own LAST buffer is dequeued, track complete threaded IRQ
   activity, and bound/recover drain and recycle allocation failures.
 - Pipeline conversion outside the firmware IRQ, keeping copied slots protected

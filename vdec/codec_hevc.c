@@ -800,7 +800,8 @@ static int codec_hevc_stop(struct amvdec_session *sess)
 
 	cancel_delayed_work_sync(&hevc->watchdog);
 	mutex_lock(&hevc->lock);
-	codec_hevc_flush_output(sess);
+	/* STREAMOFF discards pictures; do not requeue work after it was cancelled. */
+	codec_hevc_forget_frames(hevc);
 
 	if (hevc->workspace_vaddr)
 		dma_free_coherent(core->dev, SIZE_WORKSPACE,
