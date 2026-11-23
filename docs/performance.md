@@ -38,7 +38,8 @@ MMAP/DMA-BUF 与 canvas；不接替当前 decoder 的 NEON 路径。S805 寄存�
 [`5aed95d35d252cafc75ce613a3a0052285662de2`](https://github.com/hardkernel/linux/tree/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/display/ge2d)。
 
 驱动在 probe 时分配独立连续缓冲，硬件执行 512×32 字节图案的 big→little
-endian 转换并逐字节核对。失败不注册视频设备；命令有 100 ms 上限，超时
+endian 转换并逐字节核对，再检查 512×32→256×16 的常量平面过滤结果。
+失败不注册视频设备；命令有 100 ms 上限，超时
 后将 GE2D 保持在硬复位状态、拒绝新命令，先停止 DMA 再允许队列释放。
 普通 GREY 客户端使用 little→little，不借 FOURCC 暗示厂商字节序。
 
@@ -54,9 +55,13 @@ arm-linux-gnueabihf-gcc-11 -O2 -Wall -Wextra -Werror -static \
 # 用枚举得到的 GE2D 设备号；示例编号不代表固定设备。
 ./ge2d-copy /dev/video2 512 32 10
 ./ge2d-copy /dev/video2 1920 1088 10
+./ge2d-copy /dev/video2 1920 1088 10 1280 720
 ```
 
-[客户端](../tests/ge2d-copy.c)比较每幅完整字节、大小和时间戳。需要进一步
+[客户端](../tests/ge2d-copy.c)比较每幅完整字节、大小和时间戳；缩小模式使用
+逐帧不同的常量平面，不能代替有纹理视频的滤波质量验证。GREY 输出可独立
+协商为输入的 1–1/4，使用厂商 bilinear 表与有界 phase/prescale 配置。
+需要进一步
 覆盖取消/重开、DMA-BUF、两平面图案和共享时钟/业务，再决定接入视频输出、
 裁剪与 NV12 缩放。当前仅有主机 MMIO/错误注入和 ARM 编译；没有 GE2D
 实机像素或性能验收，不能宣称已加速转码。

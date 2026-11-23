@@ -17,7 +17,7 @@
 | H.264 编码 | Baseline/Level 4.0；YUV420/422/444、RGB 输入；固定 I/P QP、VBR、强制 IDR、GOP、多分片、SPS 裁剪/VUI/帧周期 | 无 Main/High/CABAC/B 帧编码；多分片整帧交付；单帧码流上限 1 MiB。RGB24 最宽 1376，其他具体布局见使用指南。 |
 | JPEG 编码 | 全量程 YCbCr，质量 1–100；历史 900 张 1080p 软解检查 | 与 AVC 共用 HCODEC，二者互斥；原版 FFmpeg 无本项目可用的 JPEG M2M 包装，使用直接客户端。 |
 | 输入 DMA / 输出转换 | 兼容连续 NV12M/NV21M DMA-BUF 输入可直读；解码输出有 NEON 字节序转换、异步交付 | 仍有 CPU 转换和拷贝，非端到端零拷贝；GE2D 未集成。 |
-| 会话与内存 | 一路解码加一路编码；内部帧池与应用 CAPTURE 数解耦；默认 FFmpeg 数量可用 | 1080p 并发只对已测试码流成立，不保证任意参考结构都适合 64 MiB CMA。第二 decoder STREAMON 返回 EBUSY。 |
+| 会话与内存 | 已部署一路解码加一路编码；当前源码新增单 HCODEC 多会话逐帧调度 | 新调度仅主机/ARM 验证，未部署；每会话CMA按需分配，不保证多路1080p。第二 decoder STREAMON 仍为 EBUSY。 |
 | 加载与回滚 | 外部模块、运行时 overlay、固件及自动加载；保留原 kernel/boot DT/CMA | 旧版通过冷启动和 service restart；当前新包只通过热更新/短回归，未完成新的冷启动与异常重启验收。 |
 
 [验证记录](validation-records.md)按主题保留实测版本、方法、结果和失败边界。
@@ -74,8 +74,9 @@ Linux 7.3.4 的27个研究补丁已包含独立帧池、既有解码格式、sys
 固定父钟与 IRQ/EOS/DMA 保护；内核、模块、DT/binding 检查通过，**未实机启动**。
 另一板型、另一内核、跨板与研究静态 DT 均无运行验收。
 
-没有发现适用于 S805 的 HEVC 编码实现；AVS、多编码会话也无
-当前实现/验收承诺。见[编码硬件依据](encoding-feasibility.md)。
+没有发现适用于 S805 的 HEVC 编码实现；AVS无当前标准接口实现/验收承诺。
+多编码会话已有未部署源码，见[厂商能力追平](codec-parity.md)和
+[编码硬件依据](encoding-feasibility.md)。
 
 11-23[能力复核](capability-recheck.md)纠正了若干历史否定结论：H.263/AVS
 微码、WMV3、HEVC tiles、多编码实例和 GE2D 均有厂商源码依据，属于继续

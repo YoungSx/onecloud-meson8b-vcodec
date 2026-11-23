@@ -9,7 +9,7 @@ Overlay、canvas、时钟和 V4L2 M2M/vb2 支持，无需打开 staging 或替�
 | --- | --- |
 | `meson8b-runtime.ko` | 应用/移除挥发性 Overlay，持有共享 DOS 寄存器区域，提供 IRQ 安全更新锁 |
 | `meson-vdec.ko` | stateful V4L2 解码；VDEC1 处理 H.264/旧 codec，独立 HEVC 核处理 Main 8-bit |
-| `meson-venc.ko` | HCODEC H.264/JPEG 编码，共用一个单 open 的 V4L2 设备 |
+| `meson-venc.ko` | HCODEC H.264/JPEG 编码；已部署单 open，当前源码增加标准 M2M 多会话调度 |
 
 DOS 控制位由多个引擎共享。模块使用统一 owner/lock 和 PMU regmap 更新
 掩码，避免整个寄存器写入干扰另一引擎。依赖模块卸载后 runtime 才能移除
@@ -19,6 +19,14 @@ fclk_div5（255 MHz），避免重编程以太网依赖的共享 MPLL。
 VDEC1 新候选通过显式 `vdec_1_div` 句柄设置分频，只有父频率恰为请求
 频率两倍才执行；父频率不匹配时拒绝，不允许 CCF 自动重选/重调共享父钟。
 固定父钟已通过有界实机检查；新驱动与匹配 overlay 已部署，旧 overlay 不含这个句柄。
+
+当前未部署的编码多会话实现将“打开句柄”和“硬件 owner”分开，V4L2 M2M
+逐帧选择会话，额外 session mutex 串行硬件切换与资源清理。每个上下文保留
+自己的 CMA、参考 canvas 角色、SPS/PPS、固件和码控；换 owner 时停止/同步
+旧 IRQ，再重新加载当前会话的微码及寄存器，下一图片命令重写自己的帧号/
+POC 与参考地址。释放非 owner 只清理该上下文，关闭 owner 先停硬件。
+最多8个句柄不等于8路1080p：内存按需分配、总吞吐仍共享，重载耗时和
+真正跨会话图像正确性均待实机验收，见[追平记录](codec-parity.md)。
 
 ## 解码与编码内存
 

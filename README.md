@@ -14,7 +14,7 @@ removable runtime device-tree overlay. No replacement boot kernel is needed.
 | Decode | H.264 and HEVC Main 8-bit have picture-content checks; MPEG-1/2, MPEG-4 Part 2, VC-1 advanced and MJPEG have known tail/content limits. New HEVC tiles, baseline H.263 and WMV3 Annex L sources have host/ARM checks only, with no hardware acceptance. |
 | H.264 encode | Baseline/Level 4.0, QP or VBR target control, YUV/RGB inputs, DMA-BUF input, multi-slice, SPS crop/VUI. |
 | JPEG encode | Quality 1–100, full-range YCbCr input, direct V4L2 client. |
-| Transcode | One decoder plus one encoder; validated 1080p samples fit the original 64 MiB CMA. |
+| Transcode | Deployed: one decoder plus one encoder; validated 1080p samples fit the original 64 MiB CMA. New shared-HCODEC session scheduling has host/ARM checks only. |
 
 The target is **official unmodified FFmpeg**. The OpenList fork discovers V4L2
 formats and serializes hardware work; Docker still needs device mappings.

@@ -29,7 +29,9 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 \
 默认 20），只占普通内存。原 64 MiB CMA 下十轮 60 帧 B 帧输入完整输出，
 逐帧 PSNR 最低 45.03 dB、平均 45.82 dB，见[验收](validation.md)。
 
-每次一个 decoder 和一个 encoder，应用侧排队。`-vf scale=640:-2` 可缩图，
+已部署版本每次一个 decoder 和一个 encoder，应用侧排队。当前源码新增
+单 HCODEC 多句柄逐帧调度，尚未部署/实机验收，每会话内存与重载开销独立。
+`-vf scale=640:-2` 可缩图，
 缩放由 CPU 完成；数据路径仍有字节序转换和输入拷贝。
 
 ## 帧哈希验收
