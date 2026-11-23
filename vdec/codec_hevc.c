@@ -15,6 +15,7 @@
 #include "vdec_helpers.h"
 #include "codec_hevc_common.h"
 #include "hevc-sps.h"
+#include "hevc-tiles.h"
 
 /* HEVC reg mapping */
 #define HEVC_DEC_STATUS_REG	HEVC_ASSIST_SCRATCH_0
@@ -276,6 +277,9 @@ struct codec_hevc {
 	u32 slice_segment_addr;
 	u32 slice_addr;
 	u32 ldc_flag;
+	struct hevc_tile_grid tiles;
+	struct hevc_tile tile;
+	bool new_tile;
 
 	/* Whether we detected the bitstream as 10-bit */
 	int is_10bit;
@@ -938,6 +942,12 @@ codec_hevc_set_sao(struct amvdec_session *sess, struct hevc_frame *frame)
 	val = 0;
 	val_2 = amvdec_read_dos(core, HEVC_SAO_CTRL0);
 	val_2 &= (~0x300);
+	if (param->p.tiles_flags & 1) {
+		u32 across = (misc_flag0 >> LOOP_FILER_ACROSS_TILES_ENABLED_FLAG_BIT) & 1;
+
+		val |= across;
+		val_2 |= across << 8;
+	}
 
 	slice_deblocking_filter_disabled_flag = (misc_flag0 >>
 			SLICE_DEBLOCKING_FILTER_DISABLED_FLAG_BIT) & 0x1;
@@ -1033,8 +1043,9 @@ codec_hevc_set_mpred_ctrl(struct amvdec_core *core, struct codec_hevc *hevc)
 		val |= MPRED_CTRL0_NEW_SLI_SEG;
 
 	if (param->p.slice_segment_address == 0)
-		val |= MPRED_CTRL0_NEW_PIC |
-		       MPRED_CTRL0_NEW_TILE;
+		val |= MPRED_CTRL0_NEW_PIC;
+	if (hevc->new_tile)
+		val |= MPRED_CTRL0_NEW_TILE;
 
 	amvdec_write_dos(core, HEVC_MPRED_CTRL0, val);
 
@@ -1108,12 +1119,14 @@ static void codec_hevc_set_mpred(struct amvdec_session *sess,
 
 	val = ((hevc->lcu_x_num - 1) | (hevc->lcu_y_num - 1) << 16);
 	amvdec_write_dos(core, HEVC_MPRED_PIC_SIZE_LCU, val);
-	/* S805 requires the full tile rectangle even for a single tile. */
-	amvdec_write_dos(core, HEVC_MPRED_TILE_START, 0);
+	amvdec_write_dos(core, HEVC_MPRED_TILE_START,
+			 hevc->tile.left | (hevc->tile.top << 16));
 	amvdec_write_dos(core, HEVC_MPRED_TILE_SIZE_LCU,
-			 hevc->lcu_x_num | (hevc->lcu_y_num << 16));
-	amvdec_write_dos(core, HEVC_MPRED_MV_WR_ROW_JUMP, 0);
-	amvdec_write_dos(core, HEVC_MPRED_MV_RD_ROW_JUMP, 0);
+			 hevc->tile.width | (hevc->tile.height << 16));
+	val = (hevc->lcu_x_num - hevc->tile.width) *
+	      (hevc->lcu_size == 64 ? 0x200 : hevc->lcu_size == 32 ? 0x80 : 0x20);
+	amvdec_write_dos(core, HEVC_MPRED_MV_WR_ROW_JUMP, val);
+	amvdec_write_dos(core, HEVC_MPRED_MV_RD_ROW_JUMP, val);
 
 	amvdec_write_dos(core, HEVC_MPRED_REF_NUM,
 			 (ref_num[1] << 8) | ref_num[0]);
@@ -1338,6 +1351,13 @@ static int codec_hevc_process_segment(struct amvdec_session *sess)
 	struct amvdec_core *core = sess->core;
 	union rpm_param *param = &hevc->rpm_param;
 	u32 slice_segment_address = param->p.slice_segment_address;
+	struct hevc_tile tile;
+	bool new_tile;
+
+	if (hevc_tile_at(&hevc->tiles, slice_segment_address, &tile))
+		return -EINVAL;
+	new_tile = !slice_segment_address ||
+		   tile.column != hevc->tile.column || tile.row != hevc->tile.row;
 
 	/* First slice: new frame */
 	if (slice_segment_address == 0) {
@@ -1352,6 +1372,8 @@ static int codec_hevc_process_segment(struct amvdec_session *sess)
 			return -EINVAL;
 		hevc->cur_frame->cur_slice_idx++;
 	}
+	hevc->new_tile = new_tile;
+	hevc->tile = tile;
 
 	if (codec_hevc_update_frame_refs(sess, hevc->cur_frame))
 		return -EINVAL;
@@ -1400,10 +1422,7 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    !(param->p.m_temporalId & 7) ||
 	    param->p.collocated_from_l0_flag > 1 ||
 	    param->p.log2_parallel_merge_level > 6 ||
-	    param->p.five_minus_max_num_merge_cand > 4 ||
-	    (param->p.tiles_flags & 1) ||
-	    param->p.num_tile_columns_minus1 >= 4 ||
-	    param->p.num_tile_rows_minus1 >= 4)
+	    param->p.five_minus_max_num_merge_cand > 4)
 		return -EINVAL;
 
 	hevc->width = param->p.pic_width_in_luma_samples;
@@ -1452,6 +1471,19 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	hevc->lcu_x_num = (hevc->width + lcu_size - 1) / lcu_size;
 	hevc->lcu_y_num = (hevc->height + lcu_size - 1) / lcu_size;
 	hevc->lcu_total = hevc->lcu_x_num * hevc->lcu_y_num;
+	if (hevc_tile_grid_init(&hevc->tiles, hevc->lcu_x_num, hevc->lcu_y_num,
+			       param->p.tiles_flags, param->p.num_tile_columns_minus1,
+			       param->p.num_tile_rows_minus1,
+			       param->p.tile_width, param->p.tile_height))
+		return -EINVAL;
+	/* The S805 firmware indexes shared SAO scratch by tile row and column. */
+	{
+		u32 unit = (lcu_size == 16 ? 9 : lcu_size == 32 ? 14 : 24) << 4;
+
+		if (hevc->tiles.columns * (unit + 32) * hevc->lcu_y_num > SAO_VB_SIZE ||
+		    hevc->tiles.rows * unit * hevc->lcu_x_num > SAO_ABV_SIZE)
+			return -EINVAL;
+	}
 
 	if (dst_width != hevc->dst_width ||
 	    dst_height != hevc->dst_height ||

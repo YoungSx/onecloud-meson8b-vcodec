@@ -873,7 +873,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1674 @@
+@@ -0,0 +1,1706 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -891,6 +891,7 @@
 +#include "vdec_helpers.h"
 +#include "codec_hevc_common.h"
 +#include "hevc-sps.h"
++#include "hevc-tiles.h"
 +
 +/* HEVC reg mapping */
 +#define HEVC_DEC_STATUS_REG	HEVC_ASSIST_SCRATCH_0
@@ -1152,6 +1153,9 @@
 +	u32 slice_segment_addr;
 +	u32 slice_addr;
 +	u32 ldc_flag;
++	struct hevc_tile_grid tiles;
++	struct hevc_tile tile;
++	bool new_tile;
 +
 +	/* Whether we detected the bitstream as 10-bit */
 +	int is_10bit;
@@ -1814,6 +1818,12 @@
 +	val = 0;
 +	val_2 = amvdec_read_dos(core, HEVC_SAO_CTRL0);
 +	val_2 &= (~0x300);
++	if (param->p.tiles_flags & 1) {
++		u32 across = (misc_flag0 >> LOOP_FILER_ACROSS_TILES_ENABLED_FLAG_BIT) & 1;
++
++		val |= across;
++		val_2 |= across << 8;
++	}
 +
 +	slice_deblocking_filter_disabled_flag = (misc_flag0 >>
 +			SLICE_DEBLOCKING_FILTER_DISABLED_FLAG_BIT) & 0x1;
@@ -1909,8 +1919,9 @@
 +		val |= MPRED_CTRL0_NEW_SLI_SEG;
 +
 +	if (param->p.slice_segment_address == 0)
-+		val |= MPRED_CTRL0_NEW_PIC |
-+		       MPRED_CTRL0_NEW_TILE;
++		val |= MPRED_CTRL0_NEW_PIC;
++	if (hevc->new_tile)
++		val |= MPRED_CTRL0_NEW_TILE;
 +
 +	amvdec_write_dos(core, HEVC_MPRED_CTRL0, val);
 +
@@ -1984,12 +1995,14 @@
 +
 +	val = ((hevc->lcu_x_num - 1) | (hevc->lcu_y_num - 1) << 16);
 +	amvdec_write_dos(core, HEVC_MPRED_PIC_SIZE_LCU, val);
-+	/* S805 requires the full tile rectangle even for a single tile. */
-+	amvdec_write_dos(core, HEVC_MPRED_TILE_START, 0);
++	amvdec_write_dos(core, HEVC_MPRED_TILE_START,
++			 hevc->tile.left | (hevc->tile.top << 16));
 +	amvdec_write_dos(core, HEVC_MPRED_TILE_SIZE_LCU,
-+			 hevc->lcu_x_num | (hevc->lcu_y_num << 16));
-+	amvdec_write_dos(core, HEVC_MPRED_MV_WR_ROW_JUMP, 0);
-+	amvdec_write_dos(core, HEVC_MPRED_MV_RD_ROW_JUMP, 0);
++			 hevc->tile.width | (hevc->tile.height << 16));
++	val = (hevc->lcu_x_num - hevc->tile.width) *
++	      (hevc->lcu_size == 64 ? 0x200 : hevc->lcu_size == 32 ? 0x80 : 0x20);
++	amvdec_write_dos(core, HEVC_MPRED_MV_WR_ROW_JUMP, val);
++	amvdec_write_dos(core, HEVC_MPRED_MV_RD_ROW_JUMP, val);
 +
 +	amvdec_write_dos(core, HEVC_MPRED_REF_NUM,
 +			 (ref_num[1] << 8) | ref_num[0]);
@@ -2214,6 +2227,13 @@
 +	struct amvdec_core *core = sess->core;
 +	union rpm_param *param = &hevc->rpm_param;
 +	u32 slice_segment_address = param->p.slice_segment_address;
++	struct hevc_tile tile;
++	bool new_tile;
++
++	if (hevc_tile_at(&hevc->tiles, slice_segment_address, &tile))
++		return -EINVAL;
++	new_tile = !slice_segment_address ||
++		   tile.column != hevc->tile.column || tile.row != hevc->tile.row;
 +
 +	/* First slice: new frame */
 +	if (slice_segment_address == 0) {
@@ -2228,6 +2248,8 @@
 +			return -EINVAL;
 +		hevc->cur_frame->cur_slice_idx++;
 +	}
++	hevc->new_tile = new_tile;
++	hevc->tile = tile;
 +
 +	if (codec_hevc_update_frame_refs(sess, hevc->cur_frame))
 +		return -EINVAL;
@@ -2276,10 +2298,7 @@
 +	    !(param->p.m_temporalId & 7) ||
 +	    param->p.collocated_from_l0_flag > 1 ||
 +	    param->p.log2_parallel_merge_level > 6 ||
-+	    param->p.five_minus_max_num_merge_cand > 4 ||
-+	    (param->p.tiles_flags & 1) ||
-+	    param->p.num_tile_columns_minus1 >= 4 ||
-+	    param->p.num_tile_rows_minus1 >= 4)
++	    param->p.five_minus_max_num_merge_cand > 4)
 +		return -EINVAL;
 +
 +	hevc->width = param->p.pic_width_in_luma_samples;
@@ -2328,6 +2347,19 @@
 +	hevc->lcu_x_num = (hevc->width + lcu_size - 1) / lcu_size;
 +	hevc->lcu_y_num = (hevc->height + lcu_size - 1) / lcu_size;
 +	hevc->lcu_total = hevc->lcu_x_num * hevc->lcu_y_num;
++	if (hevc_tile_grid_init(&hevc->tiles, hevc->lcu_x_num, hevc->lcu_y_num,
++			       param->p.tiles_flags, param->p.num_tile_columns_minus1,
++			       param->p.num_tile_rows_minus1,
++			       param->p.tile_width, param->p.tile_height))
++		return -EINVAL;
++	/* The S805 firmware indexes shared SAO scratch by tile row and column. */
++	{
++		u32 unit = (lcu_size == 16 ? 9 : lcu_size == 32 ? 14 : 24) << 4;
++
++		if (hevc->tiles.columns * (unit + 32) * hevc->lcu_y_num > SAO_VB_SIZE ||
++		    hevc->tiles.rows * unit * hevc->lcu_x_num > SAO_ABV_SIZE)
++			return -EINVAL;
++	}
 +
 +	if (dst_width != hevc->dst_width ||
 +	    dst_height != hevc->dst_height ||
@@ -3590,7 +3622,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,282 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3606,6 +3638,7 @@
 +#include "dos_regs.h"
 +#include "esparser.h"
 +#include "vdec_helpers.h"
++#include "h263-header.h"
 +
 +/* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
 +#define SIZE_WORKSPACE		SZ_1M
@@ -3645,6 +3678,23 @@
 +};
 +
 +static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
++/* H.263 EOS is the 17-bit start prefix followed by GN=31. */
++static const u8 h263_eos[] = { 0x00, 0x00, 0xfc };
++
++static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
++{
++	u32 width, height;
++	int ret;
++
++	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
++		return 0;
++	ret = h263_picture_geometry(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
++				    &width, &height);
++	if (ret)
++		return ret;
++	/* This firmware has no source-change event; require negotiated geometry. */
++	return width == sess->width && height == sess->height ? 0 : -EINVAL;
++}
 +
 +static int codec_mpeg4_can_recycle(struct amvdec_core *core)
 +{
@@ -3780,12 +3830,15 @@
 +static void codec_mpeg4_drain(struct amvdec_session *sess)
 +{
 +	struct codec_mpeg4 *mpeg4 = sess->priv;
++	const u8 *eos = sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 ?
++			h263_eos : eos_sequence;
++	u32 eos_size = sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 ?
++		       sizeof(h263_eos) : 4;
 +
 +	if (mpeg4->draining)
 +		return;
 +
-+	/* Visual object sequence end */
-+	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
++	if (esparser_queue_eos(sess->core, eos, eos_size)) {
 +		amvdec_abort(sess);
 +		return;
 +	}
@@ -3850,6 +3903,7 @@
 +	.recycle = codec_mpeg4_recycle,
 +	.drain = codec_mpeg4_drain,
 +	.resume = codec_mpeg4_resume,
++	.inspect_input = codec_mpeg4_inspect_input,
 +};
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.h
@@ -7039,6 +7093,36 @@
 +
 +#endif
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/h263-header.h
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef MESON8B_H263_HEADER_H
++#define MESON8B_H263_HEADER_H
++
++/* Baseline picture start code and source-format geometry, one AU per buffer. */
++static inline int h263_picture_geometry(const u8 *data, u32 length,
++					u32 *width, u32 *height)
++{
++	static const u16 widths[] = { 0, 128, 176, 352, 704 };
++	static const u16 heights[] = { 0, 96, 144, 288, 576 };
++	u32 format;
++
++	if (!data || length < 7 || data[0] || data[1] || (data[2] & 0xfc) != 0x80 ||
++	    (data[3] & 3) != 2)
++		return -EINVAL;
++	format = (data[4] >> 2) & 7;
++	if (!format || format >= ARRAY_SIZE(widths))
++		return -EOPNOTSUPP;
++	/* Initial port accepts baseline I/P without optional coding tools. */
++	if ((data[4] & 1) || (data[5] & 0xe0))
++		return -EOPNOTSUPP;
++	*width = widths[format];
++	*height = heights[format];
++	return 0;
++}
++
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-sps.h
 @@ -0,0 +1,137 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
@@ -7177,6 +7261,99 @@
 +	*geometry = g;
 +	return 0;
 +}
++#endif
+--- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-tiles.h
+@@ -0,0 +1,90 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef MESON8B_HEVC_TILES_H
++#define MESON8B_HEVC_TILES_H
++
++#define HEVC_TILE_AXIS_MAX 5
++
++struct hevc_tile_grid {
++	u32 columns, rows, picture_width, picture_height;
++	u32 x[HEVC_TILE_AXIS_MAX + 1], y[HEVC_TILE_AXIS_MAX + 1];
++};
++
++struct hevc_tile {
++	u32 column, row, left, top, width, height;
++};
++
++static inline int hevc_tile_axis(u32 total, u32 count, bool uniform,
++				 const u16 sizes[4], u32 boundary[6])
++{
++	u32 i;
++
++	if (!total || !count || count > HEVC_TILE_AXIS_MAX || count > total)
++		return -EINVAL;
++	boundary[0] = 0;
++	for (i = 1; i < count; i++) {
++		/* H.265 uniform spacing distributes the remainder across boundaries. */
++		if (uniform) {
++			boundary[i] = i * total / count;
++		} else {
++			if (!sizes[i - 1] || sizes[i - 1] >= total - boundary[i - 1])
++				return -EINVAL;
++			boundary[i] = boundary[i - 1] + sizes[i - 1];
++		}
++	}
++	boundary[count] = total;
++	return 0;
++}
++
++static inline int hevc_tile_grid_init(struct hevc_tile_grid *grid,
++				      u32 width, u32 height, u32 flags,
++				      u32 columns_minus1, u32 rows_minus1,
++				      const u16 widths[4], const u16 heights[4])
++{
++	struct hevc_tile_grid g = {};
++	bool uniform = flags & 2;
++
++	if (!width || !height || width > 120 || height > 68 || (flags & ~3u))
++		return -EINVAL;
++	if (!(flags & 1)) {
++		g.columns = 1;
++		g.rows = 1;
++	} else {
++		if (columns_minus1 >= HEVC_TILE_AXIS_MAX || rows_minus1 >= HEVC_TILE_AXIS_MAX)
++			return -EINVAL;
++		g.columns = columns_minus1 + 1;
++		g.rows = rows_minus1 + 1;
++	}
++	if (hevc_tile_axis(width, g.columns, uniform, widths, g.x) ||
++	    hevc_tile_axis(height, g.rows, uniform, heights, g.y))
++		return -EINVAL;
++	g.picture_width = width;
++	g.picture_height = height;
++	*grid = g;
++	return 0;
++}
++
++/* Firmware slice_segment_address is a raster-scan CTU address. */
++static inline int hevc_tile_at(const struct hevc_tile_grid *grid, u32 address,
++			       struct hevc_tile *tile)
++{
++	u32 x, y, column, row;
++
++	if (!grid->columns || !grid->rows ||
++	    address >= grid->picture_width * grid->picture_height)
++		return -EINVAL;
++	x = address % grid->picture_width;
++	y = address / grid->picture_width;
++	for (column = 0; column + 1 < grid->columns && x >= grid->x[column + 1]; column++)
++		;
++	for (row = 0; row + 1 < grid->rows && y >= grid->y[row + 1]; row++)
++		;
++	*tile = (struct hevc_tile) {
++		.column = column, .row = row,
++		.left = grid->x[column], .top = grid->y[row],
++		.width = grid->x[column + 1] - grid->x[column],
++		.height = grid->y[row + 1] - grid->y[row],
++	};
++	return 0;
++}
++
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc_regs.h
@@ -8161,7 +8338,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1470 @@
+@@ -0,0 +1,1487 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -8903,8 +9080,12 @@
 +		return NULL;
 +	}
 +
-+	pixmp->width  = clamp(pixmp->width,  (u32)256, fmt_out->max_width);
-+	pixmp->height = clamp(pixmp->height, (u32)144, fmt_out->max_height);
++	pixmp->width = clamp(pixmp->width,
++			      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 128u : 256u,
++			      fmt_out->max_width);
++	pixmp->height = clamp(pixmp->height,
++			       fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 96u : 144u,
++			       fmt_out->max_height);
 +	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 +
 +	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -9090,7 +9271,20 @@
 +	u32 num_formats = sess->core->platform->num_formats;
 +
 +	fmt = find_format(formats, num_formats, fsize->pixel_format);
-+	if (!fmt || fsize->index)
++	if (!fmt)
++		return -EINVAL;
++	if (fmt->pixfmt == V4L2_PIX_FMT_H263) {
++		static const u32 widths[] = { 128, 176, 352, 704 };
++		static const u32 heights[] = { 96, 144, 288, 576 };
++
++		if (fsize->index >= ARRAY_SIZE(widths))
++			return -EINVAL;
++		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
++		fsize->discrete.width = widths[fsize->index];
++		fsize->discrete.height = heights[fsize->index];
++		return 0;
++	}
++	if (fsize->index)
 +		return -EINVAL;
 +
 +	fsize->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
@@ -11522,7 +11716,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_platform.c
-@@ -0,0 +1,382 @@
+@@ -0,0 +1,394 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -11606,6 +11800,17 @@
 +		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 +		.flags = V4L2_FMT_FLAG_COMPRESSED,
 +	}, {
++		.pixfmt = V4L2_PIX_FMT_H263,
++		.min_buffers = 4,
++		.max_buffers = 4,
++		.max_width = 704,
++		.max_height = 576,
++		.vdec_ops = &vdec_1_ops,
++		.codec_ops = &codec_mpeg4_ops,
++		.firmware_path = "meson/vdec/meson8b_h263.bin",
++		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
++		.flags = V4L2_FMT_FLAG_COMPRESSED,
++	}, {
 +		/* advanced profile (WVC1); simple/main (WMV3) would need
 +		 * the VC1_FORMAT_REG select left at 0 */
 +		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_G,
@@ -11647,6 +11852,7 @@
 +MODULE_FIRMWARE("meson/vdec/meson8b_hevc.bin");
 +MODULE_FIRMWARE("meson/vdec/meson8b_mpeg12.bin");
 +MODULE_FIRMWARE("meson/vdec/meson8b_mpeg4.bin");
++MODULE_FIRMWARE("meson/vdec/meson8b_h263.bin");
 +MODULE_FIRMWARE("meson/vdec/meson8b_vc1.bin");
 +MODULE_FIRMWARE("meson/vdec/meson8b_mjpeg.bin");
 +

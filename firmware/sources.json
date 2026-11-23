@@ -88,5 +88,13 @@
     "sha256": "e442a7953c617407107ed65bd8bdd9e1ffe8eb49597a3cb3b54ab9173fd691b2",
     "output_sha256": "4bc8cc39437bab0cd146fec4a7d76cb068ba123c22060d56bca3f85360565d55",
     "sentinel": false
+  },
+  "h263": {
+    "path": "drivers/amlogic/amports/m8/ucode/mpeg4/vmpeg4_mc.c",
+    "words": 2243,
+    "array": "h263_mc",
+    "sha256": "062ffabaafc800b912696a26ff01519bdbbae77d4c41675440a1729858aae9ad",
+    "output_sha256": "70476be8dd48d02a9f72f6f9a5a2c79b9c035f7160c32cfcd9b80922ad31d8ce",
+    "sentinel": false
   }
 }

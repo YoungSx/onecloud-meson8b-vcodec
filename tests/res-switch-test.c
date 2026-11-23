@@ -393,6 +393,19 @@ int main(int argc, char **argv)
 				chunks[nchunks++] = next - pos;
 				pos = next;
 			}
+		} else if (out_fourcc == V4L2_PIX_FMT_H263) {
+			while (pos < eslen) {
+				long next = eslen;
+
+				for (long scan = pos + 3; scan + 2 < eslen; scan++)
+					if (!esbuf[scan] && !esbuf[scan + 1] &&
+					    (esbuf[scan + 2] & 0xfc) == 0x80) {
+						next = scan;
+						break;
+					}
+				chunks[nchunks++] = next - pos;
+				pos = next;
+			}
 		} else
 		while (pos < eslen) {
 			long next = eslen;

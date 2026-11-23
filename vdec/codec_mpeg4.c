@@ -13,6 +13,7 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
+#include "h263-header.h"
 
 /* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
 #define SIZE_WORKSPACE		SZ_1M
@@ -52,6 +53,23 @@ struct codec_mpeg4 {
 };
 
 static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
+/* H.263 EOS is the 17-bit start prefix followed by GN=31. */
+static const u8 h263_eos[] = { 0x00, 0x00, 0xfc };
+
+static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
+{
+	u32 width, height;
+	int ret;
+
+	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
+		return 0;
+	ret = h263_picture_geometry(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
+				    &width, &height);
+	if (ret)
+		return ret;
+	/* This firmware has no source-change event; require negotiated geometry. */
+	return width == sess->width && height == sess->height ? 0 : -EINVAL;
+}
 
 static int codec_mpeg4_can_recycle(struct amvdec_core *core)
 {
@@ -187,12 +205,15 @@ static void codec_mpeg4_drain_work(struct work_struct *work)
 static void codec_mpeg4_drain(struct amvdec_session *sess)
 {
 	struct codec_mpeg4 *mpeg4 = sess->priv;
+	const u8 *eos = sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 ?
+			h263_eos : eos_sequence;
+	u32 eos_size = sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 ?
+		       sizeof(h263_eos) : 4;
 
 	if (mpeg4->draining)
 		return;
 
-	/* Visual object sequence end */
-	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
+	if (esparser_queue_eos(sess->core, eos, eos_size)) {
 		amvdec_abort(sess);
 		return;
 	}
@@ -257,4 +278,5 @@ struct amvdec_codec_ops codec_mpeg4_ops = {
 	.recycle = codec_mpeg4_recycle,
 	.drain = codec_mpeg4_drain,
 	.resume = codec_mpeg4_resume,
+	.inspect_input = codec_mpeg4_inspect_input,
 };

@@ -20,12 +20,15 @@ class DecoderDrainTests(unittest.TestCase):
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
-typedef uint8_t u8;
-struct amvdec_session {void *priv,*core;};
+typedef uint8_t u8;typedef uint32_t u32;
+#define V4L2_PIX_FMT_H263 1
+struct format {unsigned pixfmt;};
+struct amvdec_session {void *priv,*core;struct format *fmt_out;};
 static const u8 eos_sequence[1024];
-static int writes,scheduled,aborted,result;
+static const u8 h263_eos[3];
+static int writes,scheduled,aborted,result,length;
 static int esparser_queue_eos(void *core,const u8 *data,unsigned int len) {
-    (void)core;(void)data;(void)len;writes++;return result;
+    (void)core;(void)data;length=len;writes++;return result;
 }
 static void amvdec_abort(struct amvdec_session *s) {(void)s;aborted++;}
 static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;scheduled++;}
@@ -34,7 +37,8 @@ static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;s
                 body += source[start:end]
                 body += r"""
 int main(void) {
-    struct CODEC c={0};struct amvdec_session s={.priv=&c};
+    struct CODEC c={0};struct format f={0};struct amvdec_session s={.priv=&c,.fmt_out=&f};
+    (void)h263_eos;
     int errors[]={-ENOMEM,-ETIMEDOUT,-EINTR};
     for(unsigned int i=0;i<sizeof(errors)/sizeof(errors[0]);i++) {
         result=errors[i];DRAIN(&s);
@@ -43,9 +47,12 @@ int main(void) {
     result=0;DRAIN(&s);
     assert(c.draining && scheduled==1 && writes==4);
     DRAIN(&s);assert(scheduled==1 && writes==4);
+    H263_CHECK
     return 0;
 }
-""".replace("CODEC", "codec_" + codec).replace("DRAIN", "codec_" + codec + "_drain")
+""".replace("CODEC", "codec_" + codec).replace("DRAIN", "codec_" + codec + "_drain").replace(
+                    "H263_CHECK", "c.draining=false;f.pixfmt=1;codec_mpeg4_drain(&s);assert(length==3);"
+                    if codec == "mpeg4" else "")
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory)
                     (path / "test.c").write_text(body)

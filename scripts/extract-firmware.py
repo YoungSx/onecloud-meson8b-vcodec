@@ -125,6 +125,12 @@ def main():
         raise ValueError("MPEG-4 firmware output checksum or layout mismatch")
     outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_mpeg4.bin"))
 
+    h263 = manifest["h263"]
+    blob = _load_vendor(h263, manifest["commit"]).ljust(16 * 1024, b"\0")
+    if hashlib.sha256(blob).hexdigest() != h263["output_sha256"]:
+        raise ValueError("H.263 firmware output checksum or layout mismatch")
+    outputs.append((blob, ROOT / "firmware/meson/vdec/meson8b_h263.bin"))
+
     # VC-1: the MicroCode[] body of the wrapper header (vc1_mc.c's
     # #define MicroCode vc1_mc include), zero-padded to one 16K image.
     vc1 = manifest["vc1"]

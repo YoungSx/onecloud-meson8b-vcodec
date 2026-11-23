@@ -81,6 +81,17 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	}, {
+		.pixfmt = V4L2_PIX_FMT_H263,
+		.min_buffers = 4,
+		.max_buffers = 4,
+		.max_width = 704,
+		.max_height = 576,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_mpeg4_ops,
+		.firmware_path = "meson/vdec/meson8b_h263.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
 		/* advanced profile (WVC1); simple/main (WMV3) would need
 		 * the VC1_FORMAT_REG select left at 0 */
 		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_G,
@@ -122,6 +133,7 @@ MODULE_FIRMWARE("meson/vdec/meson8b_h264.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_hevc.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mpeg12.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mpeg4.bin");
+MODULE_FIRMWARE("meson/vdec/meson8b_h263.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_vc1.bin");
 MODULE_FIRMWARE("meson/vdec/meson8b_mjpeg.bin");
 

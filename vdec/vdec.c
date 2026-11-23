@@ -739,8 +739,12 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 		return NULL;
 	}
 
-	pixmp->width  = clamp(pixmp->width,  (u32)256, fmt_out->max_width);
-	pixmp->height = clamp(pixmp->height, (u32)144, fmt_out->max_height);
+	pixmp->width = clamp(pixmp->width,
+			      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 128u : 256u,
+			      fmt_out->max_width);
+	pixmp->height = clamp(pixmp->height,
+			       fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 96u : 144u,
+			       fmt_out->max_height);
 	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -926,7 +930,20 @@ static int vdec_enum_framesizes(struct file *file, void *fh,
 	u32 num_formats = sess->core->platform->num_formats;
 
 	fmt = find_format(formats, num_formats, fsize->pixel_format);
-	if (!fmt || fsize->index)
+	if (!fmt)
+		return -EINVAL;
+	if (fmt->pixfmt == V4L2_PIX_FMT_H263) {
+		static const u32 widths[] = { 128, 176, 352, 704 };
+		static const u32 heights[] = { 96, 144, 288, 576 };
+
+		if (fsize->index >= ARRAY_SIZE(widths))
+			return -EINVAL;
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.width = widths[fsize->index];
+		fsize->discrete.height = heights[fsize->index];
+		return 0;
+	}
+	if (fsize->index)
 		return -EINVAL;
 
 	fsize->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
