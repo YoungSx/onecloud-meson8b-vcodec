@@ -37,7 +37,7 @@ only the touched files into a temporary tree and runs `checkpatch.pl --strict`
 on each patch. None of it ran on S805 hardware: capture conversion and the
 shared power-domain/DOS ownership are implemented, but unproven on the
 silicon; see the
-[port record](../evidence/mainline-2026-11-16/PORT.md). The research series is
+[port record](../docs/research-validation.md). The research series is
 not in the current 5.15.79 series and must not be stacked on the current patch.
 CI compares a freshly exported current patch against the checked-in file.
 

@@ -55,7 +55,8 @@ ffmpeg -nostdin -c:v h264_v4l2m2m -i input.mp4 -an \
 [路线图](ROADMAP.md) · [CI/发版](docs/release.md) ·
 [贡献指南](CONTRIBUTING.md) · [变更记录](CHANGELOG.md)
 
-重新 clone 即可取得源码、固件、样片和公开证据；Git 无法恢复的私有备份和精确
+重新 clone 即可取得源码、固件、测试样片和精简验证记录。运行报告和私有备份
+不进入 Git，提交要求见[仓库规则](docs/repository-policy.md)。Git 无法恢复的私有备份和精确
 部署产物见[工作区迁移](docs/workspace-migration.md)。Linux 7.3.4 研究补丁仅通过
 构建检查，尚未在板上启动。
 

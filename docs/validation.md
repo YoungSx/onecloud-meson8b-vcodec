@@ -18,14 +18,9 @@
 | 会话与内存 | 一路解码加一路编码；内部帧池与应用 CAPTURE 数解耦；默认 FFmpeg 数量可用 | 1080p 并发只对已测试码流成立，不保证任意参考结构都适合 64 MiB CMA。第二 decoder STREAMON 返回 EBUSY。 |
 | 加载与回滚 | 外部模块、运行时 overlay、固件及自动加载；保留原 kernel/boot DT/CMA | 旧版通过冷启动和 service restart；当前新包只通过热更新/短回归，未完成新的冷启动与异常重启验收。 |
 
-最新主证据为[2026-11-23 P0部署](../evidence/p0-deploy-2026-11-23/README.md)：
-短时内容、HEVC关闭/重开、编码和固件失败恢复通过。此前范围见
-[2026-11-22 开发与部署](../evidence/development-2026-11-22/README.md)。
-帧池矩阵见[Phase A](../evidence/phase-a-2026-11-19/README.md)，旧编码扩展见
-[控件](../evidence/ENCODER-CONTROLS-2026-11-15.md)、
-[输入/DMA/分片](../evidence/ENCODER-INPUT-SLICES-2026-11-15.md)、
-[JPEG](../evidence/P6-JPEG-ENCODE-ACCEPTANCE-2026-11-14.md)。
-完整历史及失败记录在[证据索引](../evidence/README.md)，保留其原始日期和提交。
+[验证记录](validation-records.md)按主题保留实测版本、方法、结果和失败边界。
+最新 11-23 P0 部署的短时内容、HEVC关闭/重开、编码和固件失败恢复通过。
+原始附件按[仓库规则](repository-policy.md)独立归档，不随源码仓库提交。
 
 ## 码率和官方 FFmpeg
 
@@ -60,13 +55,13 @@ FFmpeg/ffprobe 与固定官方底座逐字节相同。测试中发生缓冲，**
 两轮 LAN/Tailnet 同时失联必须分开：第一轮高置信度指向旧255 MHz选频路径
 重调以太网共享 MPLL2，本机当时仍运行；当前固定父钟保护避免该路径。
 第二轮使用保护路径，但 journal 尾部缺失，根因未定。
-[调查](../evidence/outage-investigation-2026-11-22/README.md)保留证据强度与缺口。
+[调查](validation-records.md#失联与故障保存)保留证据强度与缺口。
 生产持续负载实验暂停，不通过盲目重跑来证明稳定。
 
 11-23 又发现 SSD 容量耗尽、Arcane agent 无法重启；已校验清理约1.53 GiB
 重复归档并恢复 agent，剩余普通可用空间约426 MiB。这是独立的当前故障，
 不能倒推为两次历史离线的根因。已部署限时被动观测，见
-[容量与采集](../evidence/passive-observer-2026-11-23/README.md)。
+[容量与采集](validation-records.md#失联与故障保存)。
 
 优先级与后续验收门槛统一见[路线图](../ROADMAP.md)。编译通过、设备节点出现、
 成功退出或有限轮次无失败，都不能替代完整帧数/内容或长期稳定性。
@@ -85,8 +80,8 @@ Linux 7.3.4 的27个研究补丁已包含独立帧池、既有解码格式、sys
 移植/集成的候选。当前仍未提供这些能力；来源检查与本地实验不构成实机验收。
 
 随后用户选择 P0，扩展实现已暂停并登记独立 TODO issues。
-[11-23 P0 离线开发](../evidence/p0-offline-2026-11-23/README.md)修复 HEVC
+[11-23 P0 离线开发](validation-records.md#11-23-p0-部署)修复 HEVC
 关闭重新排工作、编码微码 DMA 和 SPS/PPS 长度边界，主机/5.15.79 ARM
 构建通过；随后按用户要求部署并完成有界硬件验收，见
-[部署记录](../evidence/p0-deploy-2026-11-23/README.md)。新冷启动/长期稳定性
+[部署记录](validation-records.md#11-23-p0-部署)。新冷启动/长期稳定性
 未验收，历史失联和少帧的因果关系未闭环。

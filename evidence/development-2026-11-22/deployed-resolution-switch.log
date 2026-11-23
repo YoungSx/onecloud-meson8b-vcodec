@@ -1,2 +1,0 @@
-PASS H264 count=1 pictures=130 EOS frames=119 resolutions=3
-PASS HEVC count=1 pictures=50 EOS frames=35 resolutions=3

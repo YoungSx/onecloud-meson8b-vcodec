@@ -1,4 +1,0 @@
-odroid-neg.dtb: video-codec@c110a580 (amlogic,meson8b-vdec): reg: [[3239093632, 228]] is too short
-	from schema $id: http://devicetree.org/schemas/media/amlogic,gx-vdec.yaml
-odroid-neg.dtb: video-codec@c110a580 (amlogic,meson8b-vdec): reg-names: ['esparser'] is too short
-	from schema $id: http://devicetree.org/schemas/media/amlogic,gx-vdec.yaml

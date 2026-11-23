@@ -13,6 +13,9 @@
 | 模块、帧池与共享硬件资源 | [Architecture](architecture.md) / [Portability](portability.md) |
 | 固件来源和许可证 | [Firmware](firmware.md) |
 | 设备、队列、网络取证问题 | [Troubleshooting](troubleshooting.md) |
+| H.264 少帧时序重放与已有修复覆盖 | [H.264 regression](h264-regression.md) |
+| 验证和历史故障的精简记录 | [Validation records](validation-records.md) |
+| 哪些内容可提交、报告如何归档 | [Repository policy](repository-policy.md) |
 | 版本标签、CI、Release 草稿 | [Release process](release.md) |
 | 重建工作区、私有备份和不可丢失内容 | [Workspace migration](workspace-migration.md) |
 | 当前生产部署与精确来源 | [Deployment snapshot](rollout-status.md) |
@@ -23,6 +26,6 @@
 - [编码硬件可行性](encoding-feasibility.md)：为何不承诺 S805 HEVC 硬编。
 - [能力否定结论复核](capability-recheck.md)：重新核查 H.263/AVS、GE2D、tiles、多会话及高级编码工具。
 - [共享电源域设计](power-domain-design.md)、[上游结论](linux-media-rfc.md)：Linux 7.3.4 研究系列的背景，未实机启动。
-- [日期证据索引](../evidence/README.md)：保留成功、失败、被否决实验及其版本，不能跨版本继承验收。
+- [研究线验证](research-validation.md)：构建来源、已检查范围与实机缺口。
 - [历史资料](history/README.md)：早期阻断、旧计划与旧部署记录。
 - [贡献约定](../CONTRIBUTING.md)、[变更记录](../CHANGELOG.md)。

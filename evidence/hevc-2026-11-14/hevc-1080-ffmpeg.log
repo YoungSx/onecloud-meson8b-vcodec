@@ -1,30 +1,0 @@
-Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '1080p.mp4':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2mp41
-    encoder         : Lavf60.16.100
-  Duration: 00:00:01.20, start: 0.000000, bitrate: 3584 kb/s
-  Stream #0:0[0x1](und): Video: hevc (Main) (hev1 / 0x31766568), yuv420p(tv, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 3559 kb/s, 25 fps, 25 tbr, 12800 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc60.31.102 libx265
-[hevc_v4l2m2m @ 0x3520b0] Using device /dev/video0
-[hevc_v4l2m2m @ 0x3520b0] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
-[hevc_v4l2m2m @ 0x3520b0] requesting formats: output=HEVC/none capture=NM12/yuv420p
-Stream mapping:
-  Stream #0:0 -> #0:0 (hevc (hevc_v4l2m2m) -> rawvideo (native))
-Output #0, framemd5, to '/tmp/hevc-1080-ffmpeg.md5':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2mp41
-    encoder         : Lavf61.1.100
-  Stream #0:0(und): Video: rawvideo (NV12 / 0x3231564E), nv12(tv, progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 622080 kb/s, 25 fps, 25 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc61.3.100 rawvideo
-frame=    1 fps=0.0 q=-0.0 size=       0KiB time=00:00:00.04 bitrate=  43.2kbits/s speed=0.0799x    frame=    4 fps=4.0 q=-0.0 size=       0KiB time=00:00:00.20 bitrate=  18.2kbits/s speed=0.199x    frame=    6 fps=4.0 q=-0.0 size=       1KiB time=00:00:00.32 bitrate=  15.4kbits/s speed=0.213x    frame=   10 fps=2.8 q=-0.0 size=       1KiB time=00:00:00.56 bitrate=  13.4kbits/s speed=0.156x    frame=   14 fps=3.4 q=-0.0 size=       1KiB time=00:00:00.76 bitrate=  13.2kbits/s speed=0.186x    frame=   18 fps=3.9 q=-0.0 size=       2KiB time=00:00:00.96 bitrate=  13.1kbits/s speed=0.209x    [out#0/framemd5 @ 0x34bd90] video:91125KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=   30 fps=6.0 q=-0.0 Lsize=       3KiB time=00:00:01.20 bitrate=  17.4kbits/s speed=0.239x    

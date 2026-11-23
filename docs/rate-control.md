@@ -140,21 +140,21 @@ over 110% of target produces one warning per configuration.
 
 ## 已验证边界 / Verified limits
 
-[峰值/缓冲兑现验收](../evidence/rate-delivery-2026-11-21/README.md)记录新控件、
+[峰值/缓冲兑现验收](validation-records.md#编码质量与码率)记录新控件、
 FFmpeg raw 输入、失败传播及恢复的验证。下述目标跟踪数据来自较早候选，
 不是新预算控件的峰值证明。
 
-The [peak/buffer acceptance](../evidence/rate-delivery-2026-11-21/README.md)
+The [peak/buffer acceptance](validation-records.md#编码质量与码率)
 records the new controls, raw input, failure propagation and recovery. The
 target-tracking figures below belong to an earlier candidate.
 
-[2026-11-21 实机记录](../evidence/rate-control-2026-11-21/README.md)将可达目标、
+[2026-11-21 实机记录](validation-records.md#编码质量与码率)将可达目标、
 饱和目标、队列终止及失败的工具实验分开记录。640×360 全 I、目标 2.5 Mbps
 的稳态码率从 2.900 Mbps 改为 2.441 Mbps；30000/1001、目标 1.6 Mbps
 得到 1.588 Mbps。1080p 合成运动在目标 1/2/4/8 Mbps 下仍约 10.35 Mbps，
 QP32 饱和；不能把这些结果外推成所有视频的最低码率。
 
-The [silicon record](../evidence/rate-control-2026-11-21/README.md) separates
+The [silicon record](validation-records.md#编码质量与码率) separates
 reachable targets, saturation, queue termination and failed tool experiments.
 The 640×360 all-IDR steady rate at a 2.5 Mbps target improves from 2.900 to
 2.441 Mbps. At 30000/1001, a 1.6 Mbps target yields 1.588 Mbps. Synthetic

@@ -1,6 +1,0 @@
-test_hevc_stop_does_not_queue_delivery_from_freed_codec (test_decoder_shutdown.DecoderShutdownTests.test_hevc_stop_does_not_queue_delivery_from_freed_codec) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.105s
-
-OK

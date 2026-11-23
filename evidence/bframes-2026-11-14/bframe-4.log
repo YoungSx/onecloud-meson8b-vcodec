@@ -1,33 +1,0 @@
-Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'source.mp4':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2avc1mp41
-    encoder         : Lavf60.16.100
-  Duration: 00:00:02.00, start: 0.000000, bitrate: 14177 kb/s
-  Stream #0:0[0x1](und): Video: h264 (Main) (avc1 / 0x31637661), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 14171 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc60.31.102 libx264
-[h264_v4l2m2m @ 0x35e0a00] Using device /dev/video0
-[h264_v4l2m2m @ 0x35e0a00] driver 'meson-vdec' on card 'Amlogic Video Decoder' in mplane mode
-[h264_v4l2m2m @ 0x35e0a00] requesting formats: output=H264/none capture=NM12/yuv420p
-Stream mapping:
-  Stream #0:0 -> #0:0 (h264 (h264_v4l2m2m) -> h264 (h264_v4l2m2m))
-[h264_v4l2m2m @ 0x35decf0] Using device /dev/video1
-[h264_v4l2m2m @ 0x35decf0] driver 'meson-venc' on card 'Meson8b H.264/JPEG Encoder' in mplane mode
-[h264_v4l2m2m @ 0x35decf0] requesting formats: output=NM12/nv12 capture=H264/none
-Output #0, h264, to '/tmp/bframe-4.h264':
-  Metadata:
-    major_brand     : isom
-    minor_version   : 512
-    compatible_brands: isomiso2avc1mp41
-    encoder         : Lavf61.1.100
-  Stream #0:0(und): Video: h264, nv12(progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 30 fps, 30 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc61.3.100 h264_v4l2m2m
-frame=   12 fps= 12 q=-0.0 size=     512KiB time=00:00:00.36 bitrate=11439.0kbits/s speed=0.367x    frame=   28 fps= 19 q=-0.0 size=    1280KiB time=00:00:00.90 bitrate=11650.8kbits/s speed= 0.6x    frame=   43 fps= 21 q=-0.0 size=    1792KiB time=00:00:01.40 bitrate=10485.8kbits/s speed=0.699x    frame=   59 fps= 24 q=-0.0 size=    2560KiB time=00:00:01.93 bitrate=10847.3kbits/s speed=0.773x    [out#0/h264 @ 0x35d97b0] video:2863KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
-frame=   60 fps= 24 q=-0.0 Lsize=    2863KiB time=00:00:01.96 bitrate=11926.1kbits/s speed=0.785x    

@@ -1,196 +1,48 @@
-# Deployment and acceptance status, 2026-11-22
+# 截至 v0.4 的部署历史
 
-Current development targets official unmodified FFmpeg. The earlier private
-peak/CPB option is retired; its dated acceptance below remains historical.
-See [official compatibility](../ffmpeg-compatibility.md).
+本页保留已安装版本的来源和恢复边界，不是当前操作清单。当前来源见
+[部署快照](../rollout-status.md)，安装/移除/降级见[安装指南](../installation.md)。
+原始包清单和运行附件已按[仓库规则](../repository-policy.md)独立归档；
+历史结果不能继承给新包。
 
-Current explicitly authorized development installation is source
-`5fedae9a74d2e6ec03c8fc2f6bf81d011ba82f33` on the original5.15.79-meson kernel.
-Production OpenList runs `v4.2.10-official-ffmpeg-a845b34-clean`; its FFmpeg
-and ffprobe are byte-identical to the pinned official base. See
-[current deployment evidence](../../evidence/development-2026-11-22/README.md).
+| 版本/时间 | 已记录来源 | 验证与边界 |
+| --- | --- | --- |
+| 11-14 最终早期包 | `bd1cb79ad502d0b8cdcf9667a0ceb0ca0f7876ab` | HEVC 小片/1080p/crop 10/10、30/30、10/10；JPEG 与恢复/混载检查。`b8263f6` 等中间包不算最终安装。 |
+| v0.2.0，11-15/16 | `c20a4732c4017a1ff9b30262b36f99d5a6491943`，替换早期 `cd4e6b5` 安装 | 545 轮 30 分钟和 2205 轮两小时通过；7620 轮过夜在末轮 H.264 299/300 失败。早期服务因 USB 磁盘未枚举而停止，不能宣称共存。 |
+| v0.2.1 | 运行载荷与 v0.2.0 相同 | 文档/工具版本变更不消除上述少帧问题。 |
+| v0.3.0，本机构建，11-17 | `0a0542b4b6d36e02e639c4f39d673a54c170701a` | 53/53 安装文件清单、H.264 300/300、HEVC 30/30、编码和四项 HTTP 通过；30 分钟 525 轮无失败。 |
+| v0.3.0，随后 CI 包 | `abee6f6` | 替换本地包后再做有界回归；driver 源码相同，但嵌入构建路径不同，不能声称二进制必然相同。 |
+| v0.4.0，11-20 | `89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f` | 54/54 文件校验、帧池部署；30 分钟 441 轮与 106 次服务采样通过；热更新约 21 s，无 reboot。新 OpenList 原版 FFmpeg 路径另行验收。 |
+| 开发安装，11-22 | `5fedae9a74d2e6ec03c8fc2f6bf81d011ba82f33` | 原版 FFmpeg 镜像、IRQ/EOS/DMA/回收修复与有界浏览器检查；保留原 v0.4.0 回滚材料，生产长测暂停。 |
+| P0 开发安装，11-23 | `3c7d7854bcab3b93a716b7da84002015913082f0` | decoder/encoder 更新，runtime/Overlay/固件沿用；三项 P0 的短时内容/关闭/恢复通过，新冷启动与异常重启待验收。 |
 
-Original v0.4.0 package,firmware,unit and rollback state are preserved.
-Updates keep the production OpenList start time unchanged. Runtime module
-switches and matching overlay updates do not change boot kernel/DT or CMA.
-The new source passes bounded content/recovery checks; prior outages still
-prevent a new stability/soak claim. Research builds are not installed.
+## 已记录的旧模块身份
 
-## Installed release history
+下面是原记录使用的 **MD5**，用于识别旧安装，不能当作新的发布 SHA256 清单。
 
-Historical installation (2026-11-20 07:30 UTC): the GitHub release v0.4.0
-runtime package, built by CI from 89dd558, kernel release 5.15.79-meson,
-state /root/venc-deploy/p6/codec-state-v040-install. Module hashes meson-vdec
-15d5c77d25225e8b, meson-venc 2507c7cc69fb1b00, meson8b-runtime
-af61f4dea7b68e06; the vdec module is the frame-pool build, the other two are
-byte-identical to v0.3.0, and the firmware files are unchanged. The codec
-devices were down 21 s during the upgrade; the regression set passed, a
-30-minute load ran 441 iterations with 0 failures, and five service probes
-sampled 106 times with no failure. See evidence/p6-2026-11-20/v040-deploy.md.
-The v0.3.0 package and its state remain on the box for rollback.
+| 安装 | meson-vdec | meson-venc | runtime |
+| --- | --- | --- | --- |
+| v0.3.0 CI 包 | `c60842e8ffc02a1c9b208a9463adad4b` | `2507c7cc69fb1b00`（原摘要前缀） | `af61f4dea7b68e06`（原摘要前缀） |
+| v0.4.0 CI 包 | `15d5c77d25225e8ba7a42519ee5da152` | 同 v0.3.0 | 同 v0.3.0 |
 
-Final read-only recheck on 2026-11-20: all 54 installed payload files pass
-SHA256SUMS, module fingerprints match the release package, the unit is
-active/enabled, both video devices are present, and all four HTTP entry
-points return 200. OpenList, Arcane and Home Assistant containers are
-running. The idle decoder pool has zero allocated slots and bytes.
-See evidence/p6-2026-11-20/final-live-check.log.
+11-14 原运行归档 SHA256 为
+`71f7922e9a60cb9c4ae3bebb34181bf95f467a99e824f34d7bfd9daf9e3ff903`，
+source companion SHA256 为
+`afd36fc89007b9a3793cc91cc8ba4207151c355b9634c47f3ad369d4cca1cb1a`；
+后者同时含 `bd1cb79` 载荷源码与 `15e4460769514a294b27bad5fcb5d420318e6109`
+的工具/文档补充。旧包包含报告的事实不会成为未来源码包的内容规则。
 
-Transcode performance work remains deferred. The user subsequently chose the
-OpenList fork, deployed on 2026-11-20. The existing v0.4 driver passed bounded
-HTTP HLS checks at 320×240 and 1080p, including audio and forward/backward
-segment requests. Follow-up candidates use disposable data; production still
-uses the deployed image. Browser and sustained-playback acceptance remain
-open. See [portability](../portability.md).
+## 恢复与稳定性边界
 
-## Earlier acceptance and package history
+旧包曾通过一次冷启动自动加载和五项服务检查；随后无 reboot 的 systemd
+restart 约 5 s、两个节点恢复并完整解码 22 图。异常断电/异常重启未因此
+得到验证，不能转移到 11-23 的新模块。
 
-The driver runs as external modules on original 5.15.79-meson. The v0.4.0
-upgrade changed no boot files and required no reboot. Earlier cold-start and
-service-restart checks are recorded separately. JPEG/HEVC and concurrent B-frame input are validated on
-OneCloud. The systemd loader is reversible and its start/stop, failure
-cleanup and removal were tested. The final installation leaves codecs
-available, with installation-time originals retained in its state backup.
+11-15 未完成的 191 轮窗口和之后硬复位不是完整负载通过；USB SSD 曾不再
+枚举。服务恢复后，25 分钟 377 轮、71 次服务采样无失败，仍是有界共存结果。
+H.264 稀有少帧、旧 MPEG/VC-1 完整性、11-22 两次失联及当前长测暂停均见
+[验证与故障摘要](../validation-records.md)。
 
-See evidence/HEVC-ACCEPTANCE-2026-11-14.md and
-BFRAME-TRANSCODE-ACCEPTANCE-2026-11-14.md for frame counts, hash/PSNR checks,
-malformed data boundaries and mixed-load run length. HEVC supports Main
-8-bit linear output. Main10 and tiles remain explicitly unsupported; no
-claim of arbitrary-stream or indefinite production soak is made.
-
-Original WanOS ffmpeg remains installed. The independent static tool has
-H.264/HEVC M2M, AAC/HLS/MPEG-TS, file/HTTP and optional minimal V4L2 bug-fix
-patches (default builds are unmodified upstream). It lacks HTTPS/TLS and software H.264/HEVC encoders. Its
-sources and exact build flags are in the deliverable. On malformed data
-ffmpeg may output partial frames; exit code alone is not acceptance.
-Use scripts/verify-hashes.py and the recorded frame counts for correctness.
-
-OpenList and Arcane were found stopped at the inherited baseline; their
-original containers were restarted without configuration changes. They,
-SublinkPro, VoCat and Home Assistant remained running during mixed-load
-acceptance. The final HTTP and container checks are recorded separately.
-
-The linux-media findings are recorded in the repository's Discussions and are
-not submitted upstream by decision; no email or external publication was made.
-The research series was rebased onto mainline v7.3.4 on 2026-11-16 and builds
-the module, every ARM DTB and the binding schema check; the static-DT/power-domain
-design and hardware validation were still required for upstream acceptance,
-which this project no longer pursues. See evidence/mainline-2026-11-16/PORT.md.
-
-Verified release archive: build/onecloud-verified-release.tar.gz, SHA-256
-71f7922e9a60cb9c4ae3bebb34181bf95f467a99e824f34d7bfd9daf9e3ff903.
-Package source commit bd1cb79ad502d0b8cdcf9667a0ceb0ca0f7876ab.
-Independent tools and all scripts are covered by the manifest.
-
-Installed at /opt/meson8b-vcodec/current. The enabled and active
-meson8b-vcodec.service leaves /dev/video0 and /dev/video1 available.
-
-Previous installation (2026-11-17 23:27): the GitHub release v0.3.0 runtime
-package, built by CI from abee6f6, kernel release 5.15.79-meson, state
-/root/venc-deploy/p6/codec-state-v030-release. Module hashes meson-vdec
-c60842e8ffc02a1c, meson-venc 2507c7cc69fb1b00, meson8b-runtime
-af61f4dea7b68e06; firmware files unchanged. It replaced the locally built
-0a0542b package, whose driver code is byte-identical (only the embedded
-build path differs), and passed the regression set again; see
-evidence/p6-2026-11-17/v030-deploy.md for both installs, the regression and
-the 30-minute soak, and evidence/p6-2026-11-15/v020-deploy.md for the v0.2.0
-install that superseded cd4e6b5.
-
-The first 30-minute soak stopped after 191 iterations (0 failures), short of
-its window, and the box reset afterwards. The USB disk behind /mnt/sda2 then
-stopped enumerating, so Docker, SublinkPro and VoCat are unavailable until it
-is serviced; the codec stack itself recovered automatically and passed decode
-and encode retests. Log timestamps on this box are unreliable (no RTC, clock
-restored at boot), so the evidence records order and counts rather than a
-timeline. See evidence/p6-2026-11-15/outage-2026-11-15.md.
-
-The 30-minute soak was then completed on the v0.2.0 package on 2026-11-16:
-545 iterations, 0 failures, every HEVC 30/30 and H.264 300/300 frame hash
-matching the software reference, no CMA or memory trend, no kernel warnings.
-The five business services were inactive throughout because of the disk, so
-that run says nothing about their coexistence. See
-evidence/p6-2026-11-15/soak-30min-v020.md.
-
-A 2-hour soak on the same package then ran 2205 iterations with 0 failures:
-66150 HEVC and 132300 H.264 frames matched the software reference, no CMA or
-memory trend, no kernel warnings. See evidence/p6-2026-11-15/soak-2h-v020.md.
-The five services were still inactive for the same disk reason, so that run
-says nothing about their coexistence.
-
-An overnight run on the same package then went 7620 iterations over 6 h 54 min
-and ended on one failure: at iteration 7620 an H.264 1080p decode returned 299
-of 300 frames, with temperature, CMA and memory normal at the time. 7620 HEVC,
-1523 of 1524 H.264 and 7619 encode checks passed, and neither video device
-went down. Two follow-up repeats were clean: 200 runs of that decode alone
-(200/200 at 300 frames, hashes matching) and 400 rounds under the soak's own
-order, an HEVC decode then the H.264 decode then H.264 and JPEG encodes
-through the same CMA (400/400 at 300 frames). The short output is therefore
-rare — about 1 in 1700 H.264 runs — and its cause is not yet identified. The overnight
-window is therefore a bounded regression ending on a failure, not a
-zero-failure soak. See evidence/p6-2026-11-16/soak-overnight-v020.md and
-evidence/p6-2026-11-16/h264-tail-race.md and
-evidence/p6-2026-11-16/h264-shortload.md.
-
-Once the USB disk was back and all five services were running, the same load
-ran for 377 iterations over 25 minutes while four HTTP entry points were
-probed every 20 s: 71 samples, every one returning 200, Arcane still advancing
-its own request log, and no kernel warnings in the window. That closes the
-coexistence gap the earlier runs left open; it is a bounded window, not a
-long-term coexistence claim. See evidence/p6-2026-11-16/service-coexist.md.
-
-Graceful restart was accepted separately: `systemctl restart meson8b-vcodec`
-runs ExecStop (withdraw the overlay, unload three modules) and ExecStart in
-one transaction with no reboot in between, and the stack came back in 5 s
-with rc=0, both nodes present and a 22-frame decode still correct. See
-evidence/p6-2026-11-16/restart-check.md.
-
-On 2026-11-17 the v0.3.0 package (source commit 0a0542b, which only adds the
-EOS-write timeout log and tooling) replaced it: 53/53 files verified, same
-MPEG-2 reference md5, H.264 300/300, HEVC 30/30, both encode checks and all
-four HTTP services passing, then 525 soak iterations over 30 minutes with 0
-failures and no kernel warning in the window. The same evening the GitHub
-release package replaced that local build and passed the regression set
-again.
-See evidence/p6-2026-11-17/v030-deploy.md.
-
-The same rerun corrected the MPEG-2 B-frame count: a 150-picture stream
-delivers 149 or 150 pictures, 14 of 20 runs full, not always 150. A short
-run loses the last picture in decode order, the B picture shown at position
-148; every other picture is in place. The EOS write itself was delivered
-(the new log stayed silent), and appending a picture header recovers the
-picture but sometimes adds a duplicate of the last one, so the drain is
-unchanged. See evidence/p6-2026-11-17/m2v-bf-delivery.md.
-
-Pre-install firmware journal: /root/venc-deploy/verified-codec-state.
-After ending codec clients, roll back using:
-
-```sh
-bash /opt/meson8b-vcodec/current/scripts/remove-autoload.sh
-```
-
-The final archive installation passed HEVC frame hashes: 10/10 small,
-30/30 1080p B frames, 10/10 crop. JPEG returned all five requested frames,
-including timestamps and LAST/EOS checks. See verified-deployment.log,
-verified-*.md5 and verified-live-state.log under evidence/hevc-2026-11-14.
-The original /boot hashes were rechecked against the initial snapshot.
-Later documentation/evidence commits do not change the installed payload.
-The rollback restores files as they were immediately before this install;
-earlier experiment firmware already present then remains inert after unload.
-
-The standalone v4l2-ctl 1.22.1 tool is under /root/venc-deploy/v4l2-ctl.
-It enumerated both M2M devices, all coded/raw formats and controls. Source
-and binary accompany build/onecloud-verified-source.tar.gz; the installed
-runtime manifest remains unchanged. See v4l2-enumeration.log.
-
-Interim failed runs are retained for diagnosis, not counted as acceptance.
-The old recovery failure is hevc-recovery-interim-failure.log; final recovery
-and independent-tool checks are hevc-recovery.log and reviewed-validation.log.
-final-install.log/installed-hevc.md5 describe the superseded b8263f6 package;
-verified-deployment.log and verified-*.md5 describe the final bd1cb79 payload.
-
-Final source companion: build/onecloud-verified-source.tar.gz (136 MiB),
-SHA-256 afd36fc89007b9a3793cc91cc8ba4207151c355b9634c47f3ad369d4cca1cb1a.
-It contains exact bd1cb79 payload sources and a supplement from
-15e4460769514a294b27bad5fcb5d420318e6109, including Linux/FFmpeg/v4l-utils
-source archives, pinned microcode sources, reproduction scripts and evidence.
-Its complete manifest was checked directly from the final archive.
+原安装、firmware、unit、state 与专用回退助手应独立保留。
+`remove-autoload.sh` 撤销安装，不自动选择某个历史版本；精确回退必须
+按保存包和状态恢复，不能把旧现场路径复制为通用命令。

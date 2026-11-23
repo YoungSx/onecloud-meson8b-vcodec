@@ -121,7 +121,7 @@ reversed order breaks anything.
 
 ## Implementation status
 
-Done, compile-level only ([port record](../evidence/mainline-2026-11-16/PORT.md)):
+Done, compile-level only ([port record](research-validation.md)):
 
 - `PWRC_MESON8_VDEC_ID` and a `meson8b_pwrc_domains[]` entry over the two AO
   registers, with `TOP_PD_NO_MEM()` for the missing HHI memory register.

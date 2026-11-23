@@ -14,7 +14,7 @@ v7.3.4 and applies with `patch -p1 -F0`. It builds `meson-vdec.ko`
 (vermagic 7.3.4), all arm DTBs, and passes `dtbs_check` against
 `amlogic,gx-vdec.yaml`. The DT patch targets `meson8b.dtsi` plus
 `meson8b-odroidc1.dts` because mainline has no OneCloud board file. See
-[port record](../evidence/mainline-2026-11-16/PORT.md). Nothing here ran on
+[port record](research-validation.md). Nothing here ran on
 S805 hardware. The series no longer refuses to stream — `0013` implements
 the capture conversion — but the path is unproven on the silicon.
 Patches0016–0026 subsequently ported the independent frame pool, existing
@@ -92,7 +92,7 @@ Review points to carry forward:
   number cannot be right for every stream, and no register exposes the depth
   (`MREG_BUFFEROUT` is per-picture completion, `MP4_NOT_CODED_CNT` counts
   not-coded repeats). A fix needs a firmware-visible depth or an EOS flush.
-  Details in [the MPEG-4 record](../evidence/p6-2026-11-16/m4v-tail.md).
+  Details in [the MPEG-4 record](validation-records.md#旧格式完整性).
 - No frame counter pairs firmware completion with delivery to userspace, so a
   short output cannot be attributed to the driver or the client. One H.264
   1080p decode in 7620 overnight iterations returned 299 of 300 frames, and

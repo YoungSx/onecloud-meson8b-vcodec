@@ -1,6 +1,6 @@
 > 历史快照：此处描述研究阶段，不代表当前功能。当前范围见[验证指南](../validation.md)。
 
-> 2026-11-14：本文件为可行性来源记录；HEVC Main 8-bit 实现已完成并实测，当前验收见[HEVC 记录](../../evidence/HEVC-ACCEPTANCE-2026-11-14.md)。
+> 2026-11-14：本文件为可行性来源记录；HEVC Main 8-bit 实现已完成并实测，当前验收见[HEVC 记录](../validation-records.md#解码与帧池)。
 
 # Meson8b HEVC feasibility, corrected 2026-11-14
 

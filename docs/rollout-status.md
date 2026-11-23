@@ -1,7 +1,7 @@
 # 生产部署快照 / Deployment snapshot
 
 2026-11-23 核对的精确来源。本文是部署记录，不是通用安装操作；新设备按
-[安装指南](installation.md)，历史版本按[证据索引](../evidence/README.md)复核。
+[安装指南](installation.md)，历史版本按[验证记录](validation-records.md)复核。
 
 | 组件 | 当前记录 |
 | --- | --- |
@@ -21,14 +21,14 @@
 | meson8b-runtime.ko | `7ca640be512c76d71d2b3606c2a1bf4b0d7f3ca0db12896706ee6649abd6cb32` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
 
-[11-23 P0部署验收](../evidence/p0-deploy-2026-11-23/README.md)对应这些来源。
+[11-23 P0部署验收](validation-records.md#11-23-p0-部署)对应这些来源。
 HEVC四种提前关闭/重开、解码图像、H.264/JPEG编码和固件失败恢复通过；
 旧`5fedae9`完整包保留，临时测试恢复旧包后才更新安装。新版不是正式稳定发版，
 只有热更新和有界内容/恢复检查；新的冷启动和
 异常重启尚未验收。旧版冷启动、长测不自动转移到新包。
 
 11-23普通运行核查：四项HTTP为200、codec service active；磁盘满曾使Arcane
-启动失败，清理重复归档后已恢复。详情见[日期记录](../evidence/passive-observer-2026-11-23/README.md)。
+启动失败，清理重复归档后已恢复。详情见[日期记录](validation-records.md#失联与故障保存)。
 这些状态是时间点快照，不能当作持续在线承诺。
 
 原v0.4.0包/firmware/unit/state和专用回退助手在设备与私有迁移归档中保留；

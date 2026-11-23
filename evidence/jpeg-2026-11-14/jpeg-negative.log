@@ -1,8 +1,0 @@
-truncated 1 invalid capture frame 0 flags 0x4041 size 0
-
-missing 1 invalid capture frame 0 flags 0x4041 size 0
-
-frame 0 bytes 5597 flags 0x4009
-frame 1 bytes 5806 flags 0x4009
-PASS: 2 frames, ownership, busy format, timestamps, EOS
-firmware error recovery PASS

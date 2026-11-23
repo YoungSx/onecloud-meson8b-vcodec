@@ -31,7 +31,7 @@
 
 2026-11-22 的两轮 LAN/Tailnet失联不能混作同一事故：旧 VDEC1通用调频可
 重调以太网依赖的MPLL2，第一轮有高置信度证据；第二轮原厂频率混载后
-失联的journal尾部未落盘，仍未定案。详见[逐轮调查](../evidence/outage-investigation-2026-11-22/README.md)。
+失联的journal尾部未落盘，仍未定案。详见[逐轮调查](validation-records.md#失联与故障保存)。
 `journalctl -b -1`未显示不代表归档都不存在，必要时按`--file`和`_BOOT_ID`
 核对损坏/归档文件。加载ramoops模块也不等于配置了可保存崩溃日志的内存。
 

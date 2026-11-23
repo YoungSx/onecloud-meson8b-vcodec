@@ -8,7 +8,9 @@ modules.order
 Module.symvers
 __pycache__/
 *.pyc
-private/*.yuv
+/private/
+/evidence/
+*.log
 sources/
 res-switch-test
 /firmware/meson/vdec/meson8b-runtime.dtbo

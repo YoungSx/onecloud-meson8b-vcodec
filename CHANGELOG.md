@@ -7,6 +7,12 @@ changed.
 
 ## Unreleased
 
+- Remove historical run reports and private experiments from the tracked tree;
+  retain concise validation/source records in docs and verified originals in
+  external archives. Enforce the content policy during host checks and exclude
+  local reports from source exports.
+- Archive obsolete deployment-specific scripts, including a benchmark with a
+  hardcoded gateway; keep public sources and examples free of device identifiers.
 - Discard pending HEVC pictures during STREAMOFF instead of scheduling delivery
   while codec state is being destroyed; keep normal EOS flushing unchanged.
 - Order HCODEC firmware DMA and cancel it on timeout; reject invalid SPS/PPS
@@ -46,7 +52,7 @@ changed.
 - Let custom decoder drains own LAST completion and propagate failed EOS
   parser writes through queue errors and STOP returns. Cover the failure
   paths with extracted-function tests and retain actual tail/content limits
-  in [drain regression](evidence/drain-2026-11-22/README.md).
+  in [drain regression](docs/validation-records.md#旧格式完整性).
 
 - Target unmodified official FFmpeg by default; remove the private peak/CPB
   option and retain only optional reproducible bug fixes.
@@ -71,7 +77,7 @@ changed.
   encoded ERROR buffers and terminal dequeue failures.
 - Fix shared raw NV12 input copying; package the patch and the independent
   H.264/HEVC/AAC file/HTTP/HLS test tool while retaining production FFmpeg.
-- Record [peak/buffer silicon acceptance](evidence/rate-delivery-2026-11-21/README.md),
+- Record [peak/buffer silicon acceptance](docs/validation-records.md#编码质量与码率),
   including independent decode/count, interval envelopes, errors and recovery.
 - Close the all-IDR rate-feedback loop and apply pending controls at picture
   selection; retain force-key requests arriving during an IDR and reset
@@ -84,7 +90,7 @@ changed.
 - Validate reachable targets, QP saturation, restart/force-key behavior, VBR ABI,
   JPEG and four-buffer terminal recovery on S805. Preserve the original
   FFmpeg 7.0.2 raw-input client crash as a failed tool experiment. See
-  [rate-control evidence](evidence/rate-control-2026-11-21/README.md).
+  [rate-control evidence](docs/validation-records.md#编码质量与码率).
 
 ## v0.4.0 — 2026-11-20
 
@@ -129,7 +135,7 @@ unchanged.
   together with 1080p encode under the same CMA, 300 mixed-load rounds, and
   a 30-minute soak with the five production services probed throughout
   (439 iterations, 107 samples, 0 failures). See
-  [Phase A](evidence/phase-a-2026-11-19/README.md).
+  [Phase A](docs/validation-records.md#解码与帧池).
 - Evaluate a 2 MiB VIFIFO (4 → 2 MiB): it passed the resolution-switch
   matrix but is not adopted. VIFIFO does not split packets, the largest
   packet in the test streams is 59468 B, and 2 MiB per session does not
@@ -151,7 +157,7 @@ and still does not change the drain; `meson-vdec.ko` differs from v0.2.1,
 the other two modules do not. The package built from `0a0542b` was deployed
 to the production box on 2026-11-17 and passed the regression set and a
 30-minute soak (525 iterations, 0 failures); see
-[v0.3.0 deploy](evidence/p6-2026-11-17/v030-deploy.md). Commits after
+[v0.3.0 deploy](docs/validation-records.md). Commits after
 `0a0542b` in this release change only documentation, evidence and scripts.
 
 - Make the EOS drain timeout observable: `esparser_write_data()` returns the

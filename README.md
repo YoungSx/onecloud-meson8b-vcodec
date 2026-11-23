@@ -61,7 +61,9 @@ peak/CPB controls. [Usage](docs/usage.md) covers discovery, JPEG and other input
 [Roadmap](ROADMAP.md) · [CI/releases](docs/release.md) ·
 [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
-A fresh clone contains the source, firmware, samples and public evidence.
+A fresh clone contains the source, firmware, test samples and concise validation
+records. Run reports and private backups stay outside Git; follow the
+[repository content policy](docs/repository-policy.md).
 [Workspace migration](docs/workspace-migration.md) identifies private backups
 and deployed artifacts that Git cannot restore. The Linux 7.3.4 research series
 is build-checked only and has not booted on a board.

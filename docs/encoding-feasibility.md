@@ -30,8 +30,8 @@ H.263、GE2D 和多编码会话等旧判断；优先级见[路线图](../ROADMAP
   [编码微码选择](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/m8/ucode/encoder/encoder_mc.c)
   对应 H.264 的 full/mixed 路径。
 - 完整、未截断的该提交 Git tree 中没有 HEVC/H265 encoder 或 WAVE 微码
-  路径。这个搜索范围和输入哈希保存在[源码清单](../evidence/encoder-feasibility-2026-11-14/sources.json)
-  与[目录核查](../evidence/encoder-feasibility-2026-11-14/vendor-inventory.json)。
+  路径。搜索对象为上述固定提交的完整 tree；原目录响应和输入清单已独立
+  归档，后续复核仍应固定该提交，不能以变化后的分支替代。
 
 后代芯片的 HEVC encoder 是另一硬件 IP。例如 Amlogic GXL 的
 [厂商设备树](https://android.googlesource.com/kernel/arm64/+/refs/heads/android-tv-deadpool-4.9-android11/arch/arm64/boot/dts/amlogic/gxl_sei210_1g.dts)

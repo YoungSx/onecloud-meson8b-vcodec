@@ -37,7 +37,7 @@ data = {
     'version': version, 'source_commit': commit, 'kernel_release': '5.15.79-meson',
     'compiler': subprocess.check_output(['arm-linux-gnueabihf-gcc-11', '--version'], text=True).splitlines()[0],
     'hardware_validation': 'Hardware acceptance is version-specific. See '
-                           'docs/validation.md and dated evidence '
+                           'docs/validation.md and docs/validation-records.md '
                            'for tested module identities and unresolved gates. '
                            'CI does not test S805 hardware.',
     'artifacts': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in dest.glob('*.tar.gz')},
