@@ -2,7 +2,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 typedef uint32_t u32;
+typedef uint64_t dma_addr_t;
+typedef uint64_t u64;
+#define U32_MAX UINT32_MAX
 #include "../ge2d/ge2d-layout.h"
 
 int main(void)
@@ -18,5 +22,37 @@ int main(void)
 		assert(stride >= width && stride % 32 == 0);
 		assert(size == stride * 1088);
 	}
+	struct meson8b_ge2d_image image = {
+		.width = 1920, .height = 1080, .stride = 1920,
+		.address = { 0x1000000, 0x2000000 }, .nv12 = true,
+	};
+	struct meson8b_ge2d_crop crop = { .left = 2, .top = 4, .width = 1918, .height = 1076 };
+	assert(!meson8b_ge2d_image_valid(&image));
+	assert(!meson8b_ge2d_crop_valid(&image, &crop));
+	crop.left = 1;
+	assert(meson8b_ge2d_crop_valid(&image, &crop) == -EINVAL);
+	crop.left = UINT32_MAX;
+	assert(meson8b_ge2d_crop_valid(&image, &crop) == -EINVAL);
+	image.address[1] = UINT32_MAX - 7;
+	assert(meson8b_ge2d_image_valid(&image) == -EINVAL);
+	image.address[1] = 0x2000001;
+	assert(meson8b_ge2d_image_valid(&image) == -EINVAL);
+	image.address[1] = 0x2000000;
+	image.height = 1079;
+	assert(meson8b_ge2d_image_valid(&image) == -EINVAL);
+	image.nv12 = false;
+	assert(!meson8b_ge2d_image_valid(&image));
+	image.nv12 = true;
+	image.height = 1080;
+	image.address[1] = image.address[0] + 1920 * 1080;
+	assert(!meson8b_ge2d_image_valid(&image));
+	image.address[1] -= 8;
+	assert(meson8b_ge2d_image_valid(&image) == -EINVAL);
+	image.address[1] += 8;
+	struct meson8b_ge2d_image destination = image;
+	assert(meson8b_ge2d_images_overlap(&image, &destination));
+	destination.address[0] = 0x3000000;
+	destination.address[1] = 0x4000000;
+	assert(!meson8b_ge2d_images_overlap(&image, &destination));
 	return 0;
 }

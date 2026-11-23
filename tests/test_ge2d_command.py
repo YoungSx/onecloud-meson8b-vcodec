@@ -20,15 +20,17 @@ class Ge2dCommandTests(unittest.TestCase):
 #include <stddef.h>
 typedef uint32_t u32;
 typedef uint64_t dma_addr_t;
+typedef uint64_t u64;
 #define BIT(n) (1u << (n))
 #define GENMASK(h,l) ((~0u << (l)) & (~0u >> (31-(h))))
 #define U32_MAX UINT32_MAX
+#define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
 #define MESON_CANVAS_WRAP_NONE 0
 #define MESON_CANVAS_BLKMODE_LINEAR 0
 #include "ge2d-layout.h"
 #include "ge2d-scale.h"
 ''' + macros + r'''
-struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas;bool offline;};
+struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas;bool offline;};
 static u32 registers[128];
 static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
@@ -39,7 +41,7 @@ static void ge2d_write(struct meson8b_ge2d *c,u32 r,u32 v) {
  (void)c;registers[r/4]=v;if(r==CMD_CTRL){assert(barriers);starts++;}
 }
 static int meson_canvas_config(void *c,unsigned i,dma_addr_t a,u32 s,u32 h,int w,int b,int e) {
- (void)c;(void)i;(void)a;assert((s==512||s==256) && (h==32||h==16) && !w && !b && !e);canvas_calls++;return canvas_error;
+ (void)c;(void)i;(void)a;assert((s==512||s==256) && (h==32||h==16||h==8) && !w && !b && !e);canvas_calls++;return canvas_error;
 }
 static u32 readl(void *r) {(void)r;return 0;}
 #define readl_poll_timeout(r,status,cond,interval,limit) ((void)(r), (status)=0, (void)(cond), assert((interval)==50 && (limit)==100000),poll_error)
@@ -48,7 +50,7 @@ static void dma_wmb(void) {barriers++;}
 static void dma_rmb(void) {barriers++;}
 ''' + body + r'''
 int main(void) {
- struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4};
+ struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4,.src_uv_canvas=5,.dst_uv_canvas=6};
  assert(!ge2d_copy(&c,0x100000,0x200000,512,32,false));
  assert(registers[GEN_CTRL2/4]==BIT(23));
  assert(registers[SRC_CANVAS/4]==3u<<24 && registers[DST_CANVAS/4]==4);
@@ -57,10 +59,33 @@ int main(void) {
  assert(starts==1 && resets==1 && canvas_calls==2);
  assert(!ge2d_copy(&c,0x100000,0x200000,512,32,true));
  assert(registers[GEN_CTRL2/4]==(BIT(23)|BIT(7)));
- assert(!ge2d_blit(&c,0x100000,0x200000,512,32,256,16,true));
+ struct meson8b_ge2d_image input={.width=512,.height=32,.stride=512,.address={0x100000,0x104000},.little_endian=true};
+ struct meson8b_ge2d_image output={.width=256,.height=16,.stride=256,.address={0x200000,0x201000},.little_endian=true};
+ struct meson8b_ge2d_crop crop={.width=512,.height=32};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(registers[HSC_STEP/4]==2u<<24 && registers[VSC_STEP/4]==2u<<24);
  assert(registers[DST_X/4]==255 && registers[DST_Y/4]==15);
  assert(registers[SC_MISC/4]&(BIT(11)|BIT(12)));
+ input.nv12=output.nv12=true;input.little_endian=false;
+ unsigned calls=canvas_calls;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(canvas_calls==calls+4);
+ assert(registers[GEN_CTRL0/4]==(BIT(0)|BIT(10)|BIT(11)));
+ assert(registers[GEN_CTRL2/4]==(BIT(23)|(15u<<19)|(15u<<3)|2));
+ assert(registers[GEN_CTRL3/4]==(BIT(0)|(10u<<19)|BIT(16)|(15u<<10)|BIT(8)));
+ assert(registers[SRC_CANVAS/4]==(3u<<24|5u<<16|5u<<8));
+ assert(registers[DST_CANVAS/4]==(4u|6u<<16));
+ assert(registers[SRC_FMT/4]==(BIT(18)|BIT(16)|(8u<<8)|0x4c));
+ crop=(struct meson8b_ge2d_crop){.left=2,.top=2,.width=256,.height=16};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[SRC_CLIPX/4]==(2u<<16|257));
+ assert(registers[SRC_X/4]==(2u<<30|2u<<16|3u<<14|257));
+ crop.left=1;unsigned no_start=starts;
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==no_start);
+ crop.left=2;input.address[1]=UINT32_MAX-7;
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==no_start);
+ input.address[1]=0x104000;output.address[1]=input.address[0];
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==no_start);
  unsigned before=starts;
  assert(ge2d_copy(&c,UINT32_MAX-16,0x200000,512,32,true)==-EINVAL);
  assert(ge2d_copy(&c,1ull<<32,0x200000,512,32,true)==-EINVAL);
