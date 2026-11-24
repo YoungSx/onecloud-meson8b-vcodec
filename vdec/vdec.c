@@ -898,6 +898,7 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		pixfmt_out = pixmp->pixelformat;
 		pixfmt_cap = sess->pixfmt_cap;
+		sess->fmt_out = fmt_out;
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		pixfmt_cap = pixmp->pixelformat;
 		pixfmt_out = sess->fmt_out->pixfmt;
@@ -939,9 +940,7 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	sess->width = format.fmt.pix_mp.width;
 	sess->height = format.fmt.pix_mp.height;
 
-	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		sess->fmt_out = fmt_out;
-	else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		sess->pixfmt_cap = format.fmt.pix_mp.pixelformat;
 
 	return 0;

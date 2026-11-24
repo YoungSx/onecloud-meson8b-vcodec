@@ -82,9 +82,9 @@ int main(void){struct codec_hevc h={.pending_eos=2,.have_picture=true,.skip_rasl
  codec_hevc_threaded_isr(&s);
  assert(!h.pending_eos&&h.drain_pending&&!h.eos_seen&&!flushed&&bumped==2&&!last&&!cleared&&snapshots==2&&writes==6&&!aborted);
  codec_hevc_threaded_isr(&s);
- assert(h.eos_seen&&!h.drain_pending&&flushed==1&&bumped==2&&last==1&&cleared==1&&!snapshots&&writes==9&&!aborted);
- /* A duplicate firmware notification cannot publish a second LAST. */
- codec_hevc_threaded_isr(&s);assert(last==1&&cleared==1&&aborted==1&&writes==9);
+ assert(h.eos_seen&&!h.drain_pending&&flushed==1&&bumped==2&&last==1&&cleared==1&&!snapshots&&writes==6&&!aborted);
+ /* Terminal drain stays paused; duplicate IRQs cannot abort queued tail copies. */
+ codec_hevc_threaded_isr(&s);assert(last==1&&cleared==1&&!aborted&&writes==6);
  assert(scheduled==2);
  return 0;}
 '''

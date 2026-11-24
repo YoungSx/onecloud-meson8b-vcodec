@@ -14,6 +14,8 @@ class H263FormatTests(unittest.TestCase):
                            source.index("static int vdec_try_fmt(")]
         enum = source[source.index("static int vdec_enum_framesizes("):
                       source.index("static int\nvdec_decoder_cmd(")]
+        setter = source[source.index("static int vdec_s_fmt("):
+                        source.index("static int vdec_enum_fmt(")]
         source = (ROOT / "vdec/codec_mpeg4.c").read_text()
         inspect = source[source.index("static int codec_mpeg4_inspect_input("):
                          source.index("static int codec_mpeg4_can_recycle(")]
@@ -46,6 +48,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
 #define V4L2_FIELD_NONE 1
 #define ALIGN(v,a) (((v)+(a)-1)&~((a)-1))
 #define clamp(v,lo,hi) min(max(v,lo),hi)
+#define max_t(t,a,b) ((t)(a)>(t)(b)?(t)(a):(t)(b))
 #define min_t(t,a,b) ((t)(a)<(t)(b)?(t)(a):(t)(b))
 #include "h263-vlc.h"
 struct v4l2_fract {u32 numerator,denominator;};
@@ -54,13 +57,13 @@ struct codec_mpeg4 {u8 *h263_output;struct h263_context h263;};
 struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
 struct core {struct platform *platform;};
-struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size;struct v4l2_fract pixelaspect;void *priv;};
+struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;};
 struct file {void *private_data;};
 struct v4l2_frmsizeenum {u32 pixel_format,index,type;struct {u32 width,height;} discrete;
  struct {u32 min_width,max_width,step_width,min_height,max_height,step_height;} stepwise;};
 struct vb2_buffer {u8 *data;u32 size,capacity;struct {u32 data_offset;}planes[1];};
 struct v4l2_plane_pix_format {u32 reserved[1],sizeimage,bytesperline;};
-struct v4l2_pix_format_mplane {struct v4l2_plane_pix_format plane_fmt[3];u32 reserved[1],width,height,pixelformat,num_planes,field;};
+struct v4l2_pix_format_mplane {struct v4l2_plane_pix_format plane_fmt[3];u32 reserved[1],width,height,pixelformat,num_planes,field,colorspace,ycbcr_enc,quantization,xfer_func;};
 struct v4l2_format {u32 type;struct {struct v4l2_pix_format_mplane pix_mp;} fmt;};
 static u32 amvdec_get_output_size_wh(u32 width,u32 height){return width*height;}
 static int vdec_supports_pixfmt_cap(const struct amvdec_format *fmt,u32 id){return fmt->pixfmts_cap[0]==id;}
@@ -71,7 +74,7 @@ static u32 vb2_get_plane_payload(struct vb2_buffer *b,int plane){assert(!plane);
 static u32 vb2_plane_size(struct vb2_buffer *b,int plane){assert(!plane);return b->capacity;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!plane);b->size=n;}
 #include "vdec-input.h"
-''' + ratio + negotiate + enum + inspect + r'''
+''' + ratio + negotiate + setter + enum + inspect + r'''
 int main(int argc,char **argv){
  assert(argc==3);
  struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}}};struct platform p={formats,2};
@@ -100,6 +103,21 @@ int main(int argc,char **argv){
  e.index=1;assert(vdec_enum_framesizes(&f,NULL,&e)==-EINVAL);
  e.pixel_format=2;e.index=0;assert(!vdec_enum_framesizes(&f,NULL,&e)&&e.type==2);
  e.index=1;assert(vdec_enum_framesizes(&f,NULL,&e)==-EINVAL);
+ /* First OUTPUT S_FMT must use the selected codec for CAPTURE geometry too. */
+ s.fmt_out=&formats[1];s.pixfmt_cap=V4L2_PIX_FMT_NV12M;
+ format=(struct v4l2_format){.type=1};
+ format.fmt.pix_mp.pixelformat=1;format.fmt.pix_mp.width=128;format.fmt.pix_mp.height=96;
+ assert(!vdec_s_fmt(&f,NULL,&format));
+ assert(s.fmt_out==&formats[0]&&s.width==128&&s.height==96);
+ format=(struct v4l2_format){.type=2};format.fmt.pix_mp.pixelformat=3;
+ format.fmt.pix_mp.width=128;format.fmt.pix_mp.height=96;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&s.width==128&&s.height==96);
+ format=(struct v4l2_format){.type=1};format.fmt.pix_mp.pixelformat=2;
+ format.fmt.pix_mp.width=128;format.fmt.pix_mp.height=96;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&s.fmt_out==&formats[1]&&s.width==256&&s.height==144);
+ format.fmt.pix_mp.pixelformat=1;format.fmt.pix_mp.width=164;format.fmt.pix_mp.height=100;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&s.width==164&&s.height==100);
+ s.width=128;s.height=96;
  u8 input[20000],original[10000],translated[20000];
  FILE *stream=fopen(argv[1],"rb");assert(stream);
  assert(fread(original,1,sizeof(original),stream)==8271&&feof(stream));fclose(stream);

@@ -1792,6 +1792,8 @@ static void codec_hevc_handle_eos(struct amvdec_session *sess)
 	struct amvdec_core *core = sess->core;
 	bool drain = false;
 
+	if (hevc->eos_seen)
+		return;
 	if (hevc->pending_eos) {
 		hevc->pending_eos--;
 	} else if (hevc->drain_pending && READ_ONCE(sess->stop_requested)) {
@@ -1819,13 +1821,14 @@ static void codec_hevc_handle_eos(struct amvdec_session *sess)
 		hevc->eos_seen = true;
 		codec_hevc_clear_inputs(hevc);
 		codec_hevc_finish_eos(sess);
+		/* Keep terminal drain paused while the frame pool delivers its tail. */
+		return;
 	}
 	/* EOS is a sequence boundary; ACTION_DONE resumes the auto NAL parser. */
 	amvdec_clear_dos_bits(core, HEVC_WAIT_FLAG, BIT(1));
 	amvdec_write_dos(core, HEVC_DEC_STATUS_REG, HEVC_ACTION_DONE);
 	amvdec_write_dos(core, HEVC_MCPU_INTR_REQ, AMRISC_MAIN_REQ);
-	if (!drain)
-		schedule_work(&sess->esparser_queue_work);
+	schedule_work(&sess->esparser_queue_work);
 }
 
 static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
