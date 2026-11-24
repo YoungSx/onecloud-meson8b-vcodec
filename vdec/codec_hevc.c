@@ -272,6 +272,7 @@ struct codec_hevc {
 	u32 dst_width, dst_height;
 
 	u32 dpb_size;
+	u32 sps_dpb_size; /* largest SPS requirement seen in this session */
 	bool waiting_for_buffer;
 	bool eos_seen;
 	/* the last watchdog check found the client waiting on the decoder */
@@ -1490,6 +1491,8 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    param->p.sps_num_reorder_pics_0 > 6)
 		return -EINVAL;
 	hevc->dpb_size = max_t(u32, 6, param->p.sps_num_reorder_pics_0 + 6);
+	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->applied.dpb);
+	hevc->dpb_size = max(hevc->dpb_size, hevc->sps_dpb_size);
 	dev_dbg(sess->core->dev, "HEVC RPM size %ux%u poc %u slice %u first %u reorder %u dpb %u\n",
 		 hevc->width, hevc->height, param->p.POClsb, param->p.slice_type,
 		 param->p.first_slice_segment_in_pic_flag, param->p.sps_num_reorder_pics_0,
@@ -1568,6 +1571,7 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 			return ret;
 		mutex_lock(&hevc->lock);
 		hevc->sps = geometry;
+		hevc->sps_dpb_size = max(hevc->sps_dpb_size, geometry.dpb);
 		mutex_unlock(&hevc->lock);
 	}
 	return 0;
@@ -1591,7 +1595,7 @@ static void codec_hevc_capture_queued(struct amvdec_session *sess)
 	mutex_unlock(&hevc->lock);
 }
 
-static void codec_hevc_resume(struct amvdec_session *sess)
+static int codec_hevc_setup_pool(struct amvdec_session *sess)
 {
 	struct codec_hevc *hevc = sess->priv;
 	struct amvdec_core *core = sess->core;
@@ -1604,10 +1608,8 @@ static void codec_hevc_resume(struct amvdec_session *sess)
 
 	/* The DPB lives in frame pool slots; slot n uses canvases 2n, 2n+1. */
 	ret = amvdec_pool_prepare(sess, count);
-	if (ret < 0) {
-		amvdec_abort(sess);
-		return;
-	}
+	if (ret < 0)
+		return ret;
 	if (ret)
 		codec_hevc_forget_frames(hevc);
 
@@ -1632,6 +1634,17 @@ static void codec_hevc_resume(struct amvdec_session *sess)
 	amvdec_write_dos(core, HEVCD_MPP_ANC_CANVAS_ACCCONFIG_ADDR, 1);
 	for (i = 0; i < 32; i++)
 		amvdec_write_dos(core, HEVCD_MPP_ANC_CANVAS_DATA_ADDR, 0);
+	return 0;
+}
+
+static void codec_hevc_resume(struct amvdec_session *sess)
+{
+	struct codec_hevc *hevc = sess->priv;
+
+	if (codec_hevc_setup_pool(sess)) {
+		amvdec_abort(sess);
+		return;
+	}
 	codec_hevc_process_segment_header(sess);
 	{
 		int ret = codec_hevc_process_segment(sess);
@@ -1692,6 +1705,15 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 			codec_hevc_forget_frames(hevc);
 			amvdec_src_change(sess, hevc->dst_width, hevc->dst_height,
 					 hevc->dpb_size);
+			goto unlock;
+		}
+	}
+
+	/* Firmware waits at a picture header; preserve refs while adding slots. */
+	if (sess->streamon_cap && hevc->dpb_size > amvdec_pool_count(sess)) {
+		sess->dpb_size = hevc->dpb_size;
+		if (codec_hevc_setup_pool(sess)) {
+			amvdec_abort(sess);
 			goto unlock;
 		}
 	}

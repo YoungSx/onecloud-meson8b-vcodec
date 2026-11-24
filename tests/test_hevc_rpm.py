@@ -27,12 +27,13 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
 #define I_SLICE 2
 #define SAO_VB_SIZE 0x30000
 #define SAO_ABV_SIZE 0x30000
+#define max(a,b) ((a)>(b)?(a):(b))
 #define max_t(t,a,b) ((t)(a)>(t)(b)?(t)(a):(t)(b))
 #define dev_dbg(...) ((void)0)
 #include "hevc-sps.h"
 #include "hevc-tiles.h"
 ''' + rpm + r'''
-struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
+struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
  struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;};
 struct format {u32 max_width,max_height;};
 struct core {void *dev;};
@@ -46,6 +47,11 @@ int main(void){
  h.rpm_param.p.m_temporalId=1;h.rpm_param.p.slice_type=1;h.rpm_param.p.num_ref_idx_l0_active=1;
  h.rpm_param.p.first_slice_segment_in_pic_flag=1;
  assert(codec_hevc_process_rpm(&s)==1&&h.lcu_total==510&&h.lcu_size==64);
+ /* Low-delay SPS can require ten retained pictures with no output reorder. */
+ h.applied=(struct hevc_sps_geometry){.coded_width=1920,.coded_height=1088,.width=1920,.height=1088,.dpb=10};
+ assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=h.applied.dpb);
+ h.sps_dpb_size=10;h.applied.dpb=5;
+ assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=10);
  /* Subsequent slices keep geometry; the same fields still feed POC/MPRED. */
  h.rpm_param.p.slice_segment_address=1;h.rpm_param.p.first_slice_segment_in_pic_flag=0;
  assert(!codec_hevc_process_rpm(&s)&&h.width==1920&&h.height==1088);
