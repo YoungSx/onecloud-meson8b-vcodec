@@ -122,6 +122,8 @@ Baseline 控件；只修改 SPS profile 标签不构成这些工具的实现。
 长期参考帧需要[HEVC 长期 RPS/POC 语义](https://www.itu.int/rec/T-REC-H.265)
 和同芯片微码输出证据。当前 `CUR_RPS` 主要按相对 POC 构建列表，SPS
 检查器也没有完成长期参考字段；本轮未找到能证明芯片绝对不能做的依据。
+后续源码核对确认厂商LongTerm_Curr/Col/Ref仍为0/TODO；短期POC和
+低延迟标志修复不能替代长期协议，见[参考状态](codec-parity.md#hevc-参考状态)。
 
 严格 CBR 需区分“不提供”与“不可能”：当前 VBR、单帧 QP 和超预算失败不能
 保证任何内容都满足目标；低目标的 QP32 饱和有实测依据。后代驱动的宏块

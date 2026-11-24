@@ -52,6 +52,20 @@ H.263自定义尺寸按32×32至1920×1080、4像素步进协商，宏块按向�
 检查不证明HD硬解。PB/B、UMV、AIC、算术编码等可选工具仍明确拒绝，
 转换输出保留1 MiB及OUTPUT缓冲容量限制；无法容纳时返回错误。
 
+## HEVC 参考状态
+
+当前源码按有符号POC判断低延迟：当前0/参考-1为过去引用，当前-1/参考0
+为未来引用，保留寄存器上的32-bit POC表示。temporal-zero基准按H.265
+排除TRAIL_N/TSA_N/STSA_N及RADL/RASL；例如基准0之后的前导POC -7不更新
+基准，下一POC 4保持4，不被错误算成-12。实际函数14,976组POC/基准输入
+与固定FFmpeg 7.0.2算法一致，另覆盖B列表和MPRED低延迟位。
+
+固定S805厂商[源](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/vh265.c#L3177)
+把LongTerm_Curr/Col/Ref设为0并标TODO；不能以LT寄存器存在作为完整协议
+依据。当前短期参考路径显式清零HEVC_MPRED_LT_REF，与厂商已实现路径一致。
+这不新增长期参考支持，也不证明芯片做不到；长期RPS/POC和固件输出仍缺
+可验收的同芯片依据。此次仅主机/ARM检查，未部署，无前导图片实机验收。
+
 ## 显示区域与像素比例
 
 当前源码接入只读G_SELECTION和CROPCAP，修复缺失selection注册及拒绝内核
