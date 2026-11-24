@@ -2,6 +2,8 @@
 #ifndef MESON_HEVC_SPS_H
 #define MESON_HEVC_SPS_H
 
+#include "codec_hevc.h"
+
 struct hevc_sps_geometry {
 	u32 coded_width, coded_height;
 	u32 left, top, width, height;
@@ -126,7 +128,7 @@ static inline int hevc_parse_sps_geometry(const u8 *nal, u32 length,
 		g.dpb = hevc_read_ue(&bits) + 1;
 		g.reorder = hevc_read_ue(&bits);
 		hevc_read_ue(&bits);
-		if (g.dpb > 10 || g.reorder >= g.dpb)
+		if (g.dpb > HEVC_MAX_DPB_SIZE || g.reorder >= g.dpb)
 			return -EINVAL;
 	}
 	if (bits.error)

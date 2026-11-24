@@ -50,7 +50,6 @@
 #define AMRISC_MAIN_REQ		 0x04
 
 /* HEVC Constants */
-#define MAX_REF_PIC_NUM		24
 #define MAX_REF_ACTIVE		16
 #define MAX_TILE_COL_NUM	4
 #define MAX_TILE_ROW_NUM	4
@@ -76,7 +75,7 @@
 #define DBLK_DATA2_SIZE	0x80000
 #define MMU_VBH_SIZE	0x5000
 #define MPRED_ABV_SIZE	0x8000
-#define MPRED_MV_SIZE	(MPRED_MV_BUF_SIZE * 12)
+#define MPRED_MV_SIZE	(MPRED_MV_BUF_SIZE * HEVC_MAX_DPB_SIZE)
 #define RPM_BUF_SIZE	0x100
 #define LMEM_SIZE	0xA00
 
@@ -1477,6 +1476,7 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	if (param->p.log2_max_pic_order_cnt_lsb_minus4 > 12 ||
 	    param->p.num_ref_idx_l0_active > MAX_REF_ACTIVE ||
 	    param->p.num_ref_idx_l1_active > MAX_REF_ACTIVE ||
+	    param->p.sps_num_reorder_pics_0 >= HEVC_MAX_DPB_SIZE ||
 	    param->p.slice_type > I_SLICE ||
 	    param->p.collocated_from_l0_flag > 1 ||
 	    param->p.log2_parallel_merge_level > 6 ||
@@ -1538,10 +1538,10 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 
 	lcu_size = 1 << (param->p.log2_min_coding_block_size_minus3 +
 		   3 + param->p.log2_diff_max_min_coding_block_size);
-	if (lcu_size < 16 || lcu_size > 64 ||
-	    param->p.sps_num_reorder_pics_0 > 6)
+	if (lcu_size < 16 || lcu_size > 64)
 		return -EINVAL;
-	hevc->dpb_size = max_t(u32, 6, param->p.sps_num_reorder_pics_0 + 6);
+	hevc->dpb_size = min_t(u32, HEVC_MAX_DPB_SIZE,
+			       param->p.sps_num_reorder_pics_0 + 6);
 	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->applied.dpb);
 	hevc->dpb_size = max(hevc->dpb_size, hevc->sps_dpb_size);
 	dev_dbg(sess->core->dev, "HEVC RPM size %ux%u poc %u slice %u first %u reorder %u dpb %u\n",

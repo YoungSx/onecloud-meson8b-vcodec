@@ -11,7 +11,8 @@ for test in copy window capture pool jpeg esparser_padding hevc_sps hevc_tiles h
     cc -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
       -fno-pie -no-pie "tests/test_$test.c" -o "build/host-tests/$test" -lm
     if [[ "$test" == hevc_sps ]]; then
-        "build/host-tests/$test" tests/fixtures/hevc-1080p-sps.hevc
+        "build/host-tests/$test" tests/fixtures/hevc-1080p-sps.hevc \
+          tests/fixtures/hevc-dpb16-sps.hevc
     elif [[ "$test" == h263_vlc ]]; then
         "build/host-tests/$test" tests/fixtures/h263-baseline-128x96.h263 \
           tests/fixtures/h263-plus-164x100.h263

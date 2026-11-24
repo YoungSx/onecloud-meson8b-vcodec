@@ -32,6 +32,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32
 #define SAO_ABV_SIZE 0x30000
 #define max(a,b) ((a)>(b)?(a):(b))
 #define max_t(t,a,b) ((t)(a)>(t)(b)?(t)(a):(t)(b))
+#define min_t(t,a,b) ((t)(a)<(t)(b)?(t)(a):(t)(b))
 #define dev_dbg(...) ((void)0)
 #include "hevc-sps.h"
 #include "hevc-tiles.h"
@@ -56,6 +57,9 @@ int main(void){
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=h.applied.dpb);
  h.sps_dpb_size=10;h.applied.dpb=5;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=10);
+ h.sps_dpb_size=16;h.rpm_param.p.sps_num_reorder_pics_0=15;
+ assert(!codec_hevc_process_rpm(&s)&&h.dpb_size==16);
+ h.rpm_param.p.sps_num_reorder_pics_0=0;
  /* Subsequent slices keep geometry; the same fields still feed POC/MPRED. */
  h.rpm_param.p.slice_segment_address=1;h.rpm_param.p.first_slice_segment_in_pic_flag=0;
  assert(!codec_hevc_process_rpm(&s)&&h.width==1920&&h.height==1088);
@@ -65,6 +69,7 @@ int main(void){
  BAD(num_ref_idx_l0_active,17);
  BAD(num_ref_idx_l1_active,17);
  BAD(slice_type,3);
+ BAD(sps_num_reorder_pics_0,16);
  BAD(log2_parallel_merge_level,7);
  BAD(five_minus_max_num_merge_cand,5);
  BAD(first_slice_segment_in_pic_flag,2);
@@ -95,7 +100,11 @@ int main(void){
         platform = (ROOT / "vdec/vdec_platform.c").read_text()
         fmt = platform[platform.index(".pixfmt = V4L2_PIX_FMT_HEVC"):
                        platform.index(".pixfmt = V4L2_PIX_FMT_H264")]
-        slots = int(re.search(r"\.max_buffers\s*=\s*(\d+)", fmt)[1])
+        capacity = re.search(r"\.max_buffers\s*=\s*(\w+)", fmt)[1]
+        limits = (ROOT / "vdec/codec_hevc.h").read_text()
+        slots = int(capacity) if capacity.isdigit() else int(
+            re.search(r"#define\s+" + capacity + r"\s+(\d+)", limits)[1])
+        self.assertEqual(slots, 16)
         definitions = "\n".join(line for line in source.splitlines()
                                 if line.startswith(("#define MPRED_MV_BUF_SIZE ", "#define MPRED_MV_SIZE")))
         code = r'''
@@ -104,6 +113,7 @@ int main(void){
 typedef uint32_t u32;typedef uint16_t u16;typedef uint64_t dma_addr_t;
 #define MPRED_MV_OFFSET 0x10000
 #define MPRED_ABV_OFFSET 0x1000
+#include "codec_hevc.h"
 #include "dos_regs.h"
 #include "hevc_regs.h"
 ''' + definitions + f'\n#define DECLARED_SLOTS {slots}\n' + r'''

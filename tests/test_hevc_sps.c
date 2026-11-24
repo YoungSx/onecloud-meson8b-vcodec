@@ -10,7 +10,8 @@ typedef uint8_t u8;
 typedef uint32_t u32;
 #include "../vdec/hevc-sps.h"
 
-int main(int argc, char **argv)
+static void check_sps(const char *path, u32 width, u32 height, u32 visible_height,
+		      u32 dpb)
 {
 	FILE *file;
 	u8 *data;
@@ -18,8 +19,7 @@ int main(int argc, char **argv)
 	struct hevc_sps_geometry g;
 	unsigned int i, end, found = 0;
 
-	assert(argc == 2);
-	file = fopen(argv[1], "rb"); assert(file);
+	file = fopen(path, "rb"); assert(file);
 	fseek(file, 0, SEEK_END); size = ftell(file); rewind(file);
 	data = malloc(size); assert(data);
 	assert(fread(data, 1, size, file) == (size_t)size); fclose(file);
@@ -32,17 +32,27 @@ int main(int argc, char **argv)
 		assert(hevc_parse_sps_geometry(data + i + 1, end - i - 1, &g) == 0);
 		printf("coded %u x %u visible %u x %u dpb %u reorder %u\n",
 		       g.coded_width,g.coded_height,g.width,g.height,g.dpb,g.reorder);
-		assert(g.coded_width==1920 && g.coded_height==1088);
-		assert(g.width==1920 && g.height==1080 && g.dpb>=g.reorder+1);
+		assert(g.coded_width==width && g.coded_height==height);
+		assert(g.width==width && g.height==visible_height && g.dpb==dpb);
+		assert(g.dpb>=g.reorder+1);
 		for (unsigned int length=0; length<20; length++)
 			assert(hevc_parse_sps_geometry(data+i+1,length,&g)!=0);
 		found++;
 	}
-	assert(found);
+	assert(found==1);
+	free(data);
+}
+
+int main(int argc, char **argv)
+{
+	struct hevc_sps_geometry g;
+
+	assert(argc == 3);
+	check_sps(argv[1],1920,1088,1080,5);
+	check_sps(argv[2],320,192,192,16);
 	u8 zeros[512]={0};
 	assert(hevc_parse_sps_geometry(zeros,sizeof(zeros),&g)!=0);
 	zeros[0]=66;zeros[1]=1;
 	assert(hevc_parse_sps_geometry(zeros,sizeof(zeros),&g)!=0);
-	free(data);
 	return 0;
 }

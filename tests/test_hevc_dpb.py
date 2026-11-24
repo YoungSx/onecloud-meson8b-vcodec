@@ -64,7 +64,9 @@ static u32 sps(u8 *packet,u32 dpb){
 int main(void){struct codec_hevc h={0};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={packet,0};
  b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b));assert(h.sps.dpb==10&&h.sps_dpb_size==10);
  b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b));assert(h.sps.dpb==5&&h.sps_dpb_size==10);
- b.size=sps(packet,11);assert(codec_hevc_inspect_input(&s,&b)==-EINVAL&&h.sps_dpb_size==10);
+ b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b)&&h.sps.dpb==16&&h.sps_dpb_size==16);
+ b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b)&&h.sps.dpb==5&&h.sps_dpb_size==16);
+ b.size=sps(packet,17);assert(codec_hevc_inspect_input(&s,&b)==-EINVAL&&h.sps_dpb_size==16);
  return 0;}
 '''
         run_c(code)
@@ -96,13 +98,13 @@ struct codec_hevc {int lock;u32 dpb_size,dst_width,dst_height;bool client_waited
 struct amvdec_core {void *dev_dec;};struct amvdec_format {u32 min_buffers,max_buffers;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma;};
 struct amvdec_session {struct amvdec_core *core;void *priv;struct amvdec_format *fmt_out;u32 dpb_size;int keyframe_found,streamon_cap;enum amvdec_status status;};
-static u32 pool_count=6,budget=10,tables[64];static int prepared,forgotten,rpms,segments,changes,aborts,fail;
-static struct amvdec_shadow slots[12];
+static u32 pool_count=6,budget=16,tables[64];static int prepared,forgotten,rpms,segments,changes,aborts,fail;
+static struct amvdec_shadow slots[16];
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;return r==HEVC_DEC_STATUS_REG?8:0;}
 static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 value){(void)c;if(r==HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR)tables[(value>>8)&255]=value&0xffff0000;}
 static u32 amvdec_pool_count(struct amvdec_session *s){(void)s;return pool_count;}
-static int amvdec_pool_prepare(struct amvdec_session *s,u32 n){(void)s;assert(n>=6&&n<=12);prepared++;if(fail)return -ENOMEM;pool_count=n;return 0;}
+static int amvdec_pool_prepare(struct amvdec_session *s,u32 n){(void)s;assert(n>=6&&n<=16);prepared++;if(fail)return -ENOMEM;pool_count=n;return 0;}
 static const struct amvdec_shadow *amvdec_pool_slot(struct amvdec_session *s,u32 i){(void)s;assert(i<pool_count);return &slots[i];}
 static void codec_hevc_forget_frames(struct codec_hevc *h){(void)h;forgotten++;}
 static void amvdec_abort(struct amvdec_session *s){(void)s;aborts++;}
@@ -115,14 +117,14 @@ static void codec_hevc_flush_output(struct amvdec_session *s){(void)s;assert(0);
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
 static int codec_hevc_process_segment(struct amvdec_session *s){(void)s;segments++;return 0;}
 ''' + setup + irq + r'''
-int main(void){struct codec_hevc h={0};struct amvdec_core c={0};struct amvdec_format f={6,12};struct amvdec_session s={.core=&c,.priv=&h,.fmt_out=&f,.streamon_cap=1,.status=STATUS_RUNNING};
- for(u32 i=0;i<12;i++)slots[i]=(struct amvdec_shadow){0x800000+i*0x20000,0x10000};
- assert(codec_hevc_threaded_isr(&s)==IRQ_HANDLED&&pool_count==10&&s.dpb_size==10);
+int main(void){struct codec_hevc h={0};struct amvdec_core c={0};struct amvdec_format f={6,16};struct amvdec_session s={.core=&c,.priv=&h,.fmt_out=&f,.streamon_cap=1,.status=STATUS_RUNNING};
+ for(u32 i=0;i<16;i++)slots[i]=(struct amvdec_shadow){0x800000+i*0x20000,0x10000};
+ assert(codec_hevc_threaded_isr(&s)==IRQ_HANDLED&&pool_count==16&&s.dpb_size==16);
  assert(prepared==1&&!forgotten&&!changes&&!aborts&&rpms==1&&segments==1);
- for(u32 i=0;i<10;i++){assert(tables[2*i]==slots[i].paddr);assert(tables[2*i+1]==slots[i].paddr+slots[i].luma);}
+ for(u32 i=0;i<16;i++){assert(tables[2*i]==slots[i].paddr);assert(tables[2*i+1]==slots[i].paddr+slots[i].luma);}
  codec_hevc_threaded_isr(&s);assert(prepared==1&&rpms==2&&segments==2);
- budget=8;codec_hevc_threaded_isr(&s);assert(pool_count==10&&prepared==1);
- pool_count=6;budget=10;fail=1;int previous_rpms=rpms,previous_segments=segments;
+ budget=8;codec_hevc_threaded_isr(&s);assert(pool_count==16&&prepared==1);
+ pool_count=6;budget=16;fail=1;int previous_rpms=rpms,previous_segments=segments;
  codec_hevc_threaded_isr(&s);assert(aborts==1&&rpms==previous_rpms+1&&segments==previous_segments&&!changes&&!forgotten);
  return 0;}
 '''
