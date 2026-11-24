@@ -89,6 +89,8 @@ enum amvdec_pool_end {
 	AMVDEC_POOL_FLUSH,
 	/* return one empty CAPTURE buffer as LAST */
 	AMVDEC_POOL_LAST,
+	/* source change without a displayable old tail: empty LAST, no EOS */
+	AMVDEC_POOL_RESTART,
 };
 
 /**

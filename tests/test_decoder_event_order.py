@@ -29,14 +29,14 @@ struct vb2_buffer {unsigned int num_planes,type;void *vb2_queue;};
 struct vb2_v4l2_buffer {struct vb2_buffer vb2_buf;unsigned int flags,field;};
 struct amvdec_vb2_buffer {struct vb2_v4l2_buffer vb;int list;bool eos;};
 struct amvdec_frame_pool {int end;};
-struct amvdec_session {struct amvdec_frame_pool pool;void *m2m_ctx;int fh,should_stop;};
+struct amvdec_session {struct amvdec_frame_pool pool;void *m2m_ctx;int fh,should_stop,sequence_cap;};
 struct v4l2_event {int type;};
-enum {AMVDEC_POOL_RUNNING,AMVDEC_POOL_FLUSH,AMVDEC_POOL_LAST};
+enum {AMVDEC_POOL_RUNNING,AMVDEC_POOL_FLUSH,AMVDEC_POOL_LAST,AMVDEC_POOL_RESTART};
 static struct amvdec_session session;static struct amvdec_vb2_buffer buffers[2];
 static int cursor,events,returned,dequeue;
 static struct vb2_v4l2_buffer *v4l2_m2m_dst_buf_remove(void *p){(void)p;return cursor<2?&buffers[cursor++].vb:0;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,unsigned int i,unsigned int n){(void)b;(void)i;assert(!n);}
-static void v4l2_m2m_buf_done(struct vb2_v4l2_buffer *b,int state){(void)b;assert(state==1 && !events);returned++;}
+static void v4l2_m2m_buf_done(struct vb2_v4l2_buffer *b,int state){(void)b;assert(state==1 && (events==0 || session.pool.end==AMVDEC_POOL_RESTART));returned++;}
 static void v4l2_m2m_last_buffer_done(void *p,struct vb2_v4l2_buffer *b){(void)p;b->flags=1;v4l2_m2m_buf_done(b,1);}
 static struct amvdec_session *vb2_get_drv_priv(void *p){(void)p;return &session;}
 static struct vb2_v4l2_buffer *to_vb2_v4l2_buffer(struct vb2_buffer *b){return (void*)b;}
@@ -45,7 +45,7 @@ static void v4l2_event_queue_fh(int *fh,const struct v4l2_event *e){(void)fh;ass
             + p[a:b]
             + s[c:d]
             + r"""
-int main(void){for(int i=0;i<2;i++){buffers[i].vb.vb2_buf.num_planes=2;buffers[i].vb.vb2_buf.type=9;}session.pool.end=AMVDEC_POOL_FLUSH;amvdec_pool_end_locked(&session);assert(!events && returned==2 && !buffers[0].eos && buffers[1].eos);dequeue=1;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(!events);vdec_vb2_buf_finish(&buffers[1].vb.vb2_buf);assert(events==1 && !buffers[1].eos);vdec_vb2_buf_finish(&buffers[1].vb.vb2_buf);assert(events==1);buffers[0].vb.flags=V4L2_BUF_FLAG_LAST;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(events==1);buffers[0].eos=true;buffers[0].vb.vb2_buf.type=10;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(events==1);return 0;}
+int main(void){for(int i=0;i<2;i++){buffers[i].vb.vb2_buf.num_planes=2;buffers[i].vb.vb2_buf.type=9;}session.pool.end=AMVDEC_POOL_FLUSH;amvdec_pool_end_locked(&session);assert(!events && returned==2 && !buffers[0].eos && buffers[1].eos);dequeue=1;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(!events);vdec_vb2_buf_finish(&buffers[1].vb.vb2_buf);assert(events==1 && !buffers[1].eos);vdec_vb2_buf_finish(&buffers[1].vb.vb2_buf);assert(events==1);buffers[0].vb.flags=V4L2_BUF_FLAG_LAST;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(events==1);buffers[0].eos=true;buffers[0].vb.vb2_buf.type=10;vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(events==1);cursor=0;session.should_stop=0;session.sequence_cap=7;session.pool.end=AMVDEC_POOL_RESTART;buffers[0].eos=true;amvdec_pool_end_locked(&session);assert(!session.should_stop&&!session.sequence_cap&&cursor==1&&!buffers[0].eos&&buffers[0].vb.flags==V4L2_BUF_FLAG_LAST);vdec_vb2_buf_finish(&buffers[0].vb.vb2_buf);assert(events==1);return 0;}
 """
         )
         with tempfile.TemporaryDirectory() as directory:

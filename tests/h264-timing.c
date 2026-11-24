@@ -84,7 +84,7 @@ struct amvdec_picture {
 	bool restart, eos;
 };
 struct amvdec_shadow { int identity; u32 width, height; };
-enum amvdec_pool_end { AMVDEC_POOL_RUNNING, AMVDEC_POOL_FLUSH, AMVDEC_POOL_LAST };
+enum amvdec_pool_end { AMVDEC_POOL_RUNNING, AMVDEC_POOL_FLUSH, AMVDEC_POOL_LAST, AMVDEC_POOL_RESTART };
 struct amvdec_frame_pool {
 	int lock, delivery_lock;
 	struct work_struct work;

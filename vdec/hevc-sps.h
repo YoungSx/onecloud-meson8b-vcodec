@@ -151,12 +151,20 @@ struct hevc_parameter_sets {
 	struct hevc_sps_geometry sps[16];
 	u8 pps_sps[64];
 	bool pps_valid[64];
+	bool pps_output_flag[64];
+	u8 pps_extra_header_bits[64];
 };
 
-/* Return one picture's immutable SPS prefix, or zero for parameter-only input. */
-static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
-				      const u8 *data, u32 length,
-				      struct hevc_sps_geometry *geometry)
+struct hevc_picture_info {
+	struct hevc_sps_geometry geometry;
+	bool output;
+	bool no_output_of_prior;
+};
+
+/* Return one picture's immutable header prefix, or zero for parameter-only input. */
+static inline int hevc_input_picture_info(struct hevc_parameter_sets *sets,
+					  const u8 *data, u32 length,
+					  struct hevc_picture_info *info)
 {
 	u32 i, picture_pps = 0;
 	bool picture = false;
@@ -168,6 +176,7 @@ static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
 		struct hevc_bits bits;
 		struct hevc_sps_geometry g;
 		bool first;
+		bool no_output_of_prior = false;
 		int ret;
 
 		if (data[i - 2] || data[i - 1] || data[i] != 1)
@@ -190,14 +199,19 @@ static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
 			if (type == 34) {
 				id = hevc_read_ue(&bits);
 				sps_id = hevc_read_ue(&bits);
-				if (bits.error || id >= 64 || sps_id >= 16)
+				if (id >= 64 || sps_id >= 16)
+					return -EINVAL;
+				hevc_skip_bits(&bits, 1); /* dependent slices enabled */
+				sets->pps_output_flag[id] = hevc_read_bits(&bits, 1);
+				sets->pps_extra_header_bits[id] = hevc_read_bits(&bits, 3);
+				if (bits.error)
 					return -EINVAL;
 				sets->pps_sps[id] = sps_id;
 				sets->pps_valid[id] = true;
 			} else {
 				first = hevc_read_bits(&bits, 1);
 				if (type >= 16 && type <= 23)
-					hevc_skip_bits(&bits, 1);
+					no_output_of_prior = hevc_read_bits(&bits, 1);
 				id = hevc_read_ue(&bits);
 				if (bits.error || id >= 64 || !sets->pps_valid[id] ||
 				    !sets->sps[sets->pps_sps[id]].coded_width)
@@ -205,7 +219,16 @@ static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
 				if (first) {
 					if (picture)
 						return -EINVAL;
-					*geometry = sets->sps[sets->pps_sps[id]];
+					info->geometry = sets->sps[sets->pps_sps[id]];
+					info->output = true;
+					info->no_output_of_prior = no_output_of_prior;
+					hevc_skip_bits(&bits, sets->pps_extra_header_bits[id]);
+					if (hevc_read_ue(&bits) > 2)
+						return -EINVAL;
+					if (sets->pps_output_flag[id])
+						info->output = hevc_read_bits(&bits, 1);
+					if (bits.error)
+						return -EINVAL;
 					picture_pps = id;
 					picture = true;
 				} else if (picture && id != picture_pps) {

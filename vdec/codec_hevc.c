@@ -242,7 +242,7 @@ struct hevc_frame {
 struct hevc_input_picture {
 	struct list_head list;
 	u32 offset;
-	struct hevc_sps_geometry geometry;
+	struct hevc_picture_info info;
 };
 
 struct codec_hevc {
@@ -286,6 +286,8 @@ struct codec_hevc {
 	bool client_waited;
 	/* Immutable SPS snapshot selected for the current picture's input offset. */
 	struct hevc_sps_geometry applied;
+	bool picture_output;
+	bool picture_no_prior;
 	struct hevc_parameter_sets parameters;
 	struct list_head input_pictures;
 	u32 prev_tid0_poc;
@@ -303,8 +305,8 @@ struct codec_hevc {
 	int is_10bit;
 };
 
-static bool codec_hevc_geometry_for_offset(struct codec_hevc *hevc, u32 offset,
-					   struct hevc_sps_geometry *geometry)
+static bool codec_hevc_picture_for_offset(struct codec_hevc *hevc, u32 offset,
+					  struct hevc_picture_info *info)
 {
 	struct hevc_input_picture *input, *next;
 	bool found = false;
@@ -313,7 +315,7 @@ static bool codec_hevc_geometry_for_offset(struct codec_hevc *hevc, u32 offset,
 	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
 		if ((s32)(input->offset - offset) > 0)
 			break;
-		*geometry = input->geometry;
+		*info = input->info;
 		found = true;
 		list_del(&input->list);
 		kfree(input);
@@ -535,8 +537,7 @@ static void codec_hevc_show_frames(struct amvdec_session *sess)
 	struct codec_hevc *hevc = sess->priv;
 
 	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
-		if (hevc->curr_poc &&
-		   (hevc->frames_num <= tmp->num_reorder_pic))
+		if (hevc->frames_num <= tmp->num_reorder_pic)
 			break;
 
 		dev_dbg(sess->core->dev, "DONE frame poc %u; slot %u\n",
@@ -809,6 +810,31 @@ static void codec_hevc_flush_output(struct amvdec_session *sess)
 	hevc->col_frame = NULL;
 }
 
+static bool codec_hevc_is_output_boundary(struct codec_hevc *hevc)
+{
+	u32 type = hevc->rpm_param.p.m_nalUnitType;
+
+	return !hevc->rpm_param.p.slice_segment_address &&
+	       ((type >= NAL_UNIT_CODED_SLICE_BLA && type <= NAL_UNIT_CODED_SLICE_IDR_N_LP) ||
+		(type == NAL_UNIT_CODED_SLICE_CRA && hevc->skip_rasl));
+}
+
+static void codec_hevc_discard_prior_output(struct amvdec_session *sess)
+{
+	struct codec_hevc *hevc = sess->priv;
+	struct hevc_frame *frame;
+
+	if (!codec_hevc_is_output_boundary(hevc) || !hevc->picture_no_prior)
+		return;
+	list_for_each_entry(frame, &hevc->ref_frames_list, list) {
+		if (!frame->show)
+			continue;
+		amvdec_drop_picture_offset(sess, frame->offset);
+		frame->show = 0;
+		hevc->frames_num--;
+	}
+}
+
 /* Pictures referencing slots of another geometry are gone with them. */
 static void codec_hevc_forget_frames(struct codec_hevc *hevc)
 {
@@ -905,7 +931,7 @@ codec_hevc_prepare_new_frame(struct amvdec_session *sess)
 
 	new_frame->slot = slot;
 	new_frame->referenced = 1;
-	new_frame->show = 1;
+	new_frame->show = hevc->picture_output;
 	new_frame->poc = hevc->curr_poc;
 	new_frame->cur_slice_type = params->p.slice_type;
 	new_frame->num_reorder_pic = params->p.sps_num_reorder_pics_0;
@@ -920,7 +946,10 @@ codec_hevc_prepare_new_frame(struct amvdec_session *sess)
 	new_frame->offset = amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT);
 
 	list_add_tail(&new_frame->list, &hevc->ref_frames_list);
-	hevc->frames_num++;
+	if (new_frame->show)
+		hevc->frames_num++;
+	else
+		amvdec_drop_picture_offset(sess, new_frame->offset);
 
 	return new_frame;
 }
@@ -1468,6 +1497,10 @@ static int codec_hevc_process_segment(struct amvdec_session *sess)
 	if (slice_segment_address == 0) {
 		codec_hevc_update_referenced(hevc);
 		codec_hevc_show_frames(sess);
+		if (codec_hevc_is_output_boundary(hevc)) {
+			codec_hevc_discard_prior_output(sess);
+			codec_hevc_flush_output(sess);
+		}
 
 		hevc->cur_frame = codec_hevc_prepare_new_frame(sess);
 		if (!hevc->cur_frame)
@@ -1529,14 +1562,16 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	codec_hevc_process_segment_header(sess);
 	if (!param->p.slice_segment_address && param->p.pic_width_in_luma_samples &&
 	    param->p.pic_height_in_luma_samples) {
-		struct hevc_sps_geometry geometry;
+		struct hevc_picture_info info;
 		u32 offset = amvdec_read_dos(sess->core, HEVC_SHIFT_BYTE_COUNT);
 
-		if (!codec_hevc_geometry_for_offset(hevc, offset, &geometry) ||
-		    geometry.coded_width != param->p.pic_width_in_luma_samples ||
-		    geometry.coded_height != param->p.pic_height_in_luma_samples)
+		if (!codec_hevc_picture_for_offset(hevc, offset, &info) ||
+		    info.geometry.coded_width != param->p.pic_width_in_luma_samples ||
+		    info.geometry.coded_height != param->p.pic_height_in_luma_samples)
 			return -EINVAL;
-		hevc->applied = geometry;
+		hevc->applied = info.geometry;
+		hevc->picture_output = info.output;
+		hevc->picture_no_prior = info.no_output_of_prior;
 	}
 	if (codec_hevc_is_skipped_rasl(hevc))
 		return 0;
@@ -1632,13 +1667,13 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 	struct codec_hevc *hevc = sess->priv;
 	const u8 *data = vb2_plane_vaddr(vb, 0);
 	u32 length = vb2_get_plane_payload(vb, 0);
-	struct hevc_sps_geometry geometry;
+	struct hevc_picture_info info;
 	struct hevc_input_picture *input;
 	int ret;
 
 	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
 	mutex_lock(&hevc->lock);
-	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
+	ret = hevc_input_picture_info(&hevc->parameters, data, length, &info);
 	if (ret < 0)
 		goto unlock;
 	if (ret > 0) {
@@ -1648,7 +1683,7 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 			goto unlock;
 		}
 		input->offset = offset;
-		input->geometry = geometry;
+		input->info = info;
 		list_add_tail(&input->list, &hevc->input_pictures);
 	}
 	ret = 0;
@@ -1777,13 +1812,21 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 			 * userspace, and only its geometry can copy them.
 			 * Deliver them now; the last one ends that stream,
 			 * which the client drains before it renegotiates. */
-			struct hevc_frame *last = codec_hevc_show_pending(sess, true);
+			struct hevc_frame *last;
 			enum amvdec_status status = sess->status;
 
+			/* The preceding picture completes before this IRAP is processed. */
+			codec_hevc_show_frames(sess);
+			codec_hevc_discard_prior_output(sess);
+			last = codec_hevc_show_pending(sess, true);
 			sess->status = STATUS_NEEDS_RESUME;
 			if (last) {
 				codec_hevc_deliver_frame(sess, last);
 				hevc->frames_num--;
+			} else if (sess->streamon_cap &&
+				   (sess->width != hevc->dst_width ||
+				    sess->height != hevc->dst_height)) {
+				amvdec_pool_end(sess, AMVDEC_POOL_RESTART);
 			}
 			sess->status = status;
 			if (ret & HEVC_REFERENCE_CHANGE)

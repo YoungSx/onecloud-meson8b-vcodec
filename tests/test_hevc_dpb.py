@@ -36,7 +36,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;
 #define msecs_to_jiffies(x) (x)
 #include "hevc-sps.h"
 struct list_head {int unused;};
-struct hevc_input_picture {struct list_head list;u32 offset;struct hevc_sps_geometry geometry;};
+struct hevc_input_picture {struct list_head list;u32 offset;struct hevc_picture_info info;};
 struct codec_hevc {int lock,watchdog;u32 dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
 #define GFP_KERNEL 0
 static void *kmalloc(unsigned long n,int f){(void)n;(void)f;assert(0);return 0;}
@@ -104,7 +104,7 @@ struct hevc_frame {int value;};
 struct codec_hevc {int lock;u32 dpb_size,dst_width,dst_height,frames_num;bool client_waited,eos_seen,waiting_for_buffer;};
 struct amvdec_core {void *dev_dec;};struct amvdec_format {u32 min_buffers,max_buffers;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma;};
-struct amvdec_session {struct amvdec_core *core;void *priv;struct amvdec_format *fmt_out;u32 dpb_size;int keyframe_found,streamon_cap;enum amvdec_status status;};
+struct amvdec_session {struct amvdec_core *core;void *priv;struct amvdec_format *fmt_out;u32 dpb_size,width,height;int keyframe_found,streamon_cap;enum amvdec_status status;};
 static u32 pool_count=6,budget=16,tables[64];static int prepared,forgotten,rpms,segments,changes,aborts,fail;
 static struct amvdec_shadow slots[16];
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
@@ -122,6 +122,10 @@ static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame 
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){(void)s;(void)w;(void)h;(void)n;changes++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){(void)s;assert(0);}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+#define AMVDEC_POOL_RESTART 3
+static void amvdec_pool_end(struct amvdec_session *s,int end){(void)s;(void)end;assert(0);}
+static void codec_hevc_discard_prior_output(struct amvdec_session *s){(void)s;}
+static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;}
 static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static int codec_hevc_process_segment(struct amvdec_session *s){(void)s;segments++;return 0;}
 ''' + setup + irq + r'''

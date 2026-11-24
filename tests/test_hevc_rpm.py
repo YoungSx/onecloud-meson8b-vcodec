@@ -42,13 +42,13 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32
 ''' + rpm + enums + r'''
 struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
  struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;
- u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;bool have_picture,skip_rasl;};
+ u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;bool have_picture,skip_rasl,picture_output,picture_no_prior;};
 struct format {u32 max_width,max_height;};
 struct core {void *dev;};
 struct amvdec_session {void *priv;struct core *core;struct format *fmt_out;u32 reference_width,reference_height,crop_left,crop_top;};
 static struct hevc_sps_geometry queued_geometry;
 static u32 amvdec_read_dos(struct core *c,u32 r){(void)c;(void)r;return 0;}
-static bool codec_hevc_geometry_for_offset(struct codec_hevc *h,u32 o,struct hevc_sps_geometry *g){(void)h;(void)o;*g=queued_geometry;return true;}
+static bool codec_hevc_picture_for_offset(struct codec_hevc *h,u32 o,struct hevc_picture_info *info){(void)h;(void)o;*info=(struct hevc_picture_info){.geometry=queued_geometry,.output=true};return true;}
 ''' + header + body + r'''
 #define BAD(field,value) do{u16 old=h.rpm_param.p.field;h.rpm_param.p.field=value;assert(codec_hevc_process_rpm(&s)==-EINVAL);h.rpm_param.p.field=old;}while(0)
 int main(void){

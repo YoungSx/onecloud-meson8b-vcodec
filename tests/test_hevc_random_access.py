@@ -75,7 +75,7 @@ struct codec_hevc {
  int lock;union rpm_param rpm_param;struct hevc_frame *cur_frame,*col_frame;
  u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size,frames_num;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;
- bool have_picture,skip_rasl,new_tile,waiting_for_buffer,client_waited,eos_seen;
+ bool have_picture,skip_rasl,picture_output,picture_no_prior,new_tile,waiting_for_buffer,client_waited,eos_seen;
  int is_10bit;struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;struct hevc_tile tile;
 };
 struct amvdec_core {void *dev,*dev_dec;};
@@ -94,6 +94,11 @@ static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 v){(void)c;register
 static void amvdec_write_dos_bits(struct amvdec_core *c,u32 r,u32 v){amvdec_write_dos(c,r,registers[r/4]|v);}
 static void amvdec_clear_dos_bits(struct amvdec_core *c,u32 r,u32 v){amvdec_write_dos(c,r,registers[r/4]&~v);}
 static void amvdec_drop_picture_offset(struct amvdec_session *s,u32 offset){(void)s;assert(drops<8);drop_offsets[drops++]=offset;}
+static bool codec_hevc_is_output_boundary(struct codec_hevc *h){(void)h;return false;}
+static void codec_hevc_discard_prior_output(struct amvdec_session *s){(void)s;}
+static void codec_hevc_flush_output(struct amvdec_session *s);
+#define AMVDEC_POOL_RESTART 3
+static void amvdec_pool_end(struct amvdec_session *s,int end){(void)s;(void)end;assert(0);}
 static void codec_hevc_update_referenced(struct codec_hevc *h){(void)h;referenced++;}
 static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;shown++;}
 static struct hevc_frame *codec_hevc_prepare_new_frame(struct amvdec_session *s){
@@ -118,9 +123,9 @@ static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){change
 static void codec_hevc_flush_output(struct amvdec_session *s){struct codec_hevc *h=s->priv;assert(!h->frames_num);h->cur_frame=h->col_frame=0;}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
 static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
-static bool codec_hevc_geometry_for_offset(struct codec_hevc *h,u32 o,struct hevc_sps_geometry *g){
- (void)o;*g=(struct hevc_sps_geometry){.coded_width=h->rpm_param.p.pic_width_in_luma_samples,.coded_height=h->rpm_param.p.pic_height_in_luma_samples,
- .width=h->rpm_param.p.pic_width_in_luma_samples,.height=h->rpm_param.p.pic_height_in_luma_samples};return true;
+static bool codec_hevc_picture_for_offset(struct codec_hevc *h,u32 o,struct hevc_picture_info *info){
+ (void)o;*info=(struct hevc_picture_info){.output=true,.geometry={.coded_width=h->rpm_param.p.pic_width_in_luma_samples,.coded_height=h->rpm_param.p.pic_height_in_luma_samples,
+ .width=h->rpm_param.p.pic_width_in_luma_samples,.height=h->rpm_param.p.pic_height_in_luma_samples}};return true;
 }
 ''' + slices + retry + irq + r'''
 static void init(struct codec_hevc *h){

@@ -44,18 +44,22 @@ enum amvdec_status {STATUS_STOPPED,STATUS_RUNNING,STATUS_NEEDS_RESUME};
 struct hevc_frame {int unused;};
 struct codec_hevc {int lock;u32 dpb_size,dst_width,dst_height,frames_num;bool client_waited,eos_seen,waiting_for_buffer;};
 struct amvdec_core {void *dev_dec;};
-struct amvdec_session {struct amvdec_core *core;void *priv;int keyframe_found,streamon_cap;u32 dpb_size;enum amvdec_status status;};
+struct amvdec_session {struct amvdec_core *core;void *priv;int keyframe_found,streamon_cap;u32 dpb_size,width,height;enum amvdec_status status;};
 static struct hevc_frame last;
-static u32 change,pool_count=16;static int live_refs,flushed,forgotten,delivered,events,setups,segments;
+static u32 change,pool_count=16;static int live_refs,flushed,forgotten,delivered,events,setups,segments,no_tail,restarts;
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;assert(r==HEVC_DEC_STATUS_REG);return HEVC_SLICE_SEGMENT_DONE;}
 static void codec_hevc_fetch_rpm(struct amvdec_session *s){(void)s;}
 static int codec_hevc_process_rpm(struct amvdec_session *s){(void)s;return change;}
-static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *s,bool hold){assert(hold);((struct codec_hevc *)s->priv)->frames_num=1;return &last;}
+static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *s,bool hold){assert(hold);((struct codec_hevc *)s->priv)->frames_num=!no_tail;return no_tail?0:&last;}
 static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame *f){assert(s->status==STATUS_NEEDS_RESUME&&f==&last);delivered++;}
 static void codec_hevc_forget_frames(struct codec_hevc *h){h->frames_num=0;live_refs=0;forgotten++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){assert(((struct codec_hevc *)s->priv)->frames_num==0);live_refs=0;flushed++;}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+#define AMVDEC_POOL_RESTART 3
+static void amvdec_pool_end(struct amvdec_session *s,int end){assert(s->status==STATUS_NEEDS_RESUME&&end==AMVDEC_POOL_RESTART);restarts++;}
+static void codec_hevc_discard_prior_output(struct amvdec_session *s){(void)s;}
+static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;}
 static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){assert(s->status==STATUS_RUNNING&&w==320&&h==192&&n==16);events++;}
 static u32 amvdec_pool_count(struct amvdec_session *s){(void)s;return pool_count;}
@@ -73,6 +77,11 @@ int main(void){struct codec_hevc h={.dpb_size=16,.dst_width=320,.dst_height=192}
  /* A larger DPB alone keeps the existing reference geometry and pending pictures. */
  change=0;pool_count=6;live_refs=8;
  assert(codec_hevc_threaded_isr(&s)==IRQ_HANDLED&&live_refs==8&&setups==1&&segments==1&&events==3&&flushed==2&&!forgotten);
+ /* Hidden/discarded pictures leave no old tail: signal empty source-change LAST. */
+ no_tail=1;change=HEVC_SOURCE_CHANGE;s.width=640;s.height=360;
+ codec_hevc_threaded_isr(&s);assert(restarts==1&&events==4&&delivered==3&&!h.frames_num);
+ s.width=320;s.height=192;codec_hevc_threaded_isr(&s);
+ assert(restarts==1&&events==5&&delivered==3&&!h.frames_num);
  return 0;}
 '''
         run_c(code)
@@ -80,7 +89,7 @@ int main(void){struct codec_hevc h={.dpb_size=16,.dst_width=320,.dst_height=192}
     def test_flush_releases_slots_and_clears_frame_pointers(self):
         source = (ROOT / "vdec/codec_hevc.c").read_text()
         body = source[source.index("static void codec_hevc_flush_output("):
-                      source.index("/* Pictures referencing slots of another geometry")]
+                      source.index("static bool codec_hevc_is_output_boundary(")]
         code = r'''
 #include <assert.h>
 #include <stdbool.h>

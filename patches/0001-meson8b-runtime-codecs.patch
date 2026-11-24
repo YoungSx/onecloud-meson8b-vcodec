@@ -884,7 +884,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1839 @@
+@@ -0,0 +1,1882 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -1129,7 +1129,7 @@
 +struct hevc_input_picture {
 +	struct list_head list;
 +	u32 offset;
-+	struct hevc_sps_geometry geometry;
++	struct hevc_picture_info info;
 +};
 +
 +struct codec_hevc {
@@ -1173,6 +1173,8 @@
 +	bool client_waited;
 +	/* Immutable SPS snapshot selected for the current picture's input offset. */
 +	struct hevc_sps_geometry applied;
++	bool picture_output;
++	bool picture_no_prior;
 +	struct hevc_parameter_sets parameters;
 +	struct list_head input_pictures;
 +	u32 prev_tid0_poc;
@@ -1190,8 +1192,8 @@
 +	int is_10bit;
 +};
 +
-+static bool codec_hevc_geometry_for_offset(struct codec_hevc *hevc, u32 offset,
-+					   struct hevc_sps_geometry *geometry)
++static bool codec_hevc_picture_for_offset(struct codec_hevc *hevc, u32 offset,
++					  struct hevc_picture_info *info)
 +{
 +	struct hevc_input_picture *input, *next;
 +	bool found = false;
@@ -1200,7 +1202,7 @@
 +	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
 +		if ((s32)(input->offset - offset) > 0)
 +			break;
-+		*geometry = input->geometry;
++		*info = input->info;
 +		found = true;
 +		list_del(&input->list);
 +		kfree(input);
@@ -1422,8 +1424,7 @@
 +	struct codec_hevc *hevc = sess->priv;
 +
 +	while ((tmp = codec_hevc_get_next_ready_frame(hevc))) {
-+		if (hevc->curr_poc &&
-+		   (hevc->frames_num <= tmp->num_reorder_pic))
++		if (hevc->frames_num <= tmp->num_reorder_pic)
 +			break;
 +
 +		dev_dbg(sess->core->dev, "DONE frame poc %u; slot %u\n",
@@ -1696,6 +1697,31 @@
 +	hevc->col_frame = NULL;
 +}
 +
++static bool codec_hevc_is_output_boundary(struct codec_hevc *hevc)
++{
++	u32 type = hevc->rpm_param.p.m_nalUnitType;
++
++	return !hevc->rpm_param.p.slice_segment_address &&
++	       ((type >= NAL_UNIT_CODED_SLICE_BLA && type <= NAL_UNIT_CODED_SLICE_IDR_N_LP) ||
++		(type == NAL_UNIT_CODED_SLICE_CRA && hevc->skip_rasl));
++}
++
++static void codec_hevc_discard_prior_output(struct amvdec_session *sess)
++{
++	struct codec_hevc *hevc = sess->priv;
++	struct hevc_frame *frame;
++
++	if (!codec_hevc_is_output_boundary(hevc) || !hevc->picture_no_prior)
++		return;
++	list_for_each_entry(frame, &hevc->ref_frames_list, list) {
++		if (!frame->show)
++			continue;
++		amvdec_drop_picture_offset(sess, frame->offset);
++		frame->show = 0;
++		hevc->frames_num--;
++	}
++}
++
 +/* Pictures referencing slots of another geometry are gone with them. */
 +static void codec_hevc_forget_frames(struct codec_hevc *hevc)
 +{
@@ -1792,7 +1818,7 @@
 +
 +	new_frame->slot = slot;
 +	new_frame->referenced = 1;
-+	new_frame->show = 1;
++	new_frame->show = hevc->picture_output;
 +	new_frame->poc = hevc->curr_poc;
 +	new_frame->cur_slice_type = params->p.slice_type;
 +	new_frame->num_reorder_pic = params->p.sps_num_reorder_pics_0;
@@ -1807,7 +1833,10 @@
 +	new_frame->offset = amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT);
 +
 +	list_add_tail(&new_frame->list, &hevc->ref_frames_list);
-+	hevc->frames_num++;
++	if (new_frame->show)
++		hevc->frames_num++;
++	else
++		amvdec_drop_picture_offset(sess, new_frame->offset);
 +
 +	return new_frame;
 +}
@@ -2355,6 +2384,10 @@
 +	if (slice_segment_address == 0) {
 +		codec_hevc_update_referenced(hevc);
 +		codec_hevc_show_frames(sess);
++		if (codec_hevc_is_output_boundary(hevc)) {
++			codec_hevc_discard_prior_output(sess);
++			codec_hevc_flush_output(sess);
++		}
 +
 +		hevc->cur_frame = codec_hevc_prepare_new_frame(sess);
 +		if (!hevc->cur_frame)
@@ -2416,14 +2449,16 @@
 +	codec_hevc_process_segment_header(sess);
 +	if (!param->p.slice_segment_address && param->p.pic_width_in_luma_samples &&
 +	    param->p.pic_height_in_luma_samples) {
-+		struct hevc_sps_geometry geometry;
++		struct hevc_picture_info info;
 +		u32 offset = amvdec_read_dos(sess->core, HEVC_SHIFT_BYTE_COUNT);
 +
-+		if (!codec_hevc_geometry_for_offset(hevc, offset, &geometry) ||
-+		    geometry.coded_width != param->p.pic_width_in_luma_samples ||
-+		    geometry.coded_height != param->p.pic_height_in_luma_samples)
++		if (!codec_hevc_picture_for_offset(hevc, offset, &info) ||
++		    info.geometry.coded_width != param->p.pic_width_in_luma_samples ||
++		    info.geometry.coded_height != param->p.pic_height_in_luma_samples)
 +			return -EINVAL;
-+		hevc->applied = geometry;
++		hevc->applied = info.geometry;
++		hevc->picture_output = info.output;
++		hevc->picture_no_prior = info.no_output_of_prior;
 +	}
 +	if (codec_hevc_is_skipped_rasl(hevc))
 +		return 0;
@@ -2519,13 +2554,13 @@
 +	struct codec_hevc *hevc = sess->priv;
 +	const u8 *data = vb2_plane_vaddr(vb, 0);
 +	u32 length = vb2_get_plane_payload(vb, 0);
-+	struct hevc_sps_geometry geometry;
++	struct hevc_picture_info info;
 +	struct hevc_input_picture *input;
 +	int ret;
 +
 +	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
 +	mutex_lock(&hevc->lock);
-+	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
++	ret = hevc_input_picture_info(&hevc->parameters, data, length, &info);
 +	if (ret < 0)
 +		goto unlock;
 +	if (ret > 0) {
@@ -2535,7 +2570,7 @@
 +			goto unlock;
 +		}
 +		input->offset = offset;
-+		input->geometry = geometry;
++		input->info = info;
 +		list_add_tail(&input->list, &hevc->input_pictures);
 +	}
 +	ret = 0;
@@ -2664,13 +2699,21 @@
 +			 * userspace, and only its geometry can copy them.
 +			 * Deliver them now; the last one ends that stream,
 +			 * which the client drains before it renegotiates. */
-+			struct hevc_frame *last = codec_hevc_show_pending(sess, true);
++			struct hevc_frame *last;
 +			enum amvdec_status status = sess->status;
 +
++			/* The preceding picture completes before this IRAP is processed. */
++			codec_hevc_show_frames(sess);
++			codec_hevc_discard_prior_output(sess);
++			last = codec_hevc_show_pending(sess, true);
 +			sess->status = STATUS_NEEDS_RESUME;
 +			if (last) {
 +				codec_hevc_deliver_frame(sess, last);
 +				hevc->frames_num--;
++			} else if (sess->streamon_cap &&
++				   (sess->width != hevc->dst_width ||
++				    sess->height != hevc->dst_height)) {
++				amvdec_pool_end(sess, AMVDEC_POOL_RESTART);
 +			}
 +			sess->status = status;
 +			if (ret & HEVC_REFERENCE_CHANGE)
@@ -7867,7 +7910,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-sps.h
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,243 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON_HEVC_SPS_H
 +#define MESON_HEVC_SPS_H
@@ -8021,12 +8064,20 @@
 +	struct hevc_sps_geometry sps[16];
 +	u8 pps_sps[64];
 +	bool pps_valid[64];
++	bool pps_output_flag[64];
++	u8 pps_extra_header_bits[64];
 +};
 +
-+/* Return one picture's immutable SPS prefix, or zero for parameter-only input. */
-+static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
-+				      const u8 *data, u32 length,
-+				      struct hevc_sps_geometry *geometry)
++struct hevc_picture_info {
++	struct hevc_sps_geometry geometry;
++	bool output;
++	bool no_output_of_prior;
++};
++
++/* Return one picture's immutable header prefix, or zero for parameter-only input. */
++static inline int hevc_input_picture_info(struct hevc_parameter_sets *sets,
++					  const u8 *data, u32 length,
++					  struct hevc_picture_info *info)
 +{
 +	u32 i, picture_pps = 0;
 +	bool picture = false;
@@ -8038,6 +8089,7 @@
 +		struct hevc_bits bits;
 +		struct hevc_sps_geometry g;
 +		bool first;
++		bool no_output_of_prior = false;
 +		int ret;
 +
 +		if (data[i - 2] || data[i - 1] || data[i] != 1)
@@ -8060,14 +8112,19 @@
 +			if (type == 34) {
 +				id = hevc_read_ue(&bits);
 +				sps_id = hevc_read_ue(&bits);
-+				if (bits.error || id >= 64 || sps_id >= 16)
++				if (id >= 64 || sps_id >= 16)
++					return -EINVAL;
++				hevc_skip_bits(&bits, 1); /* dependent slices enabled */
++				sets->pps_output_flag[id] = hevc_read_bits(&bits, 1);
++				sets->pps_extra_header_bits[id] = hevc_read_bits(&bits, 3);
++				if (bits.error)
 +					return -EINVAL;
 +				sets->pps_sps[id] = sps_id;
 +				sets->pps_valid[id] = true;
 +			} else {
 +				first = hevc_read_bits(&bits, 1);
 +				if (type >= 16 && type <= 23)
-+					hevc_skip_bits(&bits, 1);
++					no_output_of_prior = hevc_read_bits(&bits, 1);
 +				id = hevc_read_ue(&bits);
 +				if (bits.error || id >= 64 || !sets->pps_valid[id] ||
 +				    !sets->sps[sets->pps_sps[id]].coded_width)
@@ -8075,7 +8132,16 @@
 +				if (first) {
 +					if (picture)
 +						return -EINVAL;
-+					*geometry = sets->sps[sets->pps_sps[id]];
++					info->geometry = sets->sps[sets->pps_sps[id]];
++					info->output = true;
++					info->no_output_of_prior = no_output_of_prior;
++					hevc_skip_bits(&bits, sets->pps_extra_header_bits[id]);
++					if (hevc_read_ue(&bits) > 2)
++						return -EINVAL;
++					if (sets->pps_output_flag[id])
++						info->output = hevc_read_bits(&bits, 1);
++					if (bits.error)
++						return -EINVAL;
 +					picture_pps = id;
 +					picture = true;
 +				} else if (picture && id != picture_pps) {
@@ -8405,7 +8471,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,630 @@
+@@ -0,0 +1,639 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/dma-buf.h>
@@ -8883,14 +8949,23 @@
 +		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 +		break;
 +	case AMVDEC_POOL_LAST:
++	case AMVDEC_POOL_RESTART:
 +		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
 +		if (!vbuf)
 +			return;
-+		sess->should_stop = 1;
 +		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
 +			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
-+		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = true;
-+		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
++		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos =
++			pool->end == AMVDEC_POOL_LAST;
++		if (pool->end == AMVDEC_POOL_RESTART) {
++			vbuf->flags = V4L2_BUF_FLAG_LAST;
++			vbuf->field = V4L2_FIELD_NONE;
++			sess->sequence_cap = 0;
++			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
++		} else {
++			sess->should_stop = 1;
++			v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
++		}
 +		break;
 +	}
 +	pool->end = AMVDEC_POOL_RUNNING;
@@ -10848,7 +10923,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,389 @@
+@@ -0,0 +1,391 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10940,6 +11015,8 @@
 +	AMVDEC_POOL_FLUSH,
 +	/* return one empty CAPTURE buffer as LAST */
 +	AMVDEC_POOL_LAST,
++	/* source change without a displayable old tail: empty LAST, no EOS */
++	AMVDEC_POOL_RESTART,
 +};
 +
 +/**

@@ -475,14 +475,23 @@ static void amvdec_pool_end_locked(struct amvdec_session *sess)
 		v4l2_m2m_buf_done(last, VB2_BUF_STATE_DONE);
 		break;
 	case AMVDEC_POOL_LAST:
+	case AMVDEC_POOL_RESTART:
 		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
 		if (!vbuf)
 			return;
-		sess->should_stop = 1;
 		for (i = 0; i < vbuf->vb2_buf.num_planes; i++)
 			vb2_set_plane_payload(&vbuf->vb2_buf, i, 0);
-		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = true;
-		v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
+		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos =
+			pool->end == AMVDEC_POOL_LAST;
+		if (pool->end == AMVDEC_POOL_RESTART) {
+			vbuf->flags = V4L2_BUF_FLAG_LAST;
+			vbuf->field = V4L2_FIELD_NONE;
+			sess->sequence_cap = 0;
+			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
+		} else {
+			sess->should_stop = 1;
+			v4l2_m2m_last_buffer_done(sess->m2m_ctx, vbuf);
+		}
 		break;
 	}
 	pool->end = AMVDEC_POOL_RUNNING;
