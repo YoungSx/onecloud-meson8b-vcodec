@@ -151,7 +151,6 @@ struct hevc_parameter_sets {
 	struct hevc_sps_geometry sps[16];
 	u8 pps_sps[64];
 	bool pps_valid[64];
-	u32 max_dpb;
 };
 
 /* Return one picture's immutable SPS prefix, or zero for parameter-only input. */
@@ -185,8 +184,6 @@ static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
 			if (ret)
 				return ret;
 			sets->sps[g.id] = g;
-			if (g.dpb > sets->max_dpb)
-				sets->max_dpb = g.dpb;
 		} else if (type == 34 || type <= 31) {
 			bits = (struct hevc_bits){ .data = rbsp,
 				.size = hevc_rbsp_prefix(nal, end - i - 1, rbsp, sizeof(rbsp)) };

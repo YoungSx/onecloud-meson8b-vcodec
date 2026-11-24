@@ -884,7 +884,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1840 @@
+@@ -0,0 +1,1839 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -1167,7 +1167,6 @@
 +	u32 dst_width, dst_height;
 +
 +	u32 dpb_size;
-+	u32 sps_dpb_size; /* largest SPS requirement seen in this session */
 +	bool waiting_for_buffer;
 +	bool eos_seen;
 +	/* the last watchdog check found the client waiting on the decoder */
@@ -2461,8 +2460,7 @@
 +		return -EINVAL;
 +	hevc->dpb_size = min_t(u32, HEVC_MAX_DPB_SIZE,
 +			       param->p.sps_num_reorder_pics_0 + 6);
-+	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->applied.dpb);
-+	hevc->dpb_size = max(hevc->dpb_size, hevc->sps_dpb_size);
++	hevc->dpb_size = max(hevc->dpb_size, hevc->applied.dpb);
 +	dev_dbg(sess->core->dev, "HEVC RPM size %ux%u poc %u slice %u first %u reorder %u dpb %u\n",
 +		 hevc->width, hevc->height, param->p.POClsb, param->p.slice_type,
 +		 param->p.first_slice_segment_in_pic_flag, param->p.sps_num_reorder_pics_0,
@@ -2530,7 +2528,6 @@
 +	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
 +	if (ret < 0)
 +		goto unlock;
-+	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->parameters.max_dpb);
 +	if (ret > 0) {
 +		input = kmalloc(sizeof(*input), GFP_KERNEL);
 +		if (!input) {
@@ -2582,6 +2579,8 @@
 +		return ret;
 +	if (ret)
 +		codec_hevc_forget_frames(hevc);
++	/* A smaller picture budget keeps same-geometry slots and their references. */
++	count = amvdec_pool_count(sess);
 +
 +	amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CONF_ADDR, 0);
 +	for (i = 0; i < count; i++) {
@@ -7868,7 +7867,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-sps.h
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,220 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON_HEVC_SPS_H
 +#define MESON_HEVC_SPS_H
@@ -8022,7 +8021,6 @@
 +	struct hevc_sps_geometry sps[16];
 +	u8 pps_sps[64];
 +	bool pps_valid[64];
-+	u32 max_dpb;
 +};
 +
 +/* Return one picture's immutable SPS prefix, or zero for parameter-only input. */
@@ -8056,8 +8054,6 @@
 +			if (ret)
 +				return ret;
 +			sets->sps[g.id] = g;
-+			if (g.dpb > sets->max_dpb)
-+				sets->max_dpb = g.dpb;
 +		} else if (type == 34 || type <= 31) {
 +			bits = (struct hevc_bits){ .data = rbsp,
 +				.size = hevc_rbsp_prefix(nal, end - i - 1, rbsp, sizeof(rbsp)) };

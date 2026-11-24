@@ -40,7 +40,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32
 #include "hevc-tiles.h"
 #include "hevc_regs.h"
 ''' + rpm + enums + r'''
-struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
+struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
  struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;bool have_picture,skip_rasl;};
 struct format {u32 max_width,max_height;};
@@ -63,10 +63,10 @@ int main(void){
  h.applied=(struct hevc_sps_geometry){.coded_width=1920,.coded_height=1088,.width=1920,.height=1088,.dpb=10};
  queued_geometry=h.applied;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=h.applied.dpb);
- h.sps_dpb_size=10;h.applied.dpb=5;
+ h.applied.dpb=5;
  queued_geometry=h.applied;
- assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=10);
- h.sps_dpb_size=16;h.rpm_param.p.sps_num_reorder_pics_0=15;
+ assert(!codec_hevc_process_rpm(&s)&&h.dpb_size==6);
+ h.rpm_param.p.sps_num_reorder_pics_0=15;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size==16);
  h.rpm_param.p.sps_num_reorder_pics_0=0;
  /* Subsequent slices keep geometry; the same fields still feed POC/MPRED. */

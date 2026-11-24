@@ -19,7 +19,7 @@ def run_c(code):
 
 
 class HevcDpbTests(unittest.TestCase):
-    def test_inspected_sps_budget_does_not_shrink_on_read_ahead(self):
+    def test_parameter_only_read_ahead_does_not_change_picture_budget(self):
         source = (ROOT / "vdec/codec_hevc.c").read_text()
         body = source[source.index("static int codec_hevc_inspect_input("):
                       source.index("static void codec_hevc_capture_queued(")]
@@ -37,7 +37,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;
 #include "hevc-sps.h"
 struct list_head {int unused;};
 struct hevc_input_picture {struct list_head list;u32 offset;struct hevc_sps_geometry geometry;};
-struct codec_hevc {int lock,watchdog;struct hevc_sps_geometry sps;u32 sps_dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
+struct codec_hevc {int lock,watchdog;u32 dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
 #define GFP_KERNEL 0
 static void *kmalloc(unsigned long n,int f){(void)n;(void)f;assert(0);return 0;}
 static void list_add_tail(struct list_head *p,struct list_head *h){(void)p;(void)h;assert(0);}
@@ -66,12 +66,12 @@ static u32 sps(u8 *packet,u32 dpb){
  }
  return n;
 }
-int main(void){struct codec_hevc h={0};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={packet,0};
- b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==10&&h.sps_dpb_size==10);
- b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==5&&h.sps_dpb_size==10);
- b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==16&&h.sps_dpb_size==16);
- b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==5&&h.sps_dpb_size==16);
- b.size=sps(packet,17);assert(codec_hevc_inspect_input(&s,&b,0)==-EINVAL&&h.sps_dpb_size==16);
+int main(void){struct codec_hevc h={.dpb_size=6};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={packet,0};
+ b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==10&&h.dpb_size==6);
+ b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==5&&h.dpb_size==6);
+ b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==16&&h.dpb_size==6);
+ b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==5&&h.dpb_size==6);
+ b.size=sps(packet,17);assert(codec_hevc_inspect_input(&s,&b,0)==-EINVAL&&h.parameters.sps[0].dpb==5&&h.dpb_size==6);
  return 0;}
 '''
         run_c(code)
@@ -87,6 +87,7 @@ int main(void){struct codec_hevc h={0};struct amvdec_session s={&h};u8 packet[12
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
+#include <string.h>
 typedef uint32_t u32;typedef uint64_t dma_addr_t;typedef int irqreturn_t;
 #define IRQ_HANDLED 1
 #define HEVC_NAL_SEARCH_DONE 9
@@ -110,7 +111,7 @@ static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;return r==HEVC_DEC_STATUS_REG?8:0;}
 static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 value){(void)c;if(r==HEVCD_MPP_ANC2AXI_TBL_CMD_ADDR)tables[(value>>8)&255]=value&0xffff0000;}
 static u32 amvdec_pool_count(struct amvdec_session *s){(void)s;return pool_count;}
-static int amvdec_pool_prepare(struct amvdec_session *s,u32 n){(void)s;assert(n>=6&&n<=16);prepared++;if(fail)return -ENOMEM;pool_count=n;return 0;}
+static int amvdec_pool_prepare(struct amvdec_session *s,u32 n){(void)s;assert(n>=6&&n<=16);prepared++;if(fail)return -ENOMEM;if(n>pool_count)pool_count=n;return 0;}
 static const struct amvdec_shadow *amvdec_pool_slot(struct amvdec_session *s,u32 i){(void)s;assert(i<pool_count);return &slots[i];}
 static void codec_hevc_forget_frames(struct codec_hevc *h){(void)h;forgotten++;}
 static void amvdec_abort(struct amvdec_session *s){(void)s;aborts++;}
@@ -131,6 +132,10 @@ int main(void){struct codec_hevc h={0};struct amvdec_core c={0};struct amvdec_fo
  for(u32 i=0;i<16;i++){assert(tables[2*i]==slots[i].paddr);assert(tables[2*i+1]==slots[i].paddr+slots[i].luma);}
  codec_hevc_threaded_isr(&s);assert(prepared==1&&rpms==2&&segments==2);
  budget=8;codec_hevc_threaded_isr(&s);assert(pool_count==16&&prepared==1);
+ /* CAPTURE renegotiation with a lower budget retains every same-geometry reference. */
+ memset(tables,0,sizeof(tables));s.dpb_size=6;
+ assert(!codec_hevc_setup_pool(&s)&&pool_count==16&&!forgotten);
+ for(u32 i=0;i<16;i++){assert(tables[2*i]==slots[i].paddr);assert(tables[2*i+1]==slots[i].paddr+slots[i].luma);}
  pool_count=6;budget=16;fail=1;int previous_rpms=rpms,previous_segments=segments;
  codec_hevc_threaded_isr(&s);assert(aborts==1&&rpms==previous_rpms+1&&segments==previous_segments&&!changes&&!forgotten);
  return 0;}

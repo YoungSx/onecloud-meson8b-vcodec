@@ -73,7 +73,7 @@ enum amvdec_status {STATUS_STOPPED,STATUS_RUNNING,STATUS_NEEDS_RESUME};
 struct hevc_frame {u32 poc,cur_slice_idx,cur_slice_type;};
 struct codec_hevc {
  int lock;union rpm_param rpm_param;struct hevc_frame *cur_frame,*col_frame;
- u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size,frames_num;
+ u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size,frames_num;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;
  bool have_picture,skip_rasl,new_tile,waiting_for_buffer,client_waited,eos_seen;
  int is_10bit;struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;struct hevc_tile tile;

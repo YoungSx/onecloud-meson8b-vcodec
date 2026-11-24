@@ -280,7 +280,6 @@ struct codec_hevc {
 	u32 dst_width, dst_height;
 
 	u32 dpb_size;
-	u32 sps_dpb_size; /* largest SPS requirement seen in this session */
 	bool waiting_for_buffer;
 	bool eos_seen;
 	/* the last watchdog check found the client waiting on the decoder */
@@ -1574,8 +1573,7 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 		return -EINVAL;
 	hevc->dpb_size = min_t(u32, HEVC_MAX_DPB_SIZE,
 			       param->p.sps_num_reorder_pics_0 + 6);
-	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->applied.dpb);
-	hevc->dpb_size = max(hevc->dpb_size, hevc->sps_dpb_size);
+	hevc->dpb_size = max(hevc->dpb_size, hevc->applied.dpb);
 	dev_dbg(sess->core->dev, "HEVC RPM size %ux%u poc %u slice %u first %u reorder %u dpb %u\n",
 		 hevc->width, hevc->height, param->p.POClsb, param->p.slice_type,
 		 param->p.first_slice_segment_in_pic_flag, param->p.sps_num_reorder_pics_0,
@@ -1643,7 +1641,6 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
 	if (ret < 0)
 		goto unlock;
-	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->parameters.max_dpb);
 	if (ret > 0) {
 		input = kmalloc(sizeof(*input), GFP_KERNEL);
 		if (!input) {
@@ -1695,6 +1692,8 @@ static int codec_hevc_setup_pool(struct amvdec_session *sess)
 		return ret;
 	if (ret)
 		codec_hevc_forget_frames(hevc);
+	/* A smaller picture budget keeps same-geometry slots and their references. */
+	count = amvdec_pool_count(sess);
 
 	amvdec_write_dos(core, HEVCD_MPP_ANC2AXI_TBL_CONF_ADDR, 0);
 	for (i = 0; i < count; i++) {
