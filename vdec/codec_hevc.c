@@ -196,6 +196,13 @@ union rpm_param {
 };
 
 enum nal_unit_type {
+	NAL_UNIT_CODED_SLICE_TRAIL_N = 0,
+	NAL_UNIT_CODED_SLICE_TSA_N = 2,
+	NAL_UNIT_CODED_SLICE_STSA_N = 4,
+	NAL_UNIT_CODED_SLICE_RADL_N = 6,
+	NAL_UNIT_CODED_SLICE_RADL_R = 7,
+	NAL_UNIT_CODED_SLICE_RASL_N = 8,
+	NAL_UNIT_CODED_SLICE_RASL_R = 9,
 	NAL_UNIT_CODED_SLICE_BLA	= 16,
 	NAL_UNIT_CODED_SLICE_BLANT	= 17,
 	NAL_UNIT_CODED_SLICE_BLA_N_LP	= 18,
@@ -408,7 +415,7 @@ static void codec_hevc_update_ldc_flag(struct codec_hevc *hevc)
 {
 	struct hevc_frame *frame = hevc->cur_frame;
 	u32 slice_type = frame->cur_slice_type;
-	int i;
+	u32 i;
 
 	hevc->ldc_flag = 0;
 
@@ -417,7 +424,7 @@ static void codec_hevc_update_ldc_flag(struct codec_hevc *hevc)
 
 	hevc->ldc_flag = 1;
 	for (i = 0; (i < frame->ref_num[0]) && hevc->ldc_flag; i++) {
-		if (frame->ref_poc_list[0][i] > frame->poc) {
+		if ((s32)frame->ref_poc_list[0][i] > (s32)frame->poc) {
 			hevc->ldc_flag = 0;
 			break;
 		}
@@ -427,7 +434,7 @@ static void codec_hevc_update_ldc_flag(struct codec_hevc *hevc)
 		return;
 
 	for (i = 0; (i < frame->ref_num[1]) && hevc->ldc_flag; i++) {
-		if (frame->ref_poc_list[1][i] > frame->poc) {
+		if ((s32)frame->ref_poc_list[1][i] > (s32)frame->poc) {
 			hevc->ldc_flag = 0;
 			break;
 		}
@@ -1130,6 +1137,8 @@ static void codec_hevc_set_mpred(struct amvdec_session *sess,
 
 	amvdec_write_dos(core, HEVC_MPRED_REF_NUM,
 			 (ref_num[1] << 8) | ref_num[0]);
+	/* The supported S805 path, like the vendor driver, uses short-term refs. */
+	amvdec_write_dos(core, HEVC_MPRED_LT_REF, 0);
 	amvdec_write_dos(core, HEVC_MPRED_REF_EN_L0, (1 << ref_num[0]) - 1);
 	amvdec_write_dos(core, HEVC_MPRED_REF_EN_L1, (1 << ref_num[1]) - 1);
 
@@ -1300,7 +1309,7 @@ static void codec_hevc_update_pocs(struct amvdec_session *sess)
 	if (nal_unit_type == NAL_UNIT_CODED_SLICE_IDR ||
 	    nal_unit_type == NAL_UNIT_CODED_SLICE_IDR_N_LP) {
 		hevc->curr_poc = 0;
-		if ((temporal_id - 1) == 0)
+		if (temporal_id == 1)
 			hevc->prev_tid0_poc = hevc->curr_poc;
 
 		return;
@@ -1324,8 +1333,21 @@ static void codec_hevc_update_pocs(struct amvdec_session *sess)
 		poc_msb = 0;
 
 	hevc->curr_poc = (poc_msb + poc_lsb);
-	if ((temporal_id - 1) == 0)
-		hevc->prev_tid0_poc = hevc->curr_poc;
+	/* H.265 excludes leading and sub-layer non-reference pictures from pocTid0. */
+	switch (nal_unit_type) {
+	case NAL_UNIT_CODED_SLICE_TRAIL_N:
+	case NAL_UNIT_CODED_SLICE_TSA_N:
+	case NAL_UNIT_CODED_SLICE_STSA_N:
+	case NAL_UNIT_CODED_SLICE_RADL_N:
+	case NAL_UNIT_CODED_SLICE_RADL_R:
+	case NAL_UNIT_CODED_SLICE_RASL_N:
+	case NAL_UNIT_CODED_SLICE_RASL_R:
+		break;
+	default:
+		if (temporal_id == 1)
+			hevc->prev_tid0_poc = hevc->curr_poc;
+		break;
+	}
 }
 
 static void codec_hevc_process_segment_header(struct amvdec_session *sess)

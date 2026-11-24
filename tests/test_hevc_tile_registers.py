@@ -68,7 +68,9 @@ int main(void) {
  .workspace_paddr=0x800000};struct amvdec_session s={&core,&h};struct hevc_frame f={0};
  h.rpm_param.p.slice_type=I_SLICE;h.rpm_param.p.tiles_flags=3;
  h.rpm_param.p.misc_flag0=1u<<LOOP_FILER_ACROSS_TILES_ENABLED_FLAG_BIT;
+ regs[HEVC_MPRED_LT_REF/4]=0xffffffff;
  codec_hevc_set_mpred(&s,&f,&f);
+ assert(!regs[HEVC_MPRED_LT_REF/4]);
  assert(regs[HEVC_MPRED_TILE_START/4]==(7u|(8u<<16)));
  assert(regs[HEVC_MPRED_TILE_SIZE_LCU/4]==(8u|(9u<<16)));
  assert(regs[HEVC_MPRED_MV_WR_ROW_JUMP/4]==(30-8)*0x200);
@@ -81,6 +83,9 @@ int main(void) {
  codec_hevc_set_sao(&s,&f);codec_hevc_set_mpred(&s,&f,&f);
  assert(!(regs[HEVC_DBLK_CFG9/4]&1) && !(regs[HEVC_SAO_CTRL0/4]&BIT(8)));
  assert(!(regs[HEVC_MPRED_CTRL0/4]&MPRED_CTRL0_NEW_TILE));
+ h.rpm_param.p.slice_type=1;h.ldc_flag=1;codec_hevc_set_mpred(&s,&f,&f);
+ assert(regs[HEVC_MPRED_CTRL0/4]&MPRED_CTRL0_LDC);
+ h.ldc_flag=0;codec_hevc_set_mpred(&s,&f,&f);assert(!(regs[HEVC_MPRED_CTRL0/4]&MPRED_CTRL0_LDC));
  return 0;
 }
 '''
