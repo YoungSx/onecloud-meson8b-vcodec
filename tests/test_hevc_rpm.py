@@ -137,7 +137,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint64_t dma_addr_t;
 #include "dos_regs.h"
 #include "hevc_regs.h"
 ''' + definitions + f'\n#define DECLARED_SLOTS {slots}\n' + r'''
-union rpm_param {struct {u16 slice_segment_address;}p;};
+union rpm_param {struct {u16 slice_segment_address,dependent_slice_segment_flag;}p;};
 struct codec_hevc {dma_addr_t workspace_paddr;u32 lcu_size,lcu_total,slice_addr;union rpm_param rpm_param;};
 struct hevc_frame {u32 slot;};struct amvdec_core {int unused;};
 static u32 registers[65536];
@@ -167,6 +167,12 @@ int main(void){
    assert(registers[HEVC_MPRED_MV_RPTR/4]==colstart+h.slice_addr*unit);
    assert(registers[HEVC_MPRED_MV_RPTR/4]<registers[HEVC_MPRED_MV_RD_END_ADDR/4]);
    assert(start+MPRED_MV_BUF_SIZE<=h.workspace_paddr+MPRED_MV_OFFSET+MPRED_MV_SIZE);
+   /* A dependent segment continues the current slice's evolving MV read pointer. */
+   h.rpm_param.p.dependent_slice_segment_flag=1;
+   registers[HEVC_MPRED_MV_RPTR/4]=colstart+(h.lcu_total-1)*unit+4;
+   codec_hevc_set_mpred_mv(&c,&h,&frame,&col);
+   assert(registers[HEVC_MPRED_MV_RPTR/4]==colstart+(h.lcu_total-1)*unit+4);
+   h.rpm_param.p.dependent_slice_segment_flag=0;
   }
  }
  return 0;}

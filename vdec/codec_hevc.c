@@ -1142,7 +1142,7 @@ static void codec_hevc_set_mpred_mv(struct amvdec_core *core,
 		amvdec_write_dos(core, HEVC_MPRED_MV_WPTR, mpred_mv_wr_ptr);
 		amvdec_write_dos(core, HEVC_MPRED_MV_RPTR,
 				 col_mv_rd_start_addr);
-	} else {
+	} else if (!param->p.dependent_slice_segment_flag) {
 		amvdec_write_dos(core, HEVC_MPRED_MV_RPTR, col_mv_rd_ptr);
 	}
 
