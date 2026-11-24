@@ -98,6 +98,7 @@ typedef uint32_t u32;typedef uint16_t u16;
 #define HEVC_WAIT_FLAG HEVC_ASSIST_SCRATCH_E
 #define HEVC_DEC_STATUS_REG HEVC_ASSIST_SCRATCH_0
 #define HEVC_CODED_SLICE_SEGMENT_DAT 5
+#define HEVC_ACTION_DONE 0xff
 #include "hevc-tiles.h"
 #include "dos_regs.h"
 #include "hevc_regs.h"
@@ -106,6 +107,10 @@ union rpm_param {struct {u32 slice_segment_address,slice_type;}p;};
 struct codec_hevc {union rpm_param rpm_param;struct hevc_tile_grid tiles;struct hevc_tile tile;bool new_tile;struct hevc_frame *cur_frame,*col_frame;};
 struct amvdec_core {int unused;};struct amvdec_session {struct amvdec_core *core;void *priv;};
 static int ref_error,col_error,mc_error,programmed,requests;
+static bool codec_hevc_is_skipped_rasl(struct codec_hevc *h){(void)h;return false;}
+static void amvdec_drop_picture_offset(struct amvdec_session *s,u32 o){(void)s;(void)o;assert(0);}
+static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;(void)r;assert(0);return 0;}
+static void amvdec_clear_dos_bits(struct amvdec_core *c,u32 r,u32 v){(void)c;(void)r;(void)v;assert(0);}
 static void codec_hevc_update_referenced(struct codec_hevc *h){(void)h;assert(0);}
 static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;assert(0);}
 static struct hevc_frame *codec_hevc_prepare_new_frame(struct amvdec_session *s){(void)s;assert(0);return 0;}

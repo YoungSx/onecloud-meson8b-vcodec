@@ -208,6 +208,7 @@ enum nal_unit_type {
 	NAL_UNIT_CODED_SLICE_BLA_N_LP	= 18,
 	NAL_UNIT_CODED_SLICE_IDR	= 19,
 	NAL_UNIT_CODED_SLICE_IDR_N_LP	= 20,
+	NAL_UNIT_CODED_SLICE_CRA	= 21,
 };
 
 enum slice_type {
@@ -282,6 +283,9 @@ struct codec_hevc {
 	/* SPS that resolved the current coded size (see codec_hevc_process_rpm). */
 	struct hevc_sps_geometry applied;
 	u32 prev_tid0_poc;
+	u32 random_access_poc;
+	bool have_picture;
+	bool skip_rasl;
 	u32 slice_segment_addr;
 	u32 slice_addr;
 	u32 ldc_flag;
@@ -1364,6 +1368,36 @@ static void codec_hevc_process_segment_header(struct amvdec_session *sess)
 	}
 
 	codec_hevc_update_pocs(sess);
+	if (!param->p.slice_segment_address) {
+		switch (param->p.m_nalUnitType) {
+		case NAL_UNIT_CODED_SLICE_BLA:
+		case NAL_UNIT_CODED_SLICE_BLANT:
+		case NAL_UNIT_CODED_SLICE_BLA_N_LP:
+			hevc->random_access_poc = hevc->curr_poc;
+			hevc->skip_rasl = true;
+			break;
+		case NAL_UNIT_CODED_SLICE_CRA:
+			hevc->random_access_poc = hevc->curr_poc;
+			/* Continuous playback can still use pictures preceding this CRA. */
+			hevc->skip_rasl = !hevc->have_picture;
+			break;
+		case NAL_UNIT_CODED_SLICE_IDR:
+		case NAL_UNIT_CODED_SLICE_IDR_N_LP:
+			hevc->skip_rasl = false;
+			break;
+		}
+		hevc->have_picture = true;
+	}
+}
+
+static bool codec_hevc_is_skipped_rasl(struct codec_hevc *hevc)
+{
+	u32 type = hevc->rpm_param.p.m_nalUnitType;
+
+	return hevc->skip_rasl &&
+	       (type == NAL_UNIT_CODED_SLICE_RASL_N ||
+		type == NAL_UNIT_CODED_SLICE_RASL_R) &&
+	       (s32)hevc->curr_poc < (s32)hevc->random_access_poc;
 }
 
 static int codec_hevc_process_segment(struct amvdec_session *sess)
@@ -1374,6 +1408,17 @@ static int codec_hevc_process_segment(struct amvdec_session *sess)
 	u32 slice_segment_address = param->p.slice_segment_address;
 	struct hevc_tile tile;
 	bool new_tile;
+
+	if (codec_hevc_is_skipped_rasl(hevc)) {
+		if (!slice_segment_address)
+			amvdec_drop_picture_offset(sess,
+						   amvdec_read_dos(core, HEVC_SHIFT_BYTE_COUNT));
+		/* The S805 firmware's ACTION_DONE resumes the next NAL search. */
+		amvdec_clear_dos_bits(core, HEVC_WAIT_FLAG, BIT(1));
+		amvdec_write_dos(core, HEVC_DEC_STATUS_REG, HEVC_ACTION_DONE);
+		amvdec_write_dos(core, HEVC_MCPU_INTR_REQ, AMRISC_MAIN_REQ);
+		return 0;
+	}
 
 	if (hevc_tile_at(&hevc->tiles, slice_segment_address, &tile))
 		return -EINVAL;
@@ -1439,6 +1484,11 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    param->p.first_slice_segment_in_pic_flag > 1 ||
 	    param->p.dependent_slice_segment_flag > 1)
 		return -EINVAL;
+
+	/* Parse once, including across CAPTURE negotiation and buffer retries. */
+	codec_hevc_process_segment_header(sess);
+	if (codec_hevc_is_skipped_rasl(hevc))
+		return 0;
 
 	if (param->p.slice_segment_address	||
 	    !param->p.pic_width_in_luma_samples	||
@@ -1646,7 +1696,6 @@ static void codec_hevc_resume(struct amvdec_session *sess)
 		amvdec_abort(sess);
 		return;
 	}
-	codec_hevc_process_segment_header(sess);
 	{
 		int ret = codec_hevc_process_segment(sess);
 		if (ret == -EAGAIN)
@@ -1719,7 +1768,6 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 		}
 	}
 
-	codec_hevc_process_segment_header(sess);
 	{
 		int ret = codec_hevc_process_segment(sess);
 		if (ret == -EAGAIN)

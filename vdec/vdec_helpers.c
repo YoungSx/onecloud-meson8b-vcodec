@@ -610,6 +610,16 @@ void amvdec_pool_picture_done(struct amvdec_session *sess, u32 slot,
 }
 EXPORT_SYMBOL_GPL(amvdec_pool_picture_done);
 
+void amvdec_drop_picture_offset(struct amvdec_session *sess, u32 offset)
+{
+	struct amvdec_picture pic = {};
+
+	if (amvdec_take_offset_ts(sess, offset, &pic))
+		atomic_dec(&sess->esparser_queued_bufs);
+	schedule_work(&sess->esparser_queue_work);
+}
+EXPORT_SYMBOL_GPL(amvdec_drop_picture_offset);
+
 void amvdec_dst_buf_done_idx(struct amvdec_session *sess,
 			     u32 buf_idx, u32 offset, u32 field)
 {

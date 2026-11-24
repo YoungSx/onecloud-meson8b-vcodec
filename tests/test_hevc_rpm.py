@@ -15,16 +15,19 @@ class HevcRpmTests(unittest.TestCase):
                      source.index("enum nal_unit_type {")]
         body = source[source.index("static int codec_hevc_process_rpm("):
                       source.index("static void codec_hevc_fetch_rpm(")]
+        enums = source[source.index("enum nal_unit_type {"):
+                       source.index("struct hevc_frame {")]
+        header = source[source.index("static void codec_hevc_update_pocs("):
+                        source.index("static int codec_hevc_process_segment(")]
         code = r'''
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
+typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32;
 #define RPM_SIZE 0x80
 #define MAX_REF_ACTIVE 16
-#define I_SLICE 2
 #define SAO_VB_SIZE 0x30000
 #define SAO_ABV_SIZE 0x30000
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -32,13 +35,14 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
 #define dev_dbg(...) ((void)0)
 #include "hevc-sps.h"
 #include "hevc-tiles.h"
-''' + rpm + r'''
+''' + rpm + enums + r'''
 struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
- struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;};
+ struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;
+ u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;bool have_picture,skip_rasl;};
 struct format {u32 max_width,max_height;};
 struct core {void *dev;};
 struct amvdec_session {void *priv;struct core *core;struct format *fmt_out;u32 reference_width,reference_height,crop_left,crop_top;};
-''' + body + r'''
+''' + header + body + r'''
 #define BAD(field,value) do{u16 old=h.rpm_param.p.field;h.rpm_param.p.field=value;assert(codec_hevc_process_rpm(&s)==-EINVAL);h.rpm_param.p.field=old;}while(0)
 int main(void){
  struct codec_hevc h={0};struct format f={1920,1088};struct core core={0};struct amvdec_session s={.priv=&h,.core=&core,.fmt_out=&f};
