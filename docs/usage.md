@@ -64,9 +64,14 @@ python3 scripts/verify-hashes.py software.md5 hardware.md5
 | `FORCE_KEY_FRAME` | 下一帧为 IDR |
 | `HEADER_MODE` | 只有 `JOINED_WITH_1ST_FRAME`；SPS/PPS 在每个 IDR 前 |
 | `MULTI_SLICE_MODE` / `MULTI_SLICE_MAX_MB` | `MAX_MB` 按整行宏块向下取整；分片随整帧交付，没有逐片低延迟 |
+| `H264_VUI_SAR_ENABLE` | 新源码控制SPS像素宽高比写入，默认关闭；尚未部署 |
+| `H264_VUI_SAR_IDC` | 标准菜单0–17；0为未指定，17转换为码流Extended_SAR的255 |
+| `H264_VUI_EXT_SAR_WIDTH` / `HEIGHT` | 扩展SAR的像素宽/高，整数1–65535，默认各1；内核按整数控件规则规范化 |
 
-控件在取下一帧时生效，当前帧按旧配置记账；STREAMOFF/ON 新会话重置历史。
-码流为 Baseline；新开发驱动在 SPS/VUI 中写入裁剪、已知色彩与协商帧周期。
+码率/QP/GOP控件在取下一帧时生效，当前帧按旧配置记账；STREAMOFF/ON新会话重置历史。
+SAR四项可通过一次S_EXT_CTRLS原子设置。SAR与帧周期在流开始前配置；流内
+改变SAR返回EBUSY，相同配置重复写入可用。码流为Baseline；当前源码在
+SPS/VUI中写入裁剪、已知色彩、协商帧周期和可选SAR。
 官方包装不传递的未知颜色信息保持未指定，详见[能力边界](validation.md)。
 FFmpeg 默认 bitrate 为 200 kbit/s；码率控制达不到的目标会停在 QP 32，
 需要更低码率时应降低分辨率或帧率。单帧超过 1 MiB 码流缓冲（例如 1080p
@@ -74,6 +79,17 @@ FFmpeg 默认 bitrate 为 200 kbit/s；码率控制达不到的目标会停在 Q
 第三次溢出或 MAX_QP 仍溢出时终止两队列，须 STREAMOFF 后重新启动。
 详细语义与 debugfs 字段见[码率控制](rate-control.md)。上游 FFmpeg V4L2
 包装未映射 `maxrate/bufsize`，传入这两个参数也不构成峰值约束。
+
+原生客户端的候选接口示例（704×576、SAR 12:11，显示为4:3）：
+
+```sh
+./build/encode-test -c sar-enable=1,sar-idc=2 \
+  /dev/video1 output.h264 reference.nv12 704 576 12 NV12 26 H264
+```
+
+所核对官方FFmpeg 7.0.2的M2M编码包装器未发送这四个SAR控件；原版工具可
+用 `h264_metadata=sample_aspect_ratio=12/11` 写入目标输出的SAR。具体命令
+和完整性边界见[官方FFmpeg适配](ffmpeg-compatibility.md#编码-sps-像素比例)。
 
 ## 编码输入格式
 

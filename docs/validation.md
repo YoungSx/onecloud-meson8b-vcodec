@@ -15,7 +15,7 @@
 | WMV3 解码 | 当前源码接入标准 Annex L/RCV 到厂商帧前缀的转换，复用 VC-1 微码 | 主机协议/容量/时间戳检查和 ARM 构建；没有实机内容及尾帧验收，官方 FFmpeg 无 WMV3 M2M 映射。 |
 | MPEG-1/2、MPEG-4、VC-1 advanced | 现有固件协议、帧池和 drain；MPEG-2 小流 90/90，B 帧流 149/150 或 150/150 | MPEG-4 部分 B 帧内容损坏、尾帧缺失；VC-1 唯一图像与重复显示/尾帧有边界，不能宣称完整格式兼容。 |
 | MJPEG 解码 | 固件解码、全量程输出和有界帧数检查 | 厂商色度处理，不能声明与软解逐字节相同。 |
-| H.264 编码 | Baseline/Level 4.0；YUV420/422/444、RGB 输入；固定 I/P QP、VBR、强制 IDR、GOP、多分片、SPS 裁剪/VUI/帧周期 | 无 Main/High/CABAC/B 帧编码；多分片整帧交付；单帧码流上限 1 MiB。RGB24 最宽 1376，其他具体布局见使用指南。 |
+| H.264 编码 | Baseline/Level 4.0；YUV420/422/444、RGB 输入；固定 I/P QP、VBR、强制 IDR、GOP、多分片、SPS 裁剪/VUI/帧周期；当前源码新增标准SAR控件 | SAR新增路径仅主机/ARM工具验证，未实机；无 Main/High/CABAC/B 帧编码；多分片整帧交付；单帧码流上限 1 MiB。RGB24 最宽 1376，其他具体布局见使用指南。 |
 | JPEG 编码 | 全量程 YCbCr，质量 1–100；历史 900 张 1080p 软解检查 | 与 AVC 共用 HCODEC，二者互斥；原版 FFmpeg 无本项目可用的 JPEG M2M 包装，使用直接客户端。 |
 | 输入 DMA / 输出转换 | 兼容连续 NV12M/NV21M DMA-BUF 输入可直读；默认解码输出有 NEON 转换；GE2D源码提供 NV12/NV12M裁剪/缩小和显式decoder DMA CAPTURE接入 | GE2D未实机/部署，默认不启用；连续CAPTURE另占CMA。完整转码的标准FFmpeg零拷贝链仍未验证。 |
 | 会话与内存 | 已部署一路解码加一路编码；当前源码新增单 HCODEC 多会话逐帧调度 | 新调度仅主机/ARM 验证，未部署；每会话CMA按需分配，不保证多路1080p。第二 decoder STREAMON 仍为 EBUSY。 |

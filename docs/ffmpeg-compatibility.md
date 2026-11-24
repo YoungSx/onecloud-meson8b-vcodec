@@ -40,6 +40,28 @@ standard driver controls. A saturated hardware target is not a missing bitrate
 option. OpenList can downscale from measured output with those explicit limits
 left blank; that is a measured average policy, not a CPB guarantee.
 
+## 编码 SPS 像素比例
+
+当前driver源码提供标准V4L2的SAR_ENABLE、SAR_IDC、EXT_SAR_WIDTH/HEIGHT。
+官方7.0.2 M2M编码[固定源码](https://github.com/FFmpeg/FFmpeg/blob/n7.0.2/libavcodec/v4l2_m2m_enc.c)
+未转发这些控件。官方[h264_metadata](https://ffmpeg.org/ffmpeg-bitstream-filters.html#h264_005fmetadata)
+过滤器可修改同一SPS字段；默认独立ARM工具已启用该官方组件，源码仍为upstream。
+
+```sh
+ffmpeg -nostdin -i encoded.h264 -c:v copy \
+  -bsf:v h264_metadata=sample_aspect_ratio=12/11 corrected.h264
+```
+
+比例设置为目标输出的SAR；缩放后应使用新的输出SAR，并保持容器的显示
+比例一致。不要把整幅画面的DAR直接写成像素SAR。主机6.1.1及原版7.0.2
+ARM/QEMU的完整软解覆盖1:1、12:11、3:2、扩展17:13及65535/65535；各12
+图的Y/U/V哈希保持一致，官方过滤器输出17:13也通过。软件Main/B样本用于
+SPS字段与图片检查；硬编仍为已验证Baseline，没有本轮硬件编解码验收。
+
+单独的65535/1极端比例在两种原版软件工具中触发SAR校验忽略，并出现
+2/12短输出；该样本保留为失败。字段的16-bit可表示范围不等于所有客户端
+均可显示/完整软解，不能据正常比例检查宣称全范围通过。
+
 ## Bug 修复 / Bug fixes
 
 默认 `scripts/build-ffmpeg-test.sh` 从校验过的官方 tarball 重新解压构建，

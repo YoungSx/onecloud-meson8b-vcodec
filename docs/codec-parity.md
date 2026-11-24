@@ -67,6 +67,11 @@ H.264复用原码表并验证原映射行为。内部保存SAR x/y，CROPCAP按�
 可选bug修复流程；见[FFmpeg边界](ffmpeg-compatibility.md#bug-修复--bug-fixes)。
 这些检查没有硬件像素、尾帧或显示验收，不证明旧格式完整性问题已修复。
 
+编码端新增标准SAR控件、四项cluster事务和SPS写入，保留crop/色彩/帧周期；
+默认关闭，流内改变返回EBUSY。IDC菜单17转换为NAL的255，扩展字段为
+1–65535。主机及原版ARM工具的正常/扩展比例12图检查通过；65535/1软件
+样本出现2/12并保留失败。源码、工具与边界见[编码SAR](ffmpeg-compatibility.md#编码-sps-像素比例)。
+
 ## AVS 接口缺口与旧格式边界
 
 AVS JiZhun 的 S805 固件和厂商帧协议存在，不属于已证明的硬件缺失。

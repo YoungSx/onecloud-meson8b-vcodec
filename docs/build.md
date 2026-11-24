@@ -56,7 +56,7 @@ KDIR=/absolute/path/to/kernel-output make modules -j4
 
 工具版本、源码哈希和选项固定在构建脚本。FFmpeg 默认为未修改的官方
 源码测试构建，包含 H.264/HEVC M2M、AAC、HLS/MPEG-TS 和
-文件/HTTP；没有 HTTPS/TLS、libx264/libx265 或完整格式覆盖，保留生产
+文件/HTTP及官方h264_metadata过滤器；没有 HTTPS/TLS、libx264/libx265 或完整格式覆盖，保留生产
 FFmpeg。v4l2-ctl 为静态 ioctl 工具。所有构建日志与产物位于忽略的
 `build/`，CI 将上传交付归档。
 
