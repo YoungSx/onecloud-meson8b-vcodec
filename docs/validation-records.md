@@ -285,6 +285,28 @@ EOS、CMA、吞吐或迅雷原版对照，不构成完整追平。
 工作区外本地SHA256归档校验，无永久公开附件。默认Overlay既有phandle
 警告仍在。未部署/重启，无新增实机内容/EOS/CMA/吞吐或迅雷原版对照。
 
+## 11-24 HEVC dependent slice MV指针工作机验证
+
+源`1caca5e`，原5.15.79-meson配置外部/additive decoder均为SHA256
+`584e357abf15bd0752af24eb8be440bbb836ea2b38ac7b0d61760edf16b8f2fe`。
+固定S805厂商`config_mpred_hw()`只在首图或新独立slice更新MV读指针；旧
+移植每个dependent segment重写指针，实际寄存器函数回归修复前失败。
+当前dependent segment保留已推进指针，首slice/独立slice原路径保持。
+全部16槽及16/32/64 CTU、尾CTU地址和指针保持检查通过。
+
+114项Python/C sanitizer回归、严格checkpatch、原配置完整ARM内核/双模块
+入口及补丁零fuzz/源一致性检查通过。
+[FFmpeg FATE DSLICE A/B/C](https://fate-suite.ffmpeg.org/hevc-conformance/)
+样片由官方6.1.1软件解码，各50/50图，逐帧CRC与固定FFmpeg 7.0.2 FATE
+参考完全一致；驱动实际前缀解析器接受全部150 AU，1920×1080、DPB=5、
+reorder=3。A流trace确认dependent flag；A/B/C来源及SHA256随原件保存。
+样片仅作为外部验证输入留在归档，没有假定其可再分发许可或提交为fixture。
+
+记录标识`hevc-dependent-mv-1caca5e`，原件、源码和模块在工作区外本地
+SHA256归档校验，无永久公开附件。主机替身没有执行固件、MV数据或像素
+硬件；未部署/重启，无新增实机slice/EOS/CMA/吞吐或迅雷原版对照。
+默认Overlay既有phandle警告仍在，不构成完整追平。
+
 ## 编码、质量与码率
 
 11-13/15 编码源 `bd1cb79` 到 `53cd705`/`2811493`：固定 QP、I/P、GOP、
