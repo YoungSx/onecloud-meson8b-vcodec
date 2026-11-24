@@ -35,7 +35,12 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;
 #define HEVC_WATCHDOG_MS 5000
 #define msecs_to_jiffies(x) (x)
 #include "hevc-sps.h"
-struct codec_hevc {int lock,watchdog;struct hevc_sps_geometry sps;u32 sps_dpb_size;};
+struct list_head {int unused;};
+struct hevc_input_picture {struct list_head list;u32 offset;struct hevc_sps_geometry geometry;};
+struct codec_hevc {int lock,watchdog;struct hevc_sps_geometry sps;u32 sps_dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
+#define GFP_KERNEL 0
+static void *kmalloc(unsigned long n,int f){(void)n;(void)f;assert(0);return 0;}
+static void list_add_tail(struct list_head *p,struct list_head *h){(void)p;(void)h;assert(0);}
 struct amvdec_session {void *priv;};
 struct vb2_buffer {u8 *data;u32 size;};
 static void *vb2_plane_vaddr(struct vb2_buffer *b,int p){(void)p;return b->data;}
@@ -62,11 +67,11 @@ static u32 sps(u8 *packet,u32 dpb){
  return n;
 }
 int main(void){struct codec_hevc h={0};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={packet,0};
- b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b));assert(h.sps.dpb==10&&h.sps_dpb_size==10);
- b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b));assert(h.sps.dpb==5&&h.sps_dpb_size==10);
- b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b)&&h.sps.dpb==16&&h.sps_dpb_size==16);
- b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b)&&h.sps.dpb==5&&h.sps_dpb_size==16);
- b.size=sps(packet,17);assert(codec_hevc_inspect_input(&s,&b)==-EINVAL&&h.sps_dpb_size==16);
+ b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==10&&h.sps_dpb_size==10);
+ b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==5&&h.sps_dpb_size==10);
+ b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==16&&h.sps_dpb_size==16);
+ b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==5&&h.sps_dpb_size==16);
+ b.size=sps(packet,17);assert(codec_hevc_inspect_input(&s,&b,0)==-EINVAL&&h.sps_dpb_size==16);
  return 0;}
 '''
         run_c(code)
@@ -116,6 +121,7 @@ static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame 
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){(void)s;(void)w;(void)h;(void)n;changes++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){(void)s;assert(0);}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static int codec_hevc_process_segment(struct amvdec_session *s){(void)s;segments++;return 0;}
 ''' + setup + irq + r'''
 int main(void){struct codec_hevc h={0};struct amvdec_core c={0};struct amvdec_format f={6,16};struct amvdec_session s={.core=&c,.priv=&h,.fmt_out=&f,.streamon_cap=1,.status=STATUS_RUNNING};

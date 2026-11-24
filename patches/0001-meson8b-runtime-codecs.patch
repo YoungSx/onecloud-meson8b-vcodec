@@ -884,7 +884,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1814 @@
+@@ -0,0 +1,1840 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -1126,6 +1126,12 @@
 +	u32 ref_num[2];
 +};
 +
++struct hevc_input_picture {
++	struct list_head list;
++	u32 offset;
++	struct hevc_sps_geometry geometry;
++};
++
 +struct codec_hevc {
 +	struct mutex lock;
 +	struct amvdec_session *sess;
@@ -1166,10 +1172,10 @@
 +	bool eos_seen;
 +	/* the last watchdog check found the client waiting on the decoder */
 +	bool client_waited;
-+	/* Last SPS parsed out of the queued input, not necessarily this picture's. */
-+	struct hevc_sps_geometry sps;
-+	/* SPS that resolved the current coded size (see codec_hevc_process_rpm). */
++	/* Immutable SPS snapshot selected for the current picture's input offset. */
 +	struct hevc_sps_geometry applied;
++	struct hevc_parameter_sets parameters;
++	struct list_head input_pictures;
 +	u32 prev_tid0_poc;
 +	u32 random_access_poc;
 +	bool have_picture;
@@ -1184,6 +1190,24 @@
 +	/* Whether we detected the bitstream as 10-bit */
 +	int is_10bit;
 +};
++
++static bool codec_hevc_geometry_for_offset(struct codec_hevc *hevc, u32 offset,
++					   struct hevc_sps_geometry *geometry)
++{
++	struct hevc_input_picture *input, *next;
++	bool found = false;
++
++	/* Input in flight spans the bounded VIFIFO, including its 32-bit wrap. */
++	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
++		if ((s32)(input->offset - offset) > 0)
++			break;
++		*geometry = input->geometry;
++		found = true;
++		list_del(&input->list);
++		kfree(input);
++	}
++	return found;
++}
 +
 +static u32 codec_hevc_num_pending_bufs(struct amvdec_session *sess)
 +{
@@ -1526,6 +1550,7 @@
 +		return -ENOMEM;
 +
 +	INIT_LIST_HEAD(&hevc->ref_frames_list);
++	INIT_LIST_HEAD(&hevc->input_pictures);
 +	INIT_DELAYED_WORK(&hevc->watchdog, codec_hevc_watchdog);
 +	hevc->sess = sess;
 +	hevc->curr_poc = INVALID_POC;
@@ -1700,6 +1725,16 @@
 +	amvdec_pool_end(sess, AMVDEC_POOL_LAST);
 +}
 +
++static void codec_hevc_clear_inputs(struct codec_hevc *hevc)
++{
++	struct hevc_input_picture *input, *next;
++
++	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
++		list_del(&input->list);
++		kfree(input);
++	}
++}
++
 +static int codec_hevc_stop(struct amvdec_session *sess)
 +{
 +	struct codec_hevc *hevc = sess->priv;
@@ -1709,6 +1744,7 @@
 +	mutex_lock(&hevc->lock);
 +	/* STREAMOFF discards pictures; do not requeue work after it was cancelled. */
 +	codec_hevc_forget_frames(hevc);
++	codec_hevc_clear_inputs(hevc);
 +
 +	if (hevc->workspace_vaddr)
 +		dma_free_coherent(core->dev, SIZE_WORKSPACE,
@@ -2379,6 +2415,17 @@
 +
 +	/* Parse once, including across CAPTURE negotiation and buffer retries. */
 +	codec_hevc_process_segment_header(sess);
++	if (!param->p.slice_segment_address && param->p.pic_width_in_luma_samples &&
++	    param->p.pic_height_in_luma_samples) {
++		struct hevc_sps_geometry geometry;
++		u32 offset = amvdec_read_dos(sess->core, HEVC_SHIFT_BYTE_COUNT);
++
++		if (!codec_hevc_geometry_for_offset(hevc, offset, &geometry) ||
++		    geometry.coded_width != param->p.pic_width_in_luma_samples ||
++		    geometry.coded_height != param->p.pic_height_in_luma_samples)
++			return -EINVAL;
++		hevc->applied = geometry;
++	}
 +	if (codec_hevc_is_skipped_rasl(hevc))
 +		return 0;
 +
@@ -2401,33 +2448,10 @@
 +		src_changed |= HEVC_REFERENCE_CHANGE;
 +	hevc->width = param->p.pic_width_in_luma_samples;
 +	hevc->height = param->p.pic_height_in_luma_samples;
-+	dst_width = hevc->width;
-+	dst_height = hevc->height;
-+	sess->crop_left = 0;
-+	sess->crop_top = 0;
-+	/*
-+	 * The conformance window only applies to the SPS this picture uses.
-+	 * Input inspection runs ahead of the decoder, so hevc->sps can already
-+	 * be the next segment's; once a coded size is resolved, keep its window
-+	 * instead of reporting the uncropped size as a source change.
-+	 */
-+	if (hevc->applied.coded_width == hevc->width &&
-+	    hevc->applied.coded_height == hevc->height) {
-+		dst_width = hevc->applied.width;
-+		dst_height = hevc->applied.height;
-+		sess->crop_left = hevc->applied.left;
-+		sess->crop_top = hevc->applied.top;
-+	} else if (hevc->sps.coded_width == hevc->width &&
-+		   hevc->sps.coded_height == hevc->height) {
-+		hevc->applied = hevc->sps;
-+		dst_width = hevc->applied.width;
-+		dst_height = hevc->applied.height;
-+		sess->crop_left = hevc->applied.left;
-+		sess->crop_top = hevc->applied.top;
-+	} else {
-+		/* New coded size: no window resolved for it yet. */
-+		memset(&hevc->applied, 0, sizeof(hevc->applied));
-+	}
++	dst_width = hevc->applied.width;
++	dst_height = hevc->applied.height;
++	sess->crop_left = hevc->applied.left;
++	sess->crop_top = hevc->applied.top;
 +	sess->reference_width = hevc->width;
 +	sess->reference_height = hevc->height;
 +
@@ -2491,35 +2515,36 @@
 +	}
 +}
 +
-+static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
++static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
++				    u32 offset)
 +{
 +	struct codec_hevc *hevc = sess->priv;
 +	const u8 *data = vb2_plane_vaddr(vb, 0);
-+	u32 length = vb2_get_plane_payload(vb, 0), i;
++	u32 length = vb2_get_plane_payload(vb, 0);
++	struct hevc_sps_geometry geometry;
++	struct hevc_input_picture *input;
++	int ret;
++
 +	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
-+
-+	for (i = 2; i + 2 < length; i++) {
-+		u32 end;
-+		struct hevc_sps_geometry geometry;
-+		int ret;
-+
-+		if (data[i - 2] || data[i - 1] || data[i] != 1 ||
-+		    ((data[i + 1] >> 1) & 63) != 33)
-+			continue;
-+		for (end = i + 4; end + 2 < length; end++)
-+			if (!data[end] && !data[end + 1] && data[end + 2] == 1)
-+				break;
-+		if (end + 2 >= length)
-+			end = length;
-+		ret = hevc_parse_sps_geometry(data + i + 1, end - i - 1, &geometry);
-+		if (ret)
-+			return ret;
-+		mutex_lock(&hevc->lock);
-+		hevc->sps = geometry;
-+		hevc->sps_dpb_size = max(hevc->sps_dpb_size, geometry.dpb);
-+		mutex_unlock(&hevc->lock);
++	mutex_lock(&hevc->lock);
++	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
++	if (ret < 0)
++		goto unlock;
++	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->parameters.max_dpb);
++	if (ret > 0) {
++		input = kmalloc(sizeof(*input), GFP_KERNEL);
++		if (!input) {
++			ret = -ENOMEM;
++			goto unlock;
++		}
++		input->offset = offset;
++		input->geometry = geometry;
++		list_add_tail(&input->list, &hevc->input_pictures);
 +	}
-+	return 0;
++	ret = 0;
++unlock:
++	mutex_unlock(&hevc->lock);
++	return ret;
 +}
 +
 +static void codec_hevc_capture_queued(struct amvdec_session *sess)
@@ -2616,6 +2641,7 @@
 +		dev_dbg(core->dev, "HEVC firmware EOS: pending pictures %u\n", hevc->frames_num);
 +		hevc->eos_seen = true;
 +		codec_hevc_flush_output(sess);
++		codec_hevc_clear_inputs(hevc);
 +		codec_hevc_finish_eos(sess);
 +		goto unlock;
 +	}
@@ -3754,7 +3780,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,307 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3814,12 +3840,14 @@
 +
 +static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
 +
-+static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
++static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
++				     u32 offset)
 +{
 +	struct codec_mpeg4 *mpeg4 = sess->priv;
 +	u32 capacity;
 +	int ret;
 +
++	(void)offset;
 +	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
 +		return 0;
 +	capacity = min_t(unsigned long, SZ_1M, vb2_plane_size(vb, 0));
@@ -4079,7 +4107,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,304 @@
+@@ -0,0 +1,306 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -4139,11 +4167,13 @@
 +	bool sequence_seen;
 +};
 +
-+static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
++static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
++				   u32 offset)
 +{
 +	struct codec_vc1 *vc1 = sess->priv;
 +	int size;
 +
++	(void)offset;
 +	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_VC1_ANNEX_L)
 +		return 0;
 +	size = wmv3_prepare_packet(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
@@ -6724,7 +6754,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/esparser.c
-@@ -0,0 +1,519 @@
+@@ -0,0 +1,520 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -7074,7 +7104,8 @@
 +	}
 +
 +	v4l2_m2m_src_buf_remove_by_buf(sess->m2m_ctx, vbuf);
-+	if (codec_ops->inspect_input && codec_ops->inspect_input(sess, vb)) {
++	offset = esparser_get_offset(sess);
++	if (codec_ops->inspect_input && codec_ops->inspect_input(sess, vb, offset)) {
 +		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 +		amvdec_abort(sess);
 +		return 0;
@@ -7082,11 +7113,10 @@
 +	/* Annex L preparation may replace the userspace header with a vendor one. */
 +	payload_size = vb2_get_plane_payload(vb, 0);
 +
-+	offset = esparser_get_offset(sess);
-+
 +	ret = amvdec_add_ts(sess, vb->timestamp, vbuf->timecode, offset, vbuf->flags);
 +	if (ret) {
 +		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
++		amvdec_abort(sess);
 +		return ret;
 +	}
 +
@@ -7113,6 +7143,7 @@
 +	if (pad_size < 0) {
 +		amvdec_remove_ts(sess, vb->timestamp);
 +		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
++		amvdec_abort(sess);
 +		return 0;
 +	}
 +	/* Publish before the kick; the decoder can finish during the wait. */
@@ -7837,7 +7868,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-sps.h
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,223 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON_HEVC_SPS_H
 +#define MESON_HEVC_SPS_H
@@ -7845,6 +7876,7 @@
 +#include "codec_hevc.h"
 +
 +struct hevc_sps_geometry {
++	u32 id;
 +	u32 coded_width, coded_height;
 +	u32 left, top, width, height;
 +	u32 dpb, reorder;
@@ -7893,6 +7925,21 @@
 +	return ((1u << zeros) - 1) + hevc_read_bits(bits, zeros);
 +}
 +
++static inline u32 hevc_rbsp_prefix(const u8 *nal, u32 length, u8 *rbsp, u32 capacity)
++{
++	u32 n = 0, i, zeros = 0;
++
++	for (i = 2; i < length && n < capacity; i++) {
++		if (zeros >= 2 && nal[i] == 3) {
++			zeros = 0;
++			continue;
++		}
++		rbsp[n++] = nal[i];
++		zeros = nal[i] == 0 ? zeros + 1 : 0;
++	}
++	return n;
++}
++
 +/* Supplemental SPS geometry: S805 firmware RPM has no conformance-window
 + * or sps_max_dec_pic_buffering fields. Parse only the bounded SPS prefix.
 + */
@@ -7901,19 +7948,12 @@
 +{
 +	u8 rbsp[512], profile[7] = {}, level[7] = {};
 +	struct hevc_bits bits;
-+	u32 n = 0, i, zeros = 0, layers, start, chroma, right = 0, bottom = 0;
++	u32 n, i, layers, start, chroma, right = 0, bottom = 0;
 +	struct hevc_sps_geometry g = {};
 +
 +	if (length < 3 || ((nal[0] >> 1) & 63) != 33)
 +		return -EINVAL;
-+	for (i = 2; i < length && n < sizeof(rbsp); i++) {
-+		if (zeros >= 2 && nal[i] == 3) {
-+			zeros = 0;
-+			continue;
-+		}
-+		rbsp[n++] = nal[i];
-+		zeros = nal[i] == 0 ? zeros + 1 : 0;
-+	}
++	n = hevc_rbsp_prefix(nal, length, rbsp, sizeof(rbsp));
 +	bits = (struct hevc_bits){ .data = rbsp, .size = n };
 +	hevc_read_bits(&bits, 4);
 +	layers = hevc_read_bits(&bits, 3);
@@ -7933,7 +7973,8 @@
 +		if (level[i])
 +			hevc_skip_bits(&bits, 8);
 +	}
-+	if (hevc_read_ue(&bits) >= 16)
++	g.id = hevc_read_ue(&bits);
++	if (g.id >= 16)
 +		return -EINVAL;
 +	chroma = hevc_read_ue(&bits);
 +	if (chroma != 1)
@@ -7975,6 +8016,80 @@
 +		return -EINVAL;
 +	*geometry = g;
 +	return 0;
++}
++
++struct hevc_parameter_sets {
++	struct hevc_sps_geometry sps[16];
++	u8 pps_sps[64];
++	bool pps_valid[64];
++	u32 max_dpb;
++};
++
++/* Return one picture's immutable SPS prefix, or zero for parameter-only input. */
++static inline int hevc_input_geometry(struct hevc_parameter_sets *sets,
++				      const u8 *data, u32 length,
++				      struct hevc_sps_geometry *geometry)
++{
++	u32 i, picture_pps = 0;
++	bool picture = false;
++
++	for (i = 2; i + 2 < length; i++) {
++		u32 end, type, id, sps_id;
++		const u8 *nal;
++		u8 rbsp[16];
++		struct hevc_bits bits;
++		struct hevc_sps_geometry g;
++		bool first;
++		int ret;
++
++		if (data[i - 2] || data[i - 1] || data[i] != 1)
++			continue;
++		nal = data + i + 1;
++		type = (nal[0] >> 1) & 63;
++		for (end = i + 4; end + 2 < length; end++)
++			if (!data[end] && !data[end + 1] && data[end + 2] == 1)
++				break;
++		if (end + 2 >= length)
++			end = length;
++		if (type == 33) {
++			ret = hevc_parse_sps_geometry(nal, end - i - 1, &g);
++			if (ret)
++				return ret;
++			sets->sps[g.id] = g;
++			if (g.dpb > sets->max_dpb)
++				sets->max_dpb = g.dpb;
++		} else if (type == 34 || type <= 31) {
++			bits = (struct hevc_bits){ .data = rbsp,
++				.size = hevc_rbsp_prefix(nal, end - i - 1, rbsp, sizeof(rbsp)) };
++			if (type == 34) {
++				id = hevc_read_ue(&bits);
++				sps_id = hevc_read_ue(&bits);
++				if (bits.error || id >= 64 || sps_id >= 16)
++					return -EINVAL;
++				sets->pps_sps[id] = sps_id;
++				sets->pps_valid[id] = true;
++			} else {
++				first = hevc_read_bits(&bits, 1);
++				if (type >= 16 && type <= 23)
++					hevc_skip_bits(&bits, 1);
++				id = hevc_read_ue(&bits);
++				if (bits.error || id >= 64 || !sets->pps_valid[id] ||
++				    !sets->sps[sets->pps_sps[id]].coded_width)
++					return -EINVAL;
++				if (first) {
++					if (picture)
++						return -EINVAL;
++					*geometry = sets->sps[sets->pps_sps[id]];
++					picture_pps = id;
++					picture = true;
++				} else if (picture && id != picture_pps) {
++					return -EINVAL;
++				}
++			}
++		}
++		i = end - 1;
++	}
++	return picture;
 +}
 +#endif
 --- /dev/null
@@ -10737,7 +10852,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,388 @@
+@@ -0,0 +1,389 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10948,6 +11063,7 @@
 + *		      reference (not with a frame pool)
 + * @capture_queued: optional call after a CAPTURE buffer was queued, or with a
 + *		    frame pool after waiting pictures were delivered
++ * @inspect_input: optional AU preparation and metadata inspection at its VIFIFO offset
 + * @can_recycle: optional call to know if the codec is ready to recycle
 + *		 a dst buffer
 + * @recycle: optional call to tell the codec to recycle a dst buffer. Must go
@@ -10967,7 +11083,7 @@
 +	bool (*hold_capture_buf)(struct amvdec_session *sess,
 +				 struct vb2_v4l2_buffer *vb);
 +	void (*capture_queued)(struct amvdec_session *sess);
-+	int (*inspect_input)(struct amvdec_session *sess, struct vb2_buffer *vb);
++	int (*inspect_input)(struct amvdec_session *sess, struct vb2_buffer *vb, u32 offset);
 +	bool firmware_eos;
 +	int (*can_recycle)(struct amvdec_core *core);
 +	void (*recycle)(struct amvdec_core *core, u32 buf_idx);

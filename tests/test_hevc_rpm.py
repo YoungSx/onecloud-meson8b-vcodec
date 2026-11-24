@@ -38,6 +38,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32
 #define dev_dbg(...) ((void)0)
 #include "hevc-sps.h"
 #include "hevc-tiles.h"
+#include "hevc_regs.h"
 ''' + rpm + enums + r'''
 struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;int is_10bit;
  struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;
@@ -45,6 +46,9 @@ struct codec_hevc {union rpm_param rpm_param;u32 width,height,dst_width,dst_heig
 struct format {u32 max_width,max_height;};
 struct core {void *dev;};
 struct amvdec_session {void *priv;struct core *core;struct format *fmt_out;u32 reference_width,reference_height,crop_left,crop_top;};
+static struct hevc_sps_geometry queued_geometry;
+static u32 amvdec_read_dos(struct core *c,u32 r){(void)c;(void)r;return 0;}
+static bool codec_hevc_geometry_for_offset(struct codec_hevc *h,u32 o,struct hevc_sps_geometry *g){(void)h;(void)o;*g=queued_geometry;return true;}
 ''' + header + body + r'''
 #define BAD(field,value) do{u16 old=h.rpm_param.p.field;h.rpm_param.p.field=value;assert(codec_hevc_process_rpm(&s)==-EINVAL);h.rpm_param.p.field=old;}while(0)
 int main(void){
@@ -53,11 +57,14 @@ int main(void){
  h.rpm_param.p.log2_diff_max_min_coding_block_size=3;h.rpm_param.p.log2_max_pic_order_cnt_lsb_minus4=4;
  h.rpm_param.p.m_temporalId=1;h.rpm_param.p.slice_type=1;h.rpm_param.p.num_ref_idx_l0_active=1;
  h.rpm_param.p.first_slice_segment_in_pic_flag=1;
+ queued_geometry=(struct hevc_sps_geometry){.coded_width=1920,.coded_height=1088,.width=1920,.height=1088};
  assert(codec_hevc_process_rpm(&s)>0&&h.lcu_total==510&&h.lcu_size==64);
  /* Low-delay SPS can require ten retained pictures with no output reorder. */
  h.applied=(struct hevc_sps_geometry){.coded_width=1920,.coded_height=1088,.width=1920,.height=1088,.dpb=10};
+ queued_geometry=h.applied;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=h.applied.dpb);
  h.sps_dpb_size=10;h.applied.dpb=5;
+ queued_geometry=h.applied;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=10);
  h.sps_dpb_size=16;h.rpm_param.p.sps_num_reorder_pics_0=15;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size==16);
@@ -84,11 +91,13 @@ int main(void){
  /* Coded geometry can grow while its conformance window keeps visible size. */
  h=(struct codec_hevc){.width=320,.height=192,.dst_width=320,.dst_height=192,.lcu_size=64};
  h.sps=(struct hevc_sps_geometry){.coded_width=384,.coded_height=192,.width=320,.height=192,.dpb=5};
+ queued_geometry=h.sps;
  h.rpm_param.p.pic_width_in_luma_samples=384;h.rpm_param.p.pic_height_in_luma_samples=192;
  h.rpm_param.p.log2_diff_max_min_coding_block_size=3;h.rpm_param.p.m_temporalId=1;
  assert(codec_hevc_process_rpm(&s)==HEVC_REFERENCE_CHANGE&&h.dst_width==320&&h.width==384);
  /* Visible-only changes must not invalidate same-coded-size references. */
  h.applied=(struct hevc_sps_geometry){.coded_width=384,.coded_height=192,.left=4,.width=316,.height=192,.dpb=5};
+ queued_geometry=h.applied;
  assert(codec_hevc_process_rpm(&s)==HEVC_SOURCE_CHANGE&&s.crop_left==4&&h.dst_width==316);
  return 0;}
 '''

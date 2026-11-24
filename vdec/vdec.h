@@ -208,6 +208,7 @@ struct amvdec_ops {
  *		      reference (not with a frame pool)
  * @capture_queued: optional call after a CAPTURE buffer was queued, or with a
  *		    frame pool after waiting pictures were delivered
+ * @inspect_input: optional AU preparation and metadata inspection at its VIFIFO offset
  * @can_recycle: optional call to know if the codec is ready to recycle
  *		 a dst buffer
  * @recycle: optional call to tell the codec to recycle a dst buffer. Must go
@@ -227,7 +228,7 @@ struct amvdec_codec_ops {
 	bool (*hold_capture_buf)(struct amvdec_session *sess,
 				 struct vb2_v4l2_buffer *vb);
 	void (*capture_queued)(struct amvdec_session *sess);
-	int (*inspect_input)(struct amvdec_session *sess, struct vb2_buffer *vb);
+	int (*inspect_input)(struct amvdec_session *sess, struct vb2_buffer *vb, u32 offset);
 	bool firmware_eos;
 	int (*can_recycle)(struct amvdec_core *core);
 	void (*recycle)(struct amvdec_core *core, u32 buf_idx);

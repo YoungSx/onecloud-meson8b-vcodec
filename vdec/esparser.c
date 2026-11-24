@@ -347,7 +347,8 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 	}
 
 	v4l2_m2m_src_buf_remove_by_buf(sess->m2m_ctx, vbuf);
-	if (codec_ops->inspect_input && codec_ops->inspect_input(sess, vb)) {
+	offset = esparser_get_offset(sess);
+	if (codec_ops->inspect_input && codec_ops->inspect_input(sess, vb, offset)) {
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 		amvdec_abort(sess);
 		return 0;
@@ -355,11 +356,10 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 	/* Annex L preparation may replace the userspace header with a vendor one. */
 	payload_size = vb2_get_plane_payload(vb, 0);
 
-	offset = esparser_get_offset(sess);
-
 	ret = amvdec_add_ts(sess, vb->timestamp, vbuf->timecode, offset, vbuf->flags);
 	if (ret) {
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+		amvdec_abort(sess);
 		return ret;
 	}
 
@@ -386,6 +386,7 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 	if (pad_size < 0) {
 		amvdec_remove_ts(sess, vb->timestamp);
 		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+		amvdec_abort(sess);
 		return 0;
 	}
 	/* Publish before the kick; the decoder can finish during the wait. */

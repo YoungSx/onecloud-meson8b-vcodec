@@ -105,12 +105,12 @@ int main(int argc,char **argv){
  memcpy(input,original,8271);
  struct codec_mpeg4 codec={.h263_output=translated};s.priv=&codec;
  struct vb2_buffer b={input,5573,sizeof(input)};
- assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==9985&&input[3]==0xb6);
+ assert(!codec_mpeg4_inspect_input(&s,&b,0)&&b.size==9985&&input[3]==0xb6);
  assert(s.pixelaspect.numerator==12&&s.pixelaspect.denominator==11);
  memcpy(input,original,8271);b.size=5573;s.width=352;
- assert(codec_mpeg4_inspect_input(&s,&b)==-EINVAL&&b.size==5573&&!memcmp(input,original,8271));
+ assert(codec_mpeg4_inspect_input(&s,&b,0)==-EINVAL&&b.size==5573&&!memcmp(input,original,8271));
  s.width=128;b.capacity=8192;
- assert(codec_mpeg4_inspect_input(&s,&b)==-ENOSPC&&b.size==5573&&!memcmp(input,original,8271));
+ assert(codec_mpeg4_inspect_input(&s,&b,0)==-ENOSPC&&b.size==5573&&!memcmp(input,original,8271));
  assert(s.pixelaspect.numerator==12&&s.pixelaspect.denominator==11);
  stream=fopen(argv[2],"rb");assert(stream);
  assert(fread(original,1,sizeof(original),stream)==4558&&feof(stream));fclose(stream);
@@ -118,11 +118,11 @@ int main(int argc,char **argv){
  const u32 start[]={0,3391,3968,4558},length[]={7760,1856,1962};
  for(u32 i=0;i<3;i++){
   b.size=start[i+1]-start[i];memcpy(input,original+start[i],b.size);
-  assert(!codec_mpeg4_inspect_input(&s,&b)&&b.size==length[i]&&input[10]==(i==1));
+  assert(!codec_mpeg4_inspect_input(&s,&b,0)&&b.size==length[i]&&input[10]==(i==1));
   assert(codec.h263.header.valid&&codec.h263.header.width==164&&codec.h263.header.height==100);
   assert(s.pixelaspect.numerator==1&&s.pixelaspect.denominator==1);
  }
- s.fmt_out=&formats[1];b.data=NULL;b.size=0;assert(!codec_mpeg4_inspect_input(&s,&b));
+ s.fmt_out=&formats[1];b.data=NULL;b.size=0;assert(!codec_mpeg4_inspect_input(&s,&b,0));
  return 0;
 }
 '''

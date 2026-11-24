@@ -239,6 +239,12 @@ struct hevc_frame {
 	u32 ref_num[2];
 };
 
+struct hevc_input_picture {
+	struct list_head list;
+	u32 offset;
+	struct hevc_sps_geometry geometry;
+};
+
 struct codec_hevc {
 	struct mutex lock;
 	struct amvdec_session *sess;
@@ -279,10 +285,10 @@ struct codec_hevc {
 	bool eos_seen;
 	/* the last watchdog check found the client waiting on the decoder */
 	bool client_waited;
-	/* Last SPS parsed out of the queued input, not necessarily this picture's. */
-	struct hevc_sps_geometry sps;
-	/* SPS that resolved the current coded size (see codec_hevc_process_rpm). */
+	/* Immutable SPS snapshot selected for the current picture's input offset. */
 	struct hevc_sps_geometry applied;
+	struct hevc_parameter_sets parameters;
+	struct list_head input_pictures;
 	u32 prev_tid0_poc;
 	u32 random_access_poc;
 	bool have_picture;
@@ -297,6 +303,24 @@ struct codec_hevc {
 	/* Whether we detected the bitstream as 10-bit */
 	int is_10bit;
 };
+
+static bool codec_hevc_geometry_for_offset(struct codec_hevc *hevc, u32 offset,
+					   struct hevc_sps_geometry *geometry)
+{
+	struct hevc_input_picture *input, *next;
+	bool found = false;
+
+	/* Input in flight spans the bounded VIFIFO, including its 32-bit wrap. */
+	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
+		if ((s32)(input->offset - offset) > 0)
+			break;
+		*geometry = input->geometry;
+		found = true;
+		list_del(&input->list);
+		kfree(input);
+	}
+	return found;
+}
 
 static u32 codec_hevc_num_pending_bufs(struct amvdec_session *sess)
 {
@@ -639,6 +663,7 @@ static int codec_hevc_start(struct amvdec_session *sess)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&hevc->ref_frames_list);
+	INIT_LIST_HEAD(&hevc->input_pictures);
 	INIT_DELAYED_WORK(&hevc->watchdog, codec_hevc_watchdog);
 	hevc->sess = sess;
 	hevc->curr_poc = INVALID_POC;
@@ -813,6 +838,16 @@ static void codec_hevc_finish_eos(struct amvdec_session *sess)
 	amvdec_pool_end(sess, AMVDEC_POOL_LAST);
 }
 
+static void codec_hevc_clear_inputs(struct codec_hevc *hevc)
+{
+	struct hevc_input_picture *input, *next;
+
+	list_for_each_entry_safe(input, next, &hevc->input_pictures, list) {
+		list_del(&input->list);
+		kfree(input);
+	}
+}
+
 static int codec_hevc_stop(struct amvdec_session *sess)
 {
 	struct codec_hevc *hevc = sess->priv;
@@ -822,6 +857,7 @@ static int codec_hevc_stop(struct amvdec_session *sess)
 	mutex_lock(&hevc->lock);
 	/* STREAMOFF discards pictures; do not requeue work after it was cancelled. */
 	codec_hevc_forget_frames(hevc);
+	codec_hevc_clear_inputs(hevc);
 
 	if (hevc->workspace_vaddr)
 		dma_free_coherent(core->dev, SIZE_WORKSPACE,
@@ -1492,6 +1528,17 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 
 	/* Parse once, including across CAPTURE negotiation and buffer retries. */
 	codec_hevc_process_segment_header(sess);
+	if (!param->p.slice_segment_address && param->p.pic_width_in_luma_samples &&
+	    param->p.pic_height_in_luma_samples) {
+		struct hevc_sps_geometry geometry;
+		u32 offset = amvdec_read_dos(sess->core, HEVC_SHIFT_BYTE_COUNT);
+
+		if (!codec_hevc_geometry_for_offset(hevc, offset, &geometry) ||
+		    geometry.coded_width != param->p.pic_width_in_luma_samples ||
+		    geometry.coded_height != param->p.pic_height_in_luma_samples)
+			return -EINVAL;
+		hevc->applied = geometry;
+	}
 	if (codec_hevc_is_skipped_rasl(hevc))
 		return 0;
 
@@ -1514,33 +1561,10 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 		src_changed |= HEVC_REFERENCE_CHANGE;
 	hevc->width = param->p.pic_width_in_luma_samples;
 	hevc->height = param->p.pic_height_in_luma_samples;
-	dst_width = hevc->width;
-	dst_height = hevc->height;
-	sess->crop_left = 0;
-	sess->crop_top = 0;
-	/*
-	 * The conformance window only applies to the SPS this picture uses.
-	 * Input inspection runs ahead of the decoder, so hevc->sps can already
-	 * be the next segment's; once a coded size is resolved, keep its window
-	 * instead of reporting the uncropped size as a source change.
-	 */
-	if (hevc->applied.coded_width == hevc->width &&
-	    hevc->applied.coded_height == hevc->height) {
-		dst_width = hevc->applied.width;
-		dst_height = hevc->applied.height;
-		sess->crop_left = hevc->applied.left;
-		sess->crop_top = hevc->applied.top;
-	} else if (hevc->sps.coded_width == hevc->width &&
-		   hevc->sps.coded_height == hevc->height) {
-		hevc->applied = hevc->sps;
-		dst_width = hevc->applied.width;
-		dst_height = hevc->applied.height;
-		sess->crop_left = hevc->applied.left;
-		sess->crop_top = hevc->applied.top;
-	} else {
-		/* New coded size: no window resolved for it yet. */
-		memset(&hevc->applied, 0, sizeof(hevc->applied));
-	}
+	dst_width = hevc->applied.width;
+	dst_height = hevc->applied.height;
+	sess->crop_left = hevc->applied.left;
+	sess->crop_top = hevc->applied.top;
 	sess->reference_width = hevc->width;
 	sess->reference_height = hevc->height;
 
@@ -1604,35 +1628,36 @@ static void codec_hevc_fetch_rpm(struct amvdec_session *sess)
 	}
 }
 
-static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
+static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
+				    u32 offset)
 {
 	struct codec_hevc *hevc = sess->priv;
 	const u8 *data = vb2_plane_vaddr(vb, 0);
-	u32 length = vb2_get_plane_payload(vb, 0), i;
+	u32 length = vb2_get_plane_payload(vb, 0);
+	struct hevc_sps_geometry geometry;
+	struct hevc_input_picture *input;
+	int ret;
+
 	mod_delayed_work(system_wq, &hevc->watchdog, msecs_to_jiffies(HEVC_WATCHDOG_MS));
-
-	for (i = 2; i + 2 < length; i++) {
-		u32 end;
-		struct hevc_sps_geometry geometry;
-		int ret;
-
-		if (data[i - 2] || data[i - 1] || data[i] != 1 ||
-		    ((data[i + 1] >> 1) & 63) != 33)
-			continue;
-		for (end = i + 4; end + 2 < length; end++)
-			if (!data[end] && !data[end + 1] && data[end + 2] == 1)
-				break;
-		if (end + 2 >= length)
-			end = length;
-		ret = hevc_parse_sps_geometry(data + i + 1, end - i - 1, &geometry);
-		if (ret)
-			return ret;
-		mutex_lock(&hevc->lock);
-		hevc->sps = geometry;
-		hevc->sps_dpb_size = max(hevc->sps_dpb_size, geometry.dpb);
-		mutex_unlock(&hevc->lock);
+	mutex_lock(&hevc->lock);
+	ret = hevc_input_geometry(&hevc->parameters, data, length, &geometry);
+	if (ret < 0)
+		goto unlock;
+	hevc->sps_dpb_size = max(hevc->sps_dpb_size, hevc->parameters.max_dpb);
+	if (ret > 0) {
+		input = kmalloc(sizeof(*input), GFP_KERNEL);
+		if (!input) {
+			ret = -ENOMEM;
+			goto unlock;
+		}
+		input->offset = offset;
+		input->geometry = geometry;
+		list_add_tail(&input->list, &hevc->input_pictures);
 	}
-	return 0;
+	ret = 0;
+unlock:
+	mutex_unlock(&hevc->lock);
+	return ret;
 }
 
 static void codec_hevc_capture_queued(struct amvdec_session *sess)
@@ -1729,6 +1754,7 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 		dev_dbg(core->dev, "HEVC firmware EOS: pending pictures %u\n", hevc->frames_num);
 		hevc->eos_seen = true;
 		codec_hevc_flush_output(sess);
+		codec_hevc_clear_inputs(hevc);
 		codec_hevc_finish_eos(sess);
 		goto unlock;
 	}

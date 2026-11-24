@@ -57,12 +57,14 @@ struct codec_mpeg4 {
 
 static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
 
-static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
+static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
+				     u32 offset)
 {
 	struct codec_mpeg4 *mpeg4 = sess->priv;
 	u32 capacity;
 	int ret;
 
+	(void)offset;
 	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
 		return 0;
 	capacity = min_t(unsigned long, SZ_1M, vb2_plane_size(vb, 0));

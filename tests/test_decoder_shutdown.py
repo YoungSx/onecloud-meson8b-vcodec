@@ -29,6 +29,7 @@ static void mutex_destroy(int *p){(void)p;assert(!locked);}
 static void dma_free_coherent(void *d,unsigned n,void *p,dma_addr_t a){(void)d;(void)a;assert(n==4096 && locked);freed++;free(p);}
 void codec_hevc_flush_output(struct amvdec_session *s){(void)s;queued++;}
 void codec_hevc_forget_frames(struct codec_hevc *h){(void)h;assert(locked);forgotten++;}
+void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(locked);}
 '''
         code += source[start:end]
         code += r'''

@@ -36,12 +36,12 @@ int main(void){
  memcpy(data+44,"abc",3);
  struct codec_vc1 v={0};struct format f={1};struct amvdec_session s={&v,&f,320,240};
  struct vb2_buffer b={data,47,sizeof(data)};
- s.width=640;assert(codec_vc1_inspect_input(&s,&b)==-EINVAL&&!v.sequence_seen&&b.payload==47);
- s.width=320;assert(!codec_vc1_inspect_input(&s,&b)&&v.sequence_seen&&b.payload==55);
+ s.width=640;assert(codec_vc1_inspect_input(&s,&b,0)==-EINVAL&&!v.sequence_seen&&b.payload==47);
+ s.width=320;assert(!codec_vc1_inspect_input(&s,&b,0)&&v.sequence_seen&&b.payload==55);
  assert(!memcmp(data+52,"abc",3));
  memset(data,0,sizeof(data));data[0]=3;memcpy(data+8,"def",3);b.payload=11;
- assert(!codec_vc1_inspect_input(&s,&b)&&b.payload==25&&!memcmp(data+22,"def",3));
- f.pixfmt=2;b.data=NULL;b.payload=0;assert(!codec_vc1_inspect_input(&s,&b));
+ assert(!codec_vc1_inspect_input(&s,&b,0)&&b.payload==25&&!memcmp(data+22,"def",3));
+ f.pixfmt=2;b.data=NULL;b.payload=0;assert(!codec_vc1_inspect_input(&s,&b,0));
  return 0;
 }
 '''

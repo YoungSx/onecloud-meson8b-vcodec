@@ -117,6 +117,11 @@ static void codec_hevc_forget_frames(struct codec_hevc *h){h->cur_frame=h->col_f
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){changes++;s->width=w;s->height=h;s->dpb_size=n;}
 static void codec_hevc_flush_output(struct amvdec_session *s){struct codec_hevc *h=s->priv;assert(!h->frames_num);h->cur_frame=h->col_frame=0;}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
+static bool codec_hevc_geometry_for_offset(struct codec_hevc *h,u32 o,struct hevc_sps_geometry *g){
+ (void)o;*g=(struct hevc_sps_geometry){.coded_width=h->rpm_param.p.pic_width_in_luma_samples,.coded_height=h->rpm_param.p.pic_height_in_luma_samples,
+ .width=h->rpm_param.p.pic_width_in_luma_samples,.height=h->rpm_param.p.pic_height_in_luma_samples};return true;
+}
 ''' + slices + retry + irq + r'''
 static void init(struct codec_hevc *h){
  *h=(struct codec_hevc){.curr_poc=INVALID_POC,.width=704,.height=576,.dst_width=704,.dst_height=576,.dpb_size=6,

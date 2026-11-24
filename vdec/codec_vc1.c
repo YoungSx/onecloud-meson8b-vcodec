@@ -57,11 +57,13 @@ struct codec_vc1 {
 	bool sequence_seen;
 };
 
-static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb)
+static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
+				   u32 offset)
 {
 	struct codec_vc1 *vc1 = sess->priv;
 	int size;
 
+	(void)offset;
 	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_VC1_ANNEX_L)
 		return 0;
 	size = wmv3_prepare_packet(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
