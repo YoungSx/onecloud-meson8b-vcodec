@@ -86,6 +86,7 @@ typedef uint32_t u32;typedef uint64_t dma_addr_t;typedef int irqreturn_t;
 #define IRQ_HANDLED 1
 #define HEVC_NAL_SEARCH_DONE 9
 #define HEVC_SLICE_SEGMENT_DONE 8
+#define HEVC_REFERENCE_CHANGE 2
 #define HEVC_DEC_STATUS_REG HEVC_ASSIST_SCRATCH_0
 #define dev_dbg(...) ((void)0)
 #define dev_err(...) ((void)0)
@@ -94,7 +95,7 @@ typedef uint32_t u32;typedef uint64_t dma_addr_t;typedef int irqreturn_t;
 #include "hevc_regs.h"
 enum amvdec_status {STATUS_STOPPED,STATUS_RUNNING,STATUS_NEEDS_RESUME};
 struct hevc_frame {int value;};
-struct codec_hevc {int lock;u32 dpb_size,dst_width,dst_height;bool client_waited,eos_seen,waiting_for_buffer;};
+struct codec_hevc {int lock;u32 dpb_size,dst_width,dst_height,frames_num;bool client_waited,eos_seen,waiting_for_buffer;};
 struct amvdec_core {void *dev_dec;};struct amvdec_format {u32 min_buffers,max_buffers;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma;};
 struct amvdec_session {struct amvdec_core *core;void *priv;struct amvdec_format *fmt_out;u32 dpb_size;int keyframe_found,streamon_cap;enum amvdec_status status;};

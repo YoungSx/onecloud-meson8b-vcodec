@@ -51,6 +51,8 @@
 
 /* HEVC Constants */
 #define MAX_REF_ACTIVE		16
+#define HEVC_SOURCE_CHANGE	BIT(0)
+#define HEVC_REFERENCE_CHANGE	BIT(1)
 #define MAX_TILE_COL_NUM	4
 #define MAX_TILE_ROW_NUM	4
 #define MAX_SLICE_NUM		800
@@ -778,6 +780,9 @@ static void codec_hevc_flush_output(struct amvdec_session *sess)
 		list_del(&tmp->list);
 		kfree(tmp);
 	}
+	hevc->frames_num = 0;
+	hevc->cur_frame = NULL;
+	hevc->col_frame = NULL;
 }
 
 /* Pictures referencing slots of another geometry are gone with them. */
@@ -1504,6 +1509,9 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    !(param->p.m_temporalId & 7))
 		return -EINVAL;
 
+	if (hevc->width != param->p.pic_width_in_luma_samples ||
+	    hevc->height != param->p.pic_height_in_luma_samples)
+		src_changed |= HEVC_REFERENCE_CHANGE;
 	hevc->width = param->p.pic_width_in_luma_samples;
 	hevc->height = param->p.pic_height_in_luma_samples;
 	dst_width = hevc->width;
@@ -1566,11 +1574,10 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 			return -EINVAL;
 	}
 
-	if (dst_width != hevc->dst_width ||
-	    dst_height != hevc->dst_height ||
-	    lcu_size != hevc->lcu_size ||
-	    is_10bit != hevc->is_10bit)
-		src_changed = 1;
+	if (dst_width != hevc->dst_width || dst_height != hevc->dst_height)
+		src_changed |= HEVC_SOURCE_CHANGE;
+	if (lcu_size != hevc->lcu_size || is_10bit != hevc->is_10bit)
+		src_changed |= HEVC_REFERENCE_CHANGE;
 
 	hevc->dst_width = dst_width;
 	hevc->dst_height = dst_height;
@@ -1749,10 +1756,13 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 			enum amvdec_status status = sess->status;
 
 			sess->status = STATUS_NEEDS_RESUME;
-			if (last)
+			if (last) {
 				codec_hevc_deliver_frame(sess, last);
+				hevc->frames_num--;
+			}
 			sess->status = status;
-			codec_hevc_forget_frames(hevc);
+			if (ret & HEVC_REFERENCE_CHANGE)
+				codec_hevc_flush_output(sess);
 			amvdec_src_change(sess, hevc->dst_width, hevc->dst_height,
 					 hevc->dpb_size);
 			goto unlock;

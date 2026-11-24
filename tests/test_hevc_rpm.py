@@ -28,6 +28,8 @@ class HevcRpmTests(unittest.TestCase):
 typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef int32_t s32;
 #define RPM_SIZE 0x80
 #define MAX_REF_ACTIVE 16
+#define HEVC_SOURCE_CHANGE 1
+#define HEVC_REFERENCE_CHANGE 2
 #define SAO_VB_SIZE 0x30000
 #define SAO_ABV_SIZE 0x30000
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -51,7 +53,7 @@ int main(void){
  h.rpm_param.p.log2_diff_max_min_coding_block_size=3;h.rpm_param.p.log2_max_pic_order_cnt_lsb_minus4=4;
  h.rpm_param.p.m_temporalId=1;h.rpm_param.p.slice_type=1;h.rpm_param.p.num_ref_idx_l0_active=1;
  h.rpm_param.p.first_slice_segment_in_pic_flag=1;
- assert(codec_hevc_process_rpm(&s)==1&&h.lcu_total==510&&h.lcu_size==64);
+ assert(codec_hevc_process_rpm(&s)>0&&h.lcu_total==510&&h.lcu_size==64);
  /* Low-delay SPS can require ten retained pictures with no output reorder. */
  h.applied=(struct hevc_sps_geometry){.coded_width=1920,.coded_height=1088,.width=1920,.height=1088,.dpb=10};
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size>=h.applied.dpb);
@@ -79,6 +81,15 @@ int main(void){
  h.rpm_param.p.slice_segment_address=0;h.rpm_param.p.pic_width_in_luma_samples=0;
  BAD(log2_max_pic_order_cnt_lsb_minus4,65535);
  assert(!codec_hevc_process_rpm(&s));
+ /* Coded geometry can grow while its conformance window keeps visible size. */
+ h=(struct codec_hevc){.width=320,.height=192,.dst_width=320,.dst_height=192,.lcu_size=64};
+ h.sps=(struct hevc_sps_geometry){.coded_width=384,.coded_height=192,.width=320,.height=192,.dpb=5};
+ h.rpm_param.p.pic_width_in_luma_samples=384;h.rpm_param.p.pic_height_in_luma_samples=192;
+ h.rpm_param.p.log2_diff_max_min_coding_block_size=3;h.rpm_param.p.m_temporalId=1;
+ assert(codec_hevc_process_rpm(&s)==HEVC_REFERENCE_CHANGE&&h.dst_width==320&&h.width==384);
+ /* Visible-only changes must not invalidate same-coded-size references. */
+ h.applied=(struct hevc_sps_geometry){.coded_width=384,.coded_height=192,.left=4,.width=316,.height=192,.dpb=5};
+ assert(codec_hevc_process_rpm(&s)==HEVC_SOURCE_CHANGE&&s.crop_left==4&&h.dst_width==316);
  return 0;}
 '''
         with tempfile.TemporaryDirectory() as directory:

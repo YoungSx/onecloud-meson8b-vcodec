@@ -55,6 +55,8 @@ typedef int irqreturn_t;
 #define HEVC_SLICE_SEGMENT_DONE 8
 #define HEVC_NAL_SEARCH_DONE 9
 #define HEVC_ACTION_DONE 0xff
+#define HEVC_SOURCE_CHANGE 1
+#define HEVC_REFERENCE_CHANGE 2
 #define AMRISC_MAIN_REQ 4
 #define BIT(n) (1u<<(n))
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -71,7 +73,7 @@ enum amvdec_status {STATUS_STOPPED,STATUS_RUNNING,STATUS_NEEDS_RESUME};
 struct hevc_frame {u32 poc,cur_slice_idx,cur_slice_type;};
 struct codec_hevc {
  int lock;union rpm_param rpm_param;struct hevc_frame *cur_frame,*col_frame;
- u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;
+ u32 width,height,dst_width,dst_height,dpb_size,sps_dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size,frames_num;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;
  bool have_picture,skip_rasl,new_tile,waiting_for_buffer,client_waited,eos_seen;
  int is_10bit;struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;struct hevc_tile tile;
@@ -113,7 +115,7 @@ static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *s,bool 
 static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame *f){(void)s;(void)f;assert(0);}
 static void codec_hevc_forget_frames(struct codec_hevc *h){h->cur_frame=h->col_frame=0;}
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){changes++;s->width=w;s->height=h;s->dpb_size=n;}
-static void codec_hevc_flush_output(struct amvdec_session *s){(void)s;assert(0);}
+static void codec_hevc_flush_output(struct amvdec_session *s){struct codec_hevc *h=s->priv;assert(!h->frames_num);h->cur_frame=h->col_frame=0;}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
 ''' + slices + retry + irq + r'''
 static void init(struct codec_hevc *h){
