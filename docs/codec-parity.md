@@ -60,6 +60,11 @@ H.263自定义尺寸按32×32至1920×1080、4像素步进协商，宏块按向�
 基准，下一POC 4保持4，不被错误算成-12。实际函数14,976组POC/基准输入
 与固定FFmpeg 7.0.2算法一致，另覆盖B列表和MPRED低延迟位。
 
+新会话CRA及BLA按厂商路径丢弃较小POC的RASL前导图片，连续播放的后续
+CRA保留有效RASL，RADL不丢弃。丢弃先于几何/DPB/参考表与像素阶段，每幅
+仅首slice消耗对应时间戳，再以ACTION_DONE继续搜索。slice头只解析一次，
+CAPTURE协商/缓冲重试不重置随机接入状态；当前仅主机/ARM验证，未实机。
+
 固定S805厂商[源](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/vh265.c#L3177)
 把LongTerm_Curr/Col/Ref设为0并标TODO；不能以LT寄存器存在作为完整协议
 依据。当前短期参考路径显式清零HEVC_MPRED_LT_REF，与厂商已实现路径一致。
