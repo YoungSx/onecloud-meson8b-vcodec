@@ -358,6 +358,31 @@ parser失败、取消、INPUT错误及既有H.264回归。119项Python/C sanitiz
 真实搜索继续、序列切换图片/EOS/START/CMA/吞吐均未实机。默认Overlay
 既有phandle警告仍在。未部署/重启，无迅雷原版对照，不构成完整追平。
 
+## 11-24 压缩OUTPUT偏移与扩展输入工作机验证
+
+源`fad2e18`，原5.15.79-meson配置外部/additive decoder均为SHA256
+`cb40f0384f1ee454eb72630823e5fcee9684d985812c828c78e1d28dab043883`。
+Linux 5.15.79 UAPI明确bytesused包含data_offset，旧输入路径忽略offset，
+实际填充函数回归复现前缀/有效载荷被改写。当前检查、封装转换、填充与
+DMA使用同一有效区间；H.263/WMV3转换保留原前缀并更新包含offset的
+bytesused，HEVC快照从有效NAL开始。非法区间在buf_prepare拒绝。
+
+122项Python/C sanitizer回归、原配置完整ARM内核/双模块入口与补丁零fuzz/
+源一致性通过。实际函数覆盖13/17/19/23/32/37字节偏移、转换容量不足、
+前缀不变和DMA地址/长度；原零偏移回归保持。共享VP9封装修复只覆盖既有
+非S805路径，不开放S805 VP9。checkpatch仅有新文件的MAINTAINERS提醒，
+本独立仓库无该文件；忽略FILE_PATH_CHANGES后的代码风格检查零告警。
+
+另核对12份固定FFmpeg 7.0.2 FATE 8-bit样片：10份尺寸范围内的实际前缀
+解析通过，软件共947图CRC与参考一致；其中NUT_A有缺失参考诊断并保留，
+其余9流913图无软件错误。两份PICSIZE流为1056×8440/8440×1056，按当前
+尺寸限制拒绝；拒绝不代表格式完整性缺陷。该检查不执行硬件解码。
+
+记录标识`decoder-input-offset-fad2e18`及`hevc-conformance-input-fad2e18`，
+原件、源码/模块工作区外SHA256归档校验，无永久公开附件。第三方样片未
+作为fixture提交。默认Overlay既有phandle警告仍在。未部署/重启，任意
+offset真实DMA、图片/EOS/CMA/吞吐及迅雷原版对照均无新增实机验收。
+
 ## 编码、质量与码率
 
 11-13/15 编码源 `bd1cb79` 到 `53cd705`/`2811493`：固定 QP、I/P、GOP、
