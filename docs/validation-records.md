@@ -383,6 +383,26 @@ bytesused，HEVC快照从有效NAL开始。非法区间在buf_prepare拒绝。
 作为fixture提交。默认Overlay既有phandle警告仍在。未部署/重启，任意
 offset真实DMA、图片/EOS/CMA/吞吐及迅雷原版对照均无新增实机验收。
 
+## 11-24 解码输入DMA同步工作机验证
+
+源`ad05151`，原5.15.79-meson配置外部/additive decoder均为SHA256
+`d6bd936713c26cd85b4250fe36b0f237726628503b0ad6c36d33d27b907e9e09`。
+核对原Linux 5.15.79 vb2 dma-contig：导入缓冲同步在排队前，后台输入函数
+随后仍读写封装/填充；旧代码缺少DMA-BUF CPU访问配对及最终发布屏障。
+实际队列回归在旧路径的DMA启动处失败。当前begin/end包围全部后台CPU
+准备，end成功才继续，dma_wmb在修改完成后、parser kick前发布数据。
+
+122项Python/C sanitizer回归、严格checkpatch、原配置完整ARM内核/双模块
+入口及补丁零fuzz/源一致性通过。覆盖MMAP/非零offset、导入成功、begin/
+end错误、封装检查/填充失败、后续时间戳分配失败、无inspect的填充路径与
+原错误优先保留。独立移除begin、end、屏障的三种故障注入全部被断言检出；
+所有失败不启动DMA且成功begin只配一次end。
+
+记录标识`decoder-input-dma-ad05151`，原件、源码和模块工作区外本地SHA256
+归档校验，无永久公开附件。主机替身仅验证调用/状态顺序，不执行exporter
+缓存或真实DMA fence。默认Overlay既有phandle警告仍在。未部署/重启，
+导入缓冲实机图片/EOS/CMA/吞吐及迅雷原版对照仍未验收，不构成完整追平。
+
 ## 编码、质量与码率
 
 11-13/15 编码源 `bd1cb79` 到 `53cd705`/`2811493`：固定 QP、I/P、GOP、
