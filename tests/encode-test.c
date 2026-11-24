@@ -62,6 +62,10 @@ static const struct { const char *name; unsigned int id; } names[] = {
 	{ "b-frames", V4L2_CID_MPEG_VIDEO_B_FRAMES },
 	{ "slice-mode", V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE },
 	{ "slice-mb", V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB },
+	{ "sar-enable", V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE },
+	{ "sar-idc", V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC },
+	{ "sar-width", V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_WIDTH },
+	{ "sar-height", V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_HEIGHT },
 	{ "quality", V4L2_CID_JPEG_COMPRESSION_QUALITY },
 };
 /* palette: 16 fixed RGB bars for probing RGB inputs (static texture otherwise) */
@@ -398,7 +402,7 @@ static void apply_controls(unsigned int frame)
 		if (c->frame != frame)
 			continue;
 		ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &s);
-		if (c->reject ? !ret || (errno != EINVAL && errno != ERANGE) : ret) {
+		if (c->reject ? !ret || (errno != EINVAL && errno != ERANGE && errno != EBUSY) : ret) {
 			fprintf(stderr, "controls from %#x=%d: %s\n", c->id, c->value,
 				ret ? strerror(errno) : "accepted, expected rejection");
 			exit(1);

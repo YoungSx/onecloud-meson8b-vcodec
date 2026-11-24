@@ -14,8 +14,10 @@
 
 struct venc_vui {
 	u32 tick, scale;
+	u32 sar_idc, sar_width, sar_height;
 	u8 primaries, transfer, matrix;
 	bool full_range;
+	bool sar_enable;
 };
 
 struct venc_bits {
@@ -75,6 +77,7 @@ static inline void venc_put_ue(struct venc_bits *b, u32 value)
 	venc_put_bits(b, 0, bits);
 	venc_put_bits(b, value + 1, bits + 1);
 }
+
 /* Drop emulation prevention bytes (00 00 03 becomes 00 00). */
 static inline u32 venc_rbsp(const u8 *in, u32 len, u8 *out)
 {
@@ -120,6 +123,13 @@ static inline u32 venc_sps_rewrite(const u8 *nal, u32 len, u32 crop_right,
 	struct venc_bits r = { in, 0, 0, false }, w = { rbsp, VENC_SPS_MAX, 0, false };
 	u32 profile, value, crop[4] = { 0 }, i;
 
+	if (vui && vui->sar_enable &&
+	    (vui->sar_idc > 16 && vui->sar_idc != 255))
+		return 0;
+	if (vui && vui->sar_enable && vui->sar_idc == 255 &&
+	    (!vui->sar_width || !vui->sar_height ||
+	     vui->sar_width > 65535 || vui->sar_height > 65535))
+		return 0;
 	if (len < 4 || len > VENC_SPS_MAX || (nal[0] & 0x1f) != 7)
 		return 0;
 	r.size = venc_rbsp(nal + 1, len - 1, in);
@@ -155,7 +165,14 @@ static inline u32 venc_sps_rewrite(const u8 *nal, u32 len, u32 crop_right,
 		venc_put_ue(&w, crop[i]);
 	venc_put_bits(&w, !!vui, 1);		/* vui_parameters_present_flag */
 	if (vui) {
-		venc_put_bits(&w, 0, 1);		/* aspect_ratio_info_present */
+		venc_put_bits(&w, vui->sar_enable, 1); /* aspect_ratio_info_present */
+		if (vui->sar_enable) {
+			venc_put_bits(&w, vui->sar_idc, 8);
+			if (vui->sar_idc == 255) {
+				venc_put_bits(&w, vui->sar_width, 16);
+				venc_put_bits(&w, vui->sar_height, 16);
+			}
+		}
 		venc_put_bits(&w, 0, 1);		/* overscan_info_present */
 		venc_put_bits(&w, 1, 1);		/* video_signal_type_present */
 		venc_put_bits(&w, 5, 3);		/* unspecified video format */

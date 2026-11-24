@@ -33,7 +33,15 @@ static struct fields parse(const u8 *nal, u32 len)
 			f.crop[i] = venc_get_ue(&b);
 	f.has_vui = venc_get_bits(&b, 1);
 	if (f.has_vui) {
-		assert(venc_get_bits(&b, 2) == 0); /* aspect ratio, overscan absent */
+		f.vui.sar_enable = venc_get_bits(&b, 1);
+		if (f.vui.sar_enable) {
+			f.vui.sar_idc = venc_get_bits(&b, 8);
+			if (f.vui.sar_idc == 255) {
+				f.vui.sar_width = venc_get_bits(&b, 16);
+				f.vui.sar_height = venc_get_bits(&b, 16);
+			}
+		}
+		assert(venc_get_bits(&b, 1) == 0); /* overscan absent */
 		assert(venc_get_bits(&b, 1) == 1 && venc_get_bits(&b, 3) == 5);
 		f.vui.full_range = venc_get_bits(&b, 1);
 		assert(venc_get_bits(&b, 1) == 1);
@@ -89,6 +97,39 @@ int main(void)
 	f = parse(out, len);
 	assert(f.has_vui && f.crop[3] == 4 && f.vui.full_range &&
 	       f.vui.transfer == 13 && f.vui.matrix == 6 && !f.vui.tick);
+	/* Sample aspect is independent of coded crop, colors and frame period. */
+	vui.sar_enable = true;
+	for (u32 idc = 0; idc <= 16; idc++) {
+		vui.sar_idc = idc;
+		len = venc_sps_rewrite(sps854, sizeof(sps854), 5, &vui, out);
+		f = parse(out, len);
+		assert(f.vui.sar_enable && f.vui.sar_idc == idc && f.crop[1] == 5);
+	}
+	vui.sar_idc = 255;
+	vui.sar_width = 17;
+	vui.sar_height = 13;
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out);
+	f = parse(out, len);
+	assert(f.vui.sar_enable && f.vui.sar_idc == 255 &&
+	       f.vui.sar_width == 17 && f.vui.sar_height == 13 && f.crop[3] == 4);
+	vui.sar_width = 65535;
+	vui.sar_height = 65535;
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out);
+	f = parse(out, len);
+	assert(f.vui.sar_width == 65535 && f.vui.sar_height == 65535);
+	vui.sar_width = 0;
+	assert(!venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out));
+	vui.sar_width = 65536;
+	assert(!venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out));
+	vui.sar_width = 17;
+	vui.sar_height = 0;
+	assert(!venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out));
+	vui.sar_idc = 17;
+	assert(!venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out));
+	vui.sar_enable = false;
+	len = venc_sps_rewrite(sps1080, sizeof(sps1080), 0, &vui, out);
+	f = parse(out, len);
+	assert(!f.vui.sar_enable);
 	/* anything else is refused */
 	memcpy(out, sps854, sizeof(sps854));
 	out[1] = 100;	/* High profile carries chroma_format_idc */

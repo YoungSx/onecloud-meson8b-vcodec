@@ -115,7 +115,10 @@ struct venc_ctx {
 	bool multi_slice;		/* MULTI_SLICE_MODE is MAX_MB */
 	u32 slice_max_mb;
 	u32 slice_cfg;			/* FIXED_SLICE_CFG of this picture */
-	struct v4l2_fract timeperframe;	/* feeds the rate control only */
+	bool sar_enable;
+	s32 sar_idc, sar_width, sar_height;
+	struct v4l2_ctrl *sar_controls[4]; /* enable, IDC, extended width/height */
+	struct v4l2_fract timeperframe;	/* rate control and SPS coded-picture period */
 	const struct venc_format *src;	/* negotiated raw input */
 	u32 src_fourcc;			/* its spelling as negotiated */
 	u32 dst_fmt;

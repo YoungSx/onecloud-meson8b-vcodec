@@ -932,7 +932,7 @@ static u32 venc_coded_width(struct venc_ctx *ctx)
 
 /*
  * The SEQUENCE command leaves "00 00 00 01 SPS 00 00 00 01 PPS". Crop the
- * padding columns and publish negotiated colorimetry and nominal timing.
+ * padding columns and publish negotiated colorimetry, aspect and nominal timing.
  */
 static int venc_update_sps(struct venc_ctx *ctx)
 {
@@ -1011,6 +1011,12 @@ static int venc_update_sps(struct venc_ctx *ctx)
 	mutex_lock(ctx->ctrl_handler.lock);
 	vui.tick = ctx->timeperframe.numerator;
 	vui.scale = ctx->timeperframe.denominator * 2;
+	vui.sar_enable = ctx->sar_enable;
+	/* The V4L2 menu's EXTENDED=17 corresponds to H.264 aspect_ratio_idc=255. */
+	vui.sar_idc = ctx->sar_idc == V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_EXTENDED ?
+		      255 : ctx->sar_idc;
+	vui.sar_width = ctx->sar_width;
+	vui.sar_height = ctx->sar_height;
 	mutex_unlock(ctx->ctrl_handler.lock);
 	for (end = 4; end + 4 <= size && memcmp(headers + end, "\0\0\0\1", 4); end++)
 		;
@@ -2109,12 +2115,20 @@ static int venc_try_ctrl(struct v4l2_ctrl *ctrl)
 	    ctx->qp_range[0]->val > ctx->qp_range[1]->val)
 		return -ERANGE;
 	if (ctrl->id == V4L2_CID_MPEG_VIDEO_BITRATE) {
-		u32 peak = ctx->rate_controls[1]->val;
-		u32 cpb = ctx->rate_controls[2]->val;
+		s32 peak = ctx->rate_controls[1]->val;
+		s32 cpb = ctx->rate_controls[2]->val;
 
 		if (!!peak != !!cpb || (peak && peak < ctrl->val))
 			return -ERANGE;
 	}
+	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE && ctx->m2m_ctx &&
+	    (vb2_is_streaming(v4l2_m2m_get_src_vq(ctx->m2m_ctx)) ||
+	     vb2_is_streaming(v4l2_m2m_get_dst_vq(ctx->m2m_ctx))) &&
+	    (ctx->sar_enable != !!ctrl->val ||
+	     ctx->sar_idc != ctx->sar_controls[1]->val ||
+	     ctx->sar_width != ctx->sar_controls[2]->val ||
+	     ctx->sar_height != ctx->sar_controls[3]->val))
+		return -EBUSY; /* The cached SPS cannot change inside a stream. */
 	return 0;
 }
 
@@ -2166,6 +2180,12 @@ static int venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB:
 		ctx->slice_max_mb = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE:
+		ctx->sar_enable = ctrl->val;
+		ctx->sar_idc = ctx->sar_controls[1]->val;
+		ctx->sar_width = ctx->sar_controls[2]->val;
+		ctx->sar_height = ctx->sar_controls[3]->val;
+		break;
 	default:
 		/* B_FRAMES and HEADER_MODE accept their single supported value. */
 		break;
@@ -2211,7 +2231,7 @@ static int venc_open(struct file *file)
 	ctx->rc_config.denominator = 30;
 
 	hdl = &ctx->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(hdl, 20);
+	ret = v4l2_ctrl_handler_init(hdl, 24);
 	if (ret)
 		goto err_free;
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_JPEG_COMPRESSION_QUALITY,
@@ -2266,6 +2286,20 @@ static int venc_open(struct file *file)
 			       V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE);
 	v4l2_ctrl_new_std(hdl, &venc_ctrl_ops, V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
 			  1, 120 * 68, 1, 120 * 68);
+	ctx->sar_controls[0] =
+		v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE, 0, 1, 1, 0);
+	ctx->sar_controls[1] =
+		v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
+				       V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC,
+				       V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_EXTENDED, 0,
+				       V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_UNSPECIFIED);
+	ctx->sar_controls[2] =
+		v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_WIDTH, 1, 65535, 1, 1);
+	ctx->sar_controls[3] =
+		v4l2_ctrl_new_std(hdl, &venc_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_H264_VUI_EXT_SAR_HEIGHT, 1, 65535, 1, 1);
 	/* SPS/PPS lead every IDR; a separate header buffer is not produced */
 	v4l2_ctrl_new_std_menu(hdl, &venc_ctrl_ops,
 			       V4L2_CID_MPEG_VIDEO_HEADER_MODE,
@@ -2278,6 +2312,7 @@ static int venc_open(struct file *file)
 	}
 	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->qp_range), ctx->qp_range);
 	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->rate_controls), ctx->rate_controls);
+	v4l2_ctrl_cluster(ARRAY_SIZE(ctx->sar_controls), ctx->sar_controls);
 	/* state starts from the control defaults */
 	ret = v4l2_ctrl_handler_setup(hdl);
 	if (ret)
