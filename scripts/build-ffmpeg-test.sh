@@ -37,7 +37,7 @@ fi
   --enable-parser=hevc,h264,mjpeg,aac \
   --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo,aac \
   --enable-encoder=rawvideo,wrapped_avframe,h264_v4l2m2m,aac \
-  --enable-bsf=hevc_mp4toannexb,h264_mp4toannexb \
+  --enable-bsf=hevc_mp4toannexb,h264_mp4toannexb,h264_metadata \
   --enable-filter=buffer,buffersink,format,scale,null,setpts,asetpts,aresample,anull,psnr --enable-v4l2-m2m
 make -j"${JOBS:-4}"
 mkdir -p "$root/build/ffmpeg-test"
