@@ -58,7 +58,7 @@ struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_
 struct file {void *private_data;};
 struct v4l2_frmsizeenum {u32 pixel_format,index,type;struct {u32 width,height;} discrete;
  struct {u32 min_width,max_width,step_width,min_height,max_height,step_height;} stepwise;};
-struct vb2_buffer {u8 *data;u32 size,capacity;};
+struct vb2_buffer {u8 *data;u32 size,capacity;struct {u32 data_offset;}planes[1];};
 struct v4l2_plane_pix_format {u32 reserved[1],sizeimage,bytesperline;};
 struct v4l2_pix_format_mplane {struct v4l2_plane_pix_format plane_fmt[3];u32 reserved[1],width,height,pixelformat,num_planes,field;};
 struct v4l2_format {u32 type;struct {struct v4l2_pix_format_mplane pix_mp;} fmt;};
@@ -70,6 +70,7 @@ static u8 *vb2_plane_vaddr(struct vb2_buffer *b,int plane){assert(!plane);return
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,int plane){assert(!plane);return b->size;}
 static u32 vb2_plane_size(struct vb2_buffer *b,int plane){assert(!plane);return b->capacity;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!plane);b->size=n;}
+#include "vdec-input.h"
 ''' + ratio + negotiate + enum + inspect + r'''
 int main(int argc,char **argv){
  assert(argc==3);
@@ -104,9 +105,12 @@ int main(int argc,char **argv){
  assert(fread(original,1,sizeof(original),stream)==8271&&feof(stream));fclose(stream);
  memcpy(input,original,8271);
  struct codec_mpeg4 codec={.h263_output=translated};s.priv=&codec;
- struct vb2_buffer b={input,5573,sizeof(input)};
- assert(!codec_mpeg4_inspect_input(&s,&b,0)&&b.size==9985&&input[3]==0xb6);
+ memmove(input+17,input,8271);memset(input,0xa5,17);
+ struct vb2_buffer b={.data=input,.size=17+5573,.capacity=sizeof(input),.planes={{17}}};
+ assert(!codec_mpeg4_inspect_input(&s,&b,0)&&b.size==17+9985&&input[17+3]==0xb6);
+ for(u32 i=0;i<17;i++)assert(input[i]==0xa5);
  assert(s.pixelaspect.numerator==12&&s.pixelaspect.denominator==11);
+ b.planes[0].data_offset=0;
  memcpy(input,original,8271);b.size=5573;s.width=352;
  assert(codec_mpeg4_inspect_input(&s,&b,0)==-EINVAL&&b.size==5573&&!memcmp(input,original,8271));
  s.width=128;b.capacity=8192;

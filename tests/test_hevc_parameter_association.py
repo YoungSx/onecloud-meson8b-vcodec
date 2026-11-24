@@ -69,9 +69,12 @@ struct codec_hevc {
 };
 struct core {void *dev;};struct format {u32 max_width,max_height;};
 struct amvdec_session {void *priv;struct core *core;struct format *fmt_out;u32 reference_width,reference_height,crop_left,crop_top;};
-struct vb2_buffer {u8 *data;u32 size;};
+struct vb2_buffer {u8 *data;u32 size;struct {u32 data_offset;}planes[1];};
 static void *vb2_plane_vaddr(struct vb2_buffer *b,int p){(void)p;return b->data;}
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,int p){(void)p;return b->size;}
+static unsigned long vb2_plane_size(struct vb2_buffer *b,int p){(void)b;(void)p;return 128;}
+static void vb2_set_plane_payload(struct vb2_buffer *b,int p,u32 n){(void)p;b->size=n;}
+#include "vdec-input.h"
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
 static void mod_delayed_work(int q,int *w,int t){(void)q;(void)w;assert(t==5000);}
 static u32 decode_offset;
@@ -98,7 +101,9 @@ static u32 sps(u8 *packet,u32 left,u32 id,u32 pps_id,u32 dpb,bool output,bool no
  return n;
 }
 int main(void){struct codec_hevc h={0};struct core c={0};struct format f={1920,1088};struct amvdec_session s={.priv=&h,.core=&c,.fmt_out=&f};
- u8 a[128],b[128];struct vb2_buffer first={a,sps(a,0,0,0,5,true,false)},next={b,sps(b,4,0,0,16,false,true)};
+ u8 a[128],b[128];struct vb2_buffer first={.data=a,.size=sps(a,0,0,0,5,true,false)},next={.data=b,.size=sps(b,4,0,0,16,false,true)};
+ memmove(a+19,a,first.size);memset(a,0xa5,19);first.size+=19;first.planes[0].data_offset=19;
+ memmove(b+23,b,next.size);memset(b,0x5a,23);next.size+=23;next.planes[0].data_offset=23;
  h.input_pictures.next=h.input_pictures.prev=&h.input_pictures;
  assert(!codec_hevc_inspect_input(&s,&first,0));assert(!codec_hevc_inspect_input(&s,&next,4096));
  h.rpm_param.p.pic_width_in_luma_samples=320;h.rpm_param.p.pic_height_in_luma_samples=192;
@@ -114,6 +119,9 @@ int main(void){struct codec_hevc h={0};struct core c={0};struct format f={1920,1
  assert(h.dpb_size==16&&h.applied.dpb==16&&!h.picture_output&&h.picture_no_prior);
  assert(h.input_pictures.next==&h.input_pictures&&h.input_pictures.prev==&h.input_pictures);
  assert(codec_hevc_process_rpm(&s)==-EINVAL&&h.dst_width==316&&h.width==320);
+ for(u32 i=0;i<19;i++)assert(a[i]==0xa5);
+ for(u32 i=0;i<23;i++)assert(b[i]==0x5a);
+ first.planes[0].data_offset=next.planes[0].data_offset=0;
  /* Parameter IDs select their own SPS, rather than whichever arrived last. */
  struct hevc_parameter_sets sets={0};struct hevc_picture_info info={0};struct hevc_sps_geometry old;
  first.size=sps(a,0,0,0,5,true,false);assert(hevc_input_picture_info(&sets,a,first.size,&info)==1&&info.geometry.id==0&&info.geometry.width==320);old=info.geometry;
@@ -137,7 +145,7 @@ int main(void){struct codec_hevc h={0};struct core c={0};struct format f={1920,1
  assert(codec_hevc_picture_for_offset(&h,0x28,&info));
  assert(!codec_hevc_picture_for_offset(&h,0x28,&info));
  /* A natural EOS before the next CRA is recorded without consuming that picture's snapshot. */
- const u8 eos[]={0,0,1,0x48,1,0x80};struct vb2_buffer boundary={(u8 *)eos,sizeof(eos)};
+ const u8 eos[]={0,0,1,0x48,1,0x80};struct vb2_buffer boundary={.data=(u8 *)eos,.size=sizeof(eos)};
  assert(!codec_hevc_inspect_input(&s,&boundary,0x30)&&h.pending_eos==1);
  first.size=sps(a,0,0,0,5,true,false);assert(!codec_hevc_inspect_input(&s,&first,0x40));
  h.have_picture=false;h.after_eos=true;h.rpm_param.p.m_nalUnitType=21;decode_offset=0x41;

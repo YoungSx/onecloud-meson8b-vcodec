@@ -884,7 +884,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1935 @@
+@@ -0,0 +1,1936 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -900,6 +900,7 @@
 +#include "dos_regs.h"
 +#include "hevc_regs.h"
 +#include "vdec_helpers.h"
++#include "vdec-input.h"
 +#include "codec_hevc_common.h"
 +#include "hevc-sps.h"
 +#include "hevc-tiles.h"
@@ -2564,8 +2565,8 @@
 +				    u32 offset)
 +{
 +	struct codec_hevc *hevc = sess->priv;
-+	const u8 *data = vb2_plane_vaddr(vb, 0);
-+	u32 length = vb2_get_plane_payload(vb, 0);
++	const u8 *data = amvdec_input_data(vb);
++	u32 length = amvdec_input_size(vb);
 +	struct hevc_picture_info info;
 +	struct hevc_input_picture *input;
 +	int ret;
@@ -3875,7 +3876,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_mpeg4.c
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,308 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -3892,6 +3893,7 @@
 +#include "dos_regs.h"
 +#include "esparser.h"
 +#include "vdec_helpers.h"
++#include "vdec-input.h"
 +#include "h263-vlc.h"
 +
 +/* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
@@ -3945,18 +3947,18 @@
 +	(void)offset;
 +	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
 +		return 0;
-+	capacity = min_t(unsigned long, SZ_1M, vb2_plane_size(vb, 0));
++	capacity = min_t(unsigned long, SZ_1M, amvdec_input_capacity(vb));
 +	if (capacity < 4608)
 +		return -ENOSPC;
 +	/* This firmware has no source-change event; require negotiated geometry. */
-+	ret = h263_translate(&mpeg4->h263, vb2_plane_vaddr(vb, 0),
-+			     vb2_get_plane_payload(vb, 0), mpeg4->h263_output,
++	ret = h263_translate(&mpeg4->h263, amvdec_input_data(vb),
++			     amvdec_input_size(vb), mpeg4->h263_output,
 +			     capacity - 512, sess->width, sess->height);
 +	if (ret < 0)
 +		return ret;
 +	amvdec_set_par_from_ratio(sess, mpeg4->h263.header.pixel_ratio, 6);
-+	memcpy(vb2_plane_vaddr(vb, 0), mpeg4->h263_output, ret);
-+	vb2_set_plane_payload(vb, 0, ret);
++	memcpy(amvdec_input_data(vb), mpeg4->h263_output, ret);
++	amvdec_input_set_size(vb, ret);
 +	return 0;
 +}
 +
@@ -4202,7 +4204,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_vc1.c
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,307 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -4218,6 +4220,7 @@
 +#include "dos_regs.h"
 +#include "esparser.h"
 +#include "vdec_helpers.h"
++#include "vdec-input.h"
 +#include "wmv3-header.h"
 +
 +/*
@@ -4271,12 +4274,12 @@
 +	(void)offset;
 +	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_VC1_ANNEX_L)
 +		return 0;
-+	size = wmv3_prepare_packet(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
-+				   vb2_plane_size(vb, 0), sess->width, sess->height,
++	size = wmv3_prepare_packet(amvdec_input_data(vb), amvdec_input_size(vb),
++				   amvdec_input_capacity(vb), sess->width, sess->height,
 +				   &vc1->sequence_seen);
 +	if (size < 0)
 +		return size;
-+	vb2_set_plane_payload(vb, 0, size);
++	amvdec_input_set_size(vb, size);
 +	return 0;
 +}
 +
@@ -6849,7 +6852,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/esparser.c
-@@ -0,0 +1,520 @@
+@@ -0,0 +1,523 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -6871,6 +6874,7 @@
 +
 +#include "dos_regs.h"
 +#include "esparser.h"
++#include "vdec-input.h"
 +#include "vdec_helpers.h"
 +#include "esparser-padding.h"
 +
@@ -6944,10 +6948,10 @@
 +	int new_frame_size;
 +	unsigned char *old_header = NULL;
 +
-+	dp = (uint8_t *)vb2_plane_vaddr(buf, 0);
-+	dsize = vb2_get_plane_payload(buf, 0);
++	dp = amvdec_input_data(buf);
++	dsize = amvdec_input_size(buf);
 +
-+	if (dsize == vb2_plane_size(buf, 0)) {
++	if (!dp || dsize <= 0 || dsize >= amvdec_input_capacity(buf)) {
 +		dev_warn(core->dev, "%s: unable to update header\n", __func__);
 +		return 0;
 +	}
@@ -6957,6 +6961,8 @@
 +		num_frames = (marker & 0x7) + 1;
 +		mag = ((marker >> 3) & 0x3) + 1;
 +		mag_ptr = dsize - mag * num_frames - 2;
++		if (mag_ptr < 0)
++			return 0;
 +		if (dp[mag_ptr] != marker)
 +			return 0;
 +
@@ -6986,7 +6992,7 @@
 +
 +	new_frame_size = total_datasize + num_frames * VP9_HEADER_SIZE;
 +
-+	if (new_frame_size >= vb2_plane_size(buf, 0)) {
++	if (new_frame_size >= amvdec_input_capacity(buf)) {
 +		dev_warn(core->dev, "%s: unable to update header\n", __func__);
 +		return 0;
 +	}
@@ -7043,8 +7049,8 @@
 +				   struct vb2_buffer *vb,
 +				   u32 payload_size)
 +{
-+	u8 *vaddr = vb2_plane_vaddr(vb, 0);
-+	int pad_size = esparser_pad_buffer(vaddr, payload_size, vb2_plane_size(vb, 0));
++	u8 *vaddr = amvdec_input_data(vb);
++	int pad_size = esparser_pad_buffer(vaddr, payload_size, amvdec_input_capacity(vb));
 +
 +	if (pad_size < 0)
 +		dev_warn(core->dev, "%s: unable to pad start code (payload %u plane %lu)\n",
@@ -7164,8 +7170,8 @@
 +	struct vb2_buffer *vb = &vbuf->vb2_buf;
 +	struct amvdec_core *core = sess->core;
 +	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
-+	u32 payload_size = vb2_get_plane_payload(vb, 0);
-+	dma_addr_t phy = vb2_dma_contig_plane_dma_addr(vb, 0);
++	u32 payload_size = amvdec_input_size(vb);
++	dma_addr_t phy = vb2_dma_contig_plane_dma_addr(vb, 0) + vb->planes[0].data_offset;
 +	u32 num_dst_bufs = 0;
 +	u32 offset;
 +	int pad_size;
@@ -7206,7 +7212,7 @@
 +		return 0;
 +	}
 +	/* Annex L preparation may replace the userspace header with a vendor one. */
-+	payload_size = vb2_get_plane_payload(vb, 0);
++	payload_size = amvdec_input_size(vb);
 +
 +	ret = amvdec_add_ts(sess, vb->timestamp, vbuf->timecode, offset, vbuf->flags);
 +	if (ret) {
@@ -9395,8 +9401,39 @@
 +
 +#endif
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec-input.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef MESON_VDEC_INPUT_H
++#define MESON_VDEC_INPUT_H
++
++/* OUTPUT bytesused includes data_offset; validate their bounds at buf_prepare. */
++static inline u32 amvdec_input_size(struct vb2_buffer *vb)
++{
++	return vb2_get_plane_payload(vb, 0) - vb->planes[0].data_offset;
++}
++
++static inline unsigned long amvdec_input_capacity(struct vb2_buffer *vb)
++{
++	return vb2_plane_size(vb, 0) - vb->planes[0].data_offset;
++}
++
++static inline u8 *amvdec_input_data(struct vb2_buffer *vb)
++{
++	u8 *data = vb2_plane_vaddr(vb, 0);
++
++	return data ? data + vb->planes[0].data_offset : NULL;
++}
++
++static inline void amvdec_input_set_size(struct vb2_buffer *vb, u32 size)
++{
++	vb2_set_plane_payload(vb, 0, vb->planes[0].data_offset + size);
++}
++
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1585 @@
+@@ -0,0 +1,1590 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10084,6 +10121,11 @@
 +		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 +	unsigned int i;
 +
++	if (V4L2_TYPE_IS_OUTPUT(vb->type) &&
++	    (vb->num_planes != 1 ||
++	     vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0) ||
++	     vb->planes[0].data_offset >= vb2_get_plane_payload(vb, 0)))
++		return -EINVAL;
 +	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->core->ge2d_dev)
 +		for (i = 0; i < vb->num_planes; i++)
 +			if (vb->planes[i].data_offset)

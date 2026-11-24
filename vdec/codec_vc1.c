@@ -13,6 +13,7 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
+#include "vdec-input.h"
 #include "wmv3-header.h"
 
 /*
@@ -66,12 +67,12 @@ static int codec_vc1_inspect_input(struct amvdec_session *sess, struct vb2_buffe
 	(void)offset;
 	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_VC1_ANNEX_L)
 		return 0;
-	size = wmv3_prepare_packet(vb2_plane_vaddr(vb, 0), vb2_get_plane_payload(vb, 0),
-				   vb2_plane_size(vb, 0), sess->width, sess->height,
+	size = wmv3_prepare_packet(amvdec_input_data(vb), amvdec_input_size(vb),
+				   amvdec_input_capacity(vb), sess->width, sess->height,
 				   &vc1->sequence_seen);
 	if (size < 0)
 		return size;
-	vb2_set_plane_payload(vb, 0, size);
+	amvdec_input_set_size(vb, size);
 	return 0;
 }
 

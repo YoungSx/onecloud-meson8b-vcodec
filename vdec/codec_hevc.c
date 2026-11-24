@@ -13,6 +13,7 @@
 #include "dos_regs.h"
 #include "hevc_regs.h"
 #include "vdec_helpers.h"
+#include "vdec-input.h"
 #include "codec_hevc_common.h"
 #include "hevc-sps.h"
 #include "hevc-tiles.h"
@@ -1677,8 +1678,8 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 				    u32 offset)
 {
 	struct codec_hevc *hevc = sess->priv;
-	const u8 *data = vb2_plane_vaddr(vb, 0);
-	u32 length = vb2_get_plane_payload(vb, 0);
+	const u8 *data = amvdec_input_data(vb);
+	u32 length = amvdec_input_size(vb);
 	struct hevc_picture_info info;
 	struct hevc_input_picture *input;
 	int ret;

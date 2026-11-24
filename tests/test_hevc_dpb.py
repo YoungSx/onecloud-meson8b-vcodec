@@ -42,9 +42,12 @@ struct codec_hevc {int lock,watchdog;bool eos_seen;u32 pending_eos,dpb_size;stru
 static void *kmalloc(unsigned long n,int f){(void)n;(void)f;assert(0);return 0;}
 static void list_add_tail(struct list_head *p,struct list_head *h){(void)p;(void)h;assert(0);}
 struct amvdec_session {void *priv;};
-struct vb2_buffer {u8 *data;u32 size;};
+struct vb2_buffer {u8 *data;u32 size;struct {u32 data_offset;}planes[1];};
 static void *vb2_plane_vaddr(struct vb2_buffer *b,int p){(void)p;return b->data;}
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,int p){(void)p;return b->size;}
+static unsigned long vb2_plane_size(struct vb2_buffer *b,int p){(void)b;(void)p;return 128;}
+static void vb2_set_plane_payload(struct vb2_buffer *b,int p,u32 n){(void)p;b->size=n;}
+#include "vdec-input.h"
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
 static void mod_delayed_work(int q,int *w,int t){(void)q;(void)w;assert(t==5000);}
 ''' + body + r'''
@@ -66,7 +69,7 @@ static u32 sps(u8 *packet,u32 dpb){
  }
  return n;
 }
-int main(void){struct codec_hevc h={.dpb_size=6};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={packet,0};
+int main(void){struct codec_hevc h={.dpb_size=6};struct amvdec_session s={&h};u8 packet[128];struct vb2_buffer b={.data=packet};
  b.size=sps(packet,10);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==10&&h.dpb_size==6);
  b.size=sps(packet,5);assert(!codec_hevc_inspect_input(&s,&b,0));assert(h.parameters.sps[0].dpb==5&&h.dpb_size==6);
  b.size=sps(packet,16);assert(!codec_hevc_inspect_input(&s,&b,0)&&h.parameters.sps[0].dpb==16&&h.dpb_size==6);

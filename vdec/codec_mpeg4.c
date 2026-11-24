@@ -14,6 +14,7 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
+#include "vdec-input.h"
 #include "h263-vlc.h"
 
 /* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
@@ -67,18 +68,18 @@ static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buf
 	(void)offset;
 	if (sess->fmt_out->pixfmt != V4L2_PIX_FMT_H263)
 		return 0;
-	capacity = min_t(unsigned long, SZ_1M, vb2_plane_size(vb, 0));
+	capacity = min_t(unsigned long, SZ_1M, amvdec_input_capacity(vb));
 	if (capacity < 4608)
 		return -ENOSPC;
 	/* This firmware has no source-change event; require negotiated geometry. */
-	ret = h263_translate(&mpeg4->h263, vb2_plane_vaddr(vb, 0),
-			     vb2_get_plane_payload(vb, 0), mpeg4->h263_output,
+	ret = h263_translate(&mpeg4->h263, amvdec_input_data(vb),
+			     amvdec_input_size(vb), mpeg4->h263_output,
 			     capacity - 512, sess->width, sess->height);
 	if (ret < 0)
 		return ret;
 	amvdec_set_par_from_ratio(sess, mpeg4->h263.header.pixel_ratio, 6);
-	memcpy(vb2_plane_vaddr(vb, 0), mpeg4->h263_output, ret);
-	vb2_set_plane_payload(vb, 0, ret);
+	memcpy(amvdec_input_data(vb), mpeg4->h263_output, ret);
+	amvdec_input_set_size(vb, ret);
 	return 0;
 }
 

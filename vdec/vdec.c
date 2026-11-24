@@ -685,6 +685,11 @@ static int vdec_vb2_buf_prepare(struct vb2_buffer *vb)
 		container_of(vbuf, struct amvdec_vb2_buffer, vb);
 	unsigned int i;
 
+	if (V4L2_TYPE_IS_OUTPUT(vb->type) &&
+	    (vb->num_planes != 1 ||
+	     vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0) ||
+	     vb->planes[0].data_offset >= vb2_get_plane_payload(vb, 0)))
+		return -EINVAL;
 	if (V4L2_TYPE_IS_CAPTURE(vb->type) && sess->core->ge2d_dev)
 		for (i = 0; i < vb->num_planes; i++)
 			if (vb->planes[i].data_offset)

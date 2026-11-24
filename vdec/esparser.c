@@ -19,6 +19,7 @@
 
 #include "dos_regs.h"
 #include "esparser.h"
+#include "vdec-input.h"
 #include "vdec_helpers.h"
 #include "esparser-padding.h"
 
@@ -92,10 +93,10 @@ static int vp9_update_header(struct amvdec_core *core, struct vb2_buffer *buf)
 	int new_frame_size;
 	unsigned char *old_header = NULL;
 
-	dp = (uint8_t *)vb2_plane_vaddr(buf, 0);
-	dsize = vb2_get_plane_payload(buf, 0);
+	dp = amvdec_input_data(buf);
+	dsize = amvdec_input_size(buf);
 
-	if (dsize == vb2_plane_size(buf, 0)) {
+	if (!dp || dsize <= 0 || dsize >= amvdec_input_capacity(buf)) {
 		dev_warn(core->dev, "%s: unable to update header\n", __func__);
 		return 0;
 	}
@@ -105,6 +106,8 @@ static int vp9_update_header(struct amvdec_core *core, struct vb2_buffer *buf)
 		num_frames = (marker & 0x7) + 1;
 		mag = ((marker >> 3) & 0x3) + 1;
 		mag_ptr = dsize - mag * num_frames - 2;
+		if (mag_ptr < 0)
+			return 0;
 		if (dp[mag_ptr] != marker)
 			return 0;
 
@@ -134,7 +137,7 @@ static int vp9_update_header(struct amvdec_core *core, struct vb2_buffer *buf)
 
 	new_frame_size = total_datasize + num_frames * VP9_HEADER_SIZE;
 
-	if (new_frame_size >= vb2_plane_size(buf, 0)) {
+	if (new_frame_size >= amvdec_input_capacity(buf)) {
 		dev_warn(core->dev, "%s: unable to update header\n", __func__);
 		return 0;
 	}
@@ -191,8 +194,8 @@ static int esparser_pad_start_code(struct amvdec_core *core,
 				   struct vb2_buffer *vb,
 				   u32 payload_size)
 {
-	u8 *vaddr = vb2_plane_vaddr(vb, 0);
-	int pad_size = esparser_pad_buffer(vaddr, payload_size, vb2_plane_size(vb, 0));
+	u8 *vaddr = amvdec_input_data(vb);
+	int pad_size = esparser_pad_buffer(vaddr, payload_size, amvdec_input_capacity(vb));
 
 	if (pad_size < 0)
 		dev_warn(core->dev, "%s: unable to pad start code (payload %u plane %lu)\n",
@@ -312,8 +315,8 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 	struct vb2_buffer *vb = &vbuf->vb2_buf;
 	struct amvdec_core *core = sess->core;
 	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
-	u32 payload_size = vb2_get_plane_payload(vb, 0);
-	dma_addr_t phy = vb2_dma_contig_plane_dma_addr(vb, 0);
+	u32 payload_size = amvdec_input_size(vb);
+	dma_addr_t phy = vb2_dma_contig_plane_dma_addr(vb, 0) + vb->planes[0].data_offset;
 	u32 num_dst_bufs = 0;
 	u32 offset;
 	int pad_size;
@@ -354,7 +357,7 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		return 0;
 	}
 	/* Annex L preparation may replace the userspace header with a vendor one. */
-	payload_size = vb2_get_plane_payload(vb, 0);
+	payload_size = amvdec_input_size(vb);
 
 	ret = amvdec_add_ts(sess, vb->timestamp, vbuf->timecode, offset, vbuf->flags);
 	if (ret) {
