@@ -333,6 +333,31 @@ EOS/CRA，当前仍无该继续路径的固件验收。第三方样片保留外�
 归档校验，无永久公开附件。默认Overlay既有phandle警告仍在。未部署/重启，
 无新增实机输出标志/取消/EOS/CMA/吞吐或迅雷原版对照，不构成完整追平。
 
+## 11-24 HEVC 码流内EOS序列继续工作机验证
+
+源`6f07fb4`，原5.15.79-meson配置外部/additive decoder均为SHA256
+`d862a8b40ac69e98d4d0280ae3c3d19af142c40726f96b0916bbb5dea7a6db77`。
+旧固件EOS处理不区分码流序列边界与STOP终止符，提前LAST并清空后续AU。
+实际IRQ回归修复前失败。当前预读计数自然EOS，驱动drain标记在parser
+提交前单独发布；即使STOP已请求，旧自然EOS仍先消耗而不结束CAPTURE。
+自然边界保持后续快照和重排尾图，确认前图完成，清当前/col指针及slice
+位置，下一CRA重新随机接入并推断不输出旧尾图。最终drain才排空与LAST，
+未知/重复终止通知中止而不重复LAST。
+
+STOP在会话锁下等待已取走的最后OUTPUT提交，再追加终止符，后续数据等
+START显式唤醒。线程屏障回归移除该锁即复现终止符先于最后输入；保留
+parser失败、取消、INPUT错误及既有H.264回归。119项Python/C sanitizer、
+严格checkpatch、原配置完整ARM内核/双模块入口和补丁零fuzz/源一致性通过。
+标准NoOutPrior A在第26个packet含EOS/VPS/SPS/PPS/CRA；50图控制流回放
+丢3幅旧尾图、跳7幅RASL、输出40。官方ARM FFmpeg 7.0.2与主机6.1.1
+软件各40图SHA256相同；此前FATE CRC一致。五流800 AU前缀回归确认仅该流
+含一次自然EOS，输出标志保持一致。第三方输入仅外部验证，不作为fixture。
+
+记录标识`hevc-inband-eos-6f07fb4`，原件、源码及模块工作区外本地SHA256
+归档校验，无永久公开附件。主机回放不执行固件或像素硬件，ACTION_DONE后
+真实搜索继续、序列切换图片/EOS/START/CMA/吞吐均未实机。默认Overlay
+既有phandle警告仍在。未部署/重启，无迅雷原版对照，不构成完整追平。
+
 ## 编码、质量与码率
 
 11-13/15 编码源 `bd1cb79` 到 `53cd705`/`2811493`：固定 QP、I/P、GOP、
