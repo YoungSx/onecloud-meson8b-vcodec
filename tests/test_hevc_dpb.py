@@ -37,7 +37,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;
 #include "hevc-sps.h"
 struct list_head {int unused;};
 struct hevc_input_picture {struct list_head list;u32 offset;struct hevc_picture_info info;};
-struct codec_hevc {int lock,watchdog;u32 dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
+struct codec_hevc {int lock,watchdog;bool eos_seen;u32 pending_eos,dpb_size;struct hevc_parameter_sets parameters;struct list_head input_pictures;};
 #define GFP_KERNEL 0
 static void *kmalloc(unsigned long n,int f){(void)n;(void)f;assert(0);return 0;}
 static void list_add_tail(struct list_head *p,struct list_head *h){(void)p;(void)h;assert(0);}
@@ -121,12 +121,11 @@ static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *s,bool 
 static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame *f){(void)s;(void)f;assert(0);}
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){(void)s;(void)w;(void)h;(void)n;changes++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){(void)s;assert(0);}
-static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+static void codec_hevc_handle_eos(struct amvdec_session *s){(void)s;assert(0);}
 #define AMVDEC_POOL_RESTART 3
 static void amvdec_pool_end(struct amvdec_session *s,int end){(void)s;(void)end;assert(0);}
 static void codec_hevc_discard_prior_output(struct amvdec_session *s){(void)s;}
 static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;}
-static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static int codec_hevc_process_segment(struct amvdec_session *s){(void)s;segments++;return 0;}
 ''' + setup + irq + r'''
 int main(void){struct codec_hevc h={0};struct amvdec_core c={0};struct amvdec_format f={6,16};struct amvdec_session s={.core=&c,.priv=&h,.fmt_out=&f,.streamon_cap=1,.status=STATUS_RUNNING};

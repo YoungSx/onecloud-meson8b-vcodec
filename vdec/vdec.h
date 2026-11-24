@@ -217,7 +217,8 @@ struct amvdec_ops {
  *	     in pair with @can_recycle
  * @drain: optional call if the codec has a custom way of draining
  * @eos_sequence: optional call to get an end sequence to send to esparser
- *		  for flush. Mutually exclusive with @drain.
+ *		  for flush; may record its session marker before submission.
+ *		  Mutually exclusive with @drain.
  * @isr: mandatory call when the ISR triggers
  * @threaded_isr: mandatory call for the threaded ISR
  */
@@ -236,7 +237,7 @@ struct amvdec_codec_ops {
 	void (*recycle)(struct amvdec_core *core, u32 buf_idx);
 	void (*drain)(struct amvdec_session *sess);
 	void (*resume)(struct amvdec_session *sess);
-	const u8 * (*eos_sequence)(u32 *len);
+	const u8 * (*eos_sequence)(struct amvdec_session *sess, u32 *len);
 	irqreturn_t (*isr)(struct amvdec_session *sess);
 	irqreturn_t (*threaded_isr)(struct amvdec_session *sess);
 };

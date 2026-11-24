@@ -1030,6 +1030,7 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 		v4l2_m2m_clear_state(sess->m2m_ctx);
 		sess->should_stop = 0;
 		WRITE_ONCE(sess->stop_requested, false);
+		schedule_work(&sess->esparser_queue_work);
 		return 0;
 	}
 
@@ -1052,7 +1053,10 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 			return -ETIMEDOUT;
 		}
 	}
+	/* A worker can already have removed the final OUTPUT buffer for submission. */
+	mutex_lock(&sess->lock);
 	WRITE_ONCE(sess->stop_requested, true);
+	mutex_unlock(&sess->lock);
 
 	if (!codec_ops->firmware_eos) {
 		sess->should_stop = 1;
@@ -1067,7 +1071,7 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 			codec_ops->drain(sess);
 	} else if (codec_ops->eos_sequence) {
 		u32 len;
-		const u8 *data = codec_ops->eos_sequence(&len);
+		const u8 *data = codec_ops->eos_sequence(sess, &len);
 
 		ret = esparser_queue_eos(sess->core, data, len);
 		if (ret) {

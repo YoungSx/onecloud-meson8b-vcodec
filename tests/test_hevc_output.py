@@ -116,6 +116,10 @@ int main(void){struct codec_hevc h={.curr_poc=7};struct amvdec_core c={0};struct
                          source.index("static void\ncodec_hevc_set_sao(")]
         segment = source[source.index("static int codec_hevc_process_segment("):
                          source.index("static int codec_hevc_process_rpm(")]
+        eos = source[source.index("static void codec_hevc_handle_eos("):
+                     source.index("static irqreturn_t codec_hevc_threaded_isr(")]
+        rasl = source[source.index("static bool codec_hevc_is_skipped_rasl("):
+                      source.index("static int codec_hevc_process_segment(")]
         code = r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -139,6 +143,10 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef int32_t s32
 #define HEVC_CODED_SLICE_SEGMENT_DAT 5
 #define HEVC_ACTION_DONE 255
 #define AMRISC_MAIN_REQ 4
+#define NAL_UNIT_CODED_SLICE_RASL_N 8
+#define NAL_UNIT_CODED_SLICE_RASL_R 9
+#define INVALID_POC 0x80000000u
+#define READ_ONCE(x) (x)
 #include "hevc_regs.h"
 #include "hevc-tiles.h"
 struct list_head {struct list_head *next,*prev;};
@@ -153,15 +161,14 @@ static void list_add_tail(struct list_head *p,struct list_head *h){p->prev=h->pr
 struct amvdec_geometry {u32 width,height,reference_width,reference_height,crop_left,crop_top;};
 struct hevc_frame {struct list_head list;u32 slot,poc,cur_slice_type,cur_slice_idx,num_reorder_pic,offset;int referenced,show;struct amvdec_geometry geo;};
 union rpm_param {struct {u32 slice_type,sps_num_reorder_pics_0,slice_segment_address,m_nalUnitType;}p;};
-struct codec_hevc {union rpm_param rpm_param;u32 curr_poc,frames_num;struct list_head ref_frames_list;bool picture_output,picture_no_prior,skip_rasl,new_tile;struct hevc_frame *cur_frame,*col_frame;struct hevc_tile_grid tiles;struct hevc_tile tile;};
-struct amvdec_core {void *dev;};struct amvdec_session {void *priv;struct amvdec_core *core;u32 width,height,reference_width,reference_height,crop_left,crop_top;};
+struct codec_hevc {union rpm_param rpm_param;u32 curr_poc,frames_num,pending_eos,col_poc,slice_addr,slice_segment_addr,random_access_poc;struct list_head ref_frames_list;bool picture_output,picture_no_prior,skip_rasl,new_tile,have_picture,after_eos,drain_pending,eos_seen;struct hevc_frame *cur_frame,*col_frame;struct hevc_tile_grid tiles;struct hevc_tile tile;};
+struct amvdec_core {void *dev;};struct amvdec_session {void *priv;struct amvdec_core *core;u32 width,height,reference_width,reference_height,crop_left,crop_top;bool stop_requested;int esparser_queue_work;};
 static u32 held,offset,output_offsets[64],discarded_offsets[16];static int delivered,discarded;
 static int amvdec_pool_take(struct amvdec_session *s){(void)s;for(int i=0;i<16;i++)if(!(held&(1u<<i))){held|=1u<<i;return i;}return -1;}
 static void amvdec_pool_release(struct amvdec_session *s,u32 slot){(void)s;assert(held&(1u<<slot));held&=~(1u<<slot);}
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;assert(r==HEVC_SHIFT_BYTE_COUNT);return offset;}
 static void amvdec_drop_picture_offset(struct amvdec_session *s,u32 o){(void)s;assert(discarded<16);discarded_offsets[discarded++]=o;}
 static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame *f){(void)s;assert(delivered<64);output_offsets[delivered++]=f->offset;}
-static bool codec_hevc_is_skipped_rasl(struct codec_hevc *h){(void)h;return false;}
 static void codec_hevc_update_referenced(struct codec_hevc *h){struct hevc_frame *f;list_for_each_entry(f,&h->ref_frames_list,list)f->referenced=0;}
 static int codec_hevc_update_frame_refs(struct amvdec_session *s,struct hevc_frame *f){(void)s;(void)f;return 0;}
 static int codec_hevc_update_col_frame(struct codec_hevc *h){h->col_frame=h->cur_frame;return 0;}
@@ -170,10 +177,14 @@ static int codec_hevc_set_mc(struct amvdec_session *s,struct hevc_frame *f){(voi
 static void codec_hevc_set_mcrcc(struct amvdec_session *s){(void)s;}
 static void codec_hevc_set_mpred(struct amvdec_session *s,struct hevc_frame *f,struct hevc_frame *c){(void)s;(void)f;(void)c;}
 static void codec_hevc_set_sao(struct amvdec_session *s,struct hevc_frame *f){(void)s;(void)f;}
-static void amvdec_clear_dos_bits(struct amvdec_core *c,u32 r,u32 v){(void)c;(void)r;(void)v;assert(0);}
+static void amvdec_clear_dos_bits(struct amvdec_core *c,u32 r,u32 v){(void)c;(void)r;(void)v;}
 static void amvdec_write_dos_bits(struct amvdec_core *c,u32 r,u32 v){(void)c;(void)r;(void)v;}
 static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 v){(void)c;(void)r;(void)v;}
-''' + pending + flush + prepare + segment + r'''
+static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
+static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+static void amvdec_abort(struct amvdec_session *s){(void)s;assert(0);}
+static void schedule_work(int *p){(void)p;}
+''' + pending + flush + prepare + rasl + segment + eos + r'''
 int main(void){struct codec_hevc h={.picture_output=true};struct amvdec_core c={0};struct amvdec_session s={.priv=&h,.core=&c,.width=320,.height=192};
  h.ref_frames_list.next=h.ref_frames_list.prev=&h.ref_frames_list;
  u16 widths[4]={0},heights[4]={0};assert(!hevc_tile_grid_init(&h.tiles,5,3,0,0,0,widths,heights));
@@ -188,6 +199,20 @@ int main(void){struct codec_hevc h={.picture_output=true};struct amvdec_core c={
  for(u32 i=0;i<22;i++)assert(output_offsets[i]==100+i*100);
  for(u32 i=0;i<3;i++)assert(discarded_offsets[i]==100+(22+i)*100);
  for(u32 i=22;i<47;i++)assert(output_offsets[i]==100+(i+3)*100);
+ /* NoOutPrior_A's EOS then CRA: three old tail pictures and seven RASL are omitted. */
+ delivered=discarded=0;h.skip_rasl=false;h.picture_no_prior=false;
+ const u32 pocs[]={0,8,4,2,1,3,6,5,7,16,12,10,9,11,14,13,15,24,20,18,17,19,22,21,23,
+                   32,28,26,25,27,30,29,31,40,36,34,33,35,38,37,39,48,44,42,41,43,46,45,47,49};
+ for(u32 i=0;i<50;i++){
+  if(i==25){h.pending_eos=1;codec_hevc_handle_eos(&s);assert(h.after_eos&&!h.have_picture&&!h.eos_seen&&h.frames_num==3);}
+  offset=100+i*100;h.curr_poc=pocs[i];
+  h.rpm_param.p.m_nalUnitType=i==0?19:i==25?21:i>25&&i<33?8:1;
+  h.rpm_param.p.slice_type=i==0||i==25?2:1;
+  if(i==25){h.skip_rasl=true;h.random_access_poc=pocs[i];h.picture_no_prior=true;}
+  assert(!codec_hevc_process_segment(&s));
+ }
+ codec_hevc_flush_output(&s);
+ assert(delivered==40&&discarded==10&&!held&&!h.frames_num&&!h.cur_frame&&!h.col_frame);
  return 0;}
 '''
         self.run_c(code)

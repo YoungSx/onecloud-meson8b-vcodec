@@ -159,6 +159,7 @@ struct hevc_picture_info {
 	struct hevc_sps_geometry geometry;
 	bool output;
 	bool no_output_of_prior;
+	u32 sequence_ends;
 };
 
 /* Return one picture's immutable header prefix, or zero for parameter-only input. */
@@ -169,6 +170,7 @@ static inline int hevc_input_picture_info(struct hevc_parameter_sets *sets,
 	u32 i, picture_pps = 0;
 	bool picture = false;
 
+	*info = (struct hevc_picture_info) {};
 	for (i = 2; i + 2 < length; i++) {
 		u32 end, type, id, sps_id;
 		const u8 *nal;
@@ -188,7 +190,9 @@ static inline int hevc_input_picture_info(struct hevc_parameter_sets *sets,
 				break;
 		if (end + 2 >= length)
 			end = length;
-		if (type == 33) {
+		if (type == 36) {
+			info->sequence_ends++;
+		} else if (type == 33) {
 			ret = hevc_parse_sps_geometry(nal, end - i - 1, &g);
 			if (ret)
 				return ret;

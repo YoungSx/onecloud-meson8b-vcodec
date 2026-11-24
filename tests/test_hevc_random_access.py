@@ -33,6 +33,7 @@ class HevcRandomAccessTests(unittest.TestCase):
         retry = section(source, "static void codec_hevc_capture_queued(",
                         "static int codec_hevc_setup_pool(")
         irq = section(source, "static void codec_hevc_resume(",
+                      "static void codec_hevc_handle_eos(") + section(source, "static irqreturn_t codec_hevc_threaded_isr(",
                       "static irqreturn_t codec_hevc_isr(")
         code = r'''
 #include <assert.h>
@@ -75,7 +76,7 @@ struct codec_hevc {
  int lock;union rpm_param rpm_param;struct hevc_frame *cur_frame,*col_frame;
  u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size,frames_num;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;
- bool have_picture,skip_rasl,picture_output,picture_no_prior,new_tile,waiting_for_buffer,client_waited,eos_seen;
+ bool have_picture,skip_rasl,picture_output,picture_no_prior,after_eos,new_tile,waiting_for_buffer,client_waited,eos_seen;
  int is_10bit;struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;struct hevc_tile tile;
 };
 struct amvdec_core {void *dev,*dev_dec;};
@@ -121,6 +122,7 @@ static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame 
 static void codec_hevc_forget_frames(struct codec_hevc *h){h->cur_frame=h->col_frame=0;}
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){changes++;s->width=w;s->height=h;s->dpb_size=n;}
 static void codec_hevc_flush_output(struct amvdec_session *s){struct codec_hevc *h=s->priv;assert(!h->frames_num);h->cur_frame=h->col_frame=0;}
+static void codec_hevc_handle_eos(struct amvdec_session *s){(void)s;assert(0);}
 static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
 static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static bool codec_hevc_picture_for_offset(struct codec_hevc *h,u32 o,struct hevc_picture_info *info){

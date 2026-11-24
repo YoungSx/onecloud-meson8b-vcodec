@@ -131,7 +131,7 @@ static const u8 eos_sequence[SZ_4K] = {
 	0x00, 0x00, 0x01, 0x0ff,
 };
 
-static const u8 *codec_h264_eos_sequence(u32 *len)
+static const u8 *codec_h264_eos_sequence(struct amvdec_session *sess, u32 *len)
 {
 	*len = ARRAY_SIZE(eos_sequence);
 	return eos_sequence;

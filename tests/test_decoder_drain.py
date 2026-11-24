@@ -110,6 +110,8 @@ int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
+#include <pthread.h>
+#include <unistd.h>
 typedef uint8_t u8;typedef uint32_t u32;
 #define V4L2_DEC_CMD_STOP 1
 #define V4L2_DEC_CMD_START 2
@@ -123,16 +125,23 @@ struct amvdec_session;
 struct amvdec_codec_ops {
     bool firmware_eos;
     void (*drain)(struct amvdec_session *);
-    const u8 *(*eos_sequence)(u32 *);
+    const u8 *(*eos_sequence)(struct amvdec_session *,u32 *);
 };
 struct format {struct amvdec_codec_ops *codec_ops;};
 struct core {struct device *dev;};
 struct amvdec_session {
     struct format *fmt_out;struct core *core;void *m2m_ctx;
-    int streamon_out,streamon_cap,should_stop;bool stop_requested;
+    int streamon_out,streamon_cap,should_stop,esparser_queue_work;bool stop_requested;
+    pthread_mutex_t lock;
 };
 static struct amvdec_session session;
-static int aborted,waited,result,queued,blocked,custom_calls;
+static int aborted,waited,result,queued,blocked,custom_calls,resumed;
+static pthread_barrier_t submitting;
+static bool last_input_submitted=true;
+static void mutex_lock(pthread_mutex_t *p){assert(!pthread_mutex_lock(p));}
+static void mutex_unlock(pthread_mutex_t *p){assert(!pthread_mutex_unlock(p));}
+static void *submit_last_input(void *p){struct amvdec_session *s=p;mutex_lock(&s->lock);last_input_submitted=false;pthread_barrier_wait(&submitting);usleep(20000);last_input_submitted=true;mutex_unlock(&s->lock);return 0;}
+static void schedule_work(int *w){(void)w;assert(!session.stop_requested&&!session.should_stop);resumed++;}
 static int v4l2_m2m_ioctl_try_decoder_cmd(struct file *f,void *h,struct v4l2_decoder_cmd *c) {(void)f;(void)h;(void)c;return 0;}
 static void v4l2_m2m_clear_state(void *c) {(void)c;}
 static void v4l2_m2m_mark_stopped(void *c) {(void)c;}
@@ -142,8 +151,8 @@ static void msleep(int ms) {(void)ms;}
 static int vdec_wait_inactive(struct amvdec_session *s) {(void)s;waited++;return 0;}
 static void amvdec_abort(struct amvdec_session *s) {(void)s;aborted++;}
 static void custom_drain(struct amvdec_session *s) {assert(s->stop_requested && !queued);custom_calls++;}
-static const u8 *sequence(u32 *len) {static const u8 eos[4];*len=4;return eos;}
-static int esparser_queue_eos(struct core *c,const u8 *data,u32 len) {(void)c;(void)data;assert(len==4);return result;}
+static const u8 *sequence(struct amvdec_session *s,u32 *len) {(void)s;static const u8 eos[4];*len=4;return eos;}
+static int esparser_queue_eos(struct core *c,const u8 *data,u32 len) {(void)c;(void)data;assert(len==4&&last_input_submitted);return result;}
 """
         body += source[start:end]
         body += r"""
@@ -152,9 +161,13 @@ int main(void) {
     struct format fmt={.codec_ops=&ops};struct file f={0};
     struct v4l2_decoder_cmd cmd={.cmd=V4L2_DEC_CMD_STOP};
     session=(struct amvdec_session){.core=&core,.fmt_out=&fmt,.streamon_out=1,.streamon_cap=1};
+    assert(!pthread_mutex_init(&session.lock,0));
+    assert(!pthread_barrier_init(&submitting,0,2));pthread_t submitter;
+    assert(!pthread_create(&submitter,0,submit_last_input,&session));pthread_barrier_wait(&submitting);
     result=-ETIMEDOUT;
     assert(vdec_decoder_cmd(&f,0,&cmd)==-ETIMEDOUT);
     assert(aborted==1 && waited==0);
+    assert(!pthread_join(submitter,0)&&last_input_submitted);
     result=0;
     assert(vdec_decoder_cmd(&f,0,&cmd)==0);
     assert(aborted==1 && waited==1);
@@ -166,6 +179,8 @@ int main(void) {
     queued=2;blocked=1;cmd.cmd=V4L2_DEC_CMD_STOP;
     assert(vdec_decoder_cmd(&f,0,&cmd)==-ETIMEDOUT);
     assert(custom_calls==1 && aborted==2);
+    assert(resumed==2);
+    assert(!pthread_mutex_destroy(&session.lock));assert(!pthread_barrier_destroy(&submitting));
     return 0;
 }
 """
@@ -180,6 +195,7 @@ int main(void) {
                     "-Werror",
                     "-Wno-unused-parameter",
                     "-Wno-unused-variable",
+                    "-pthread",
                     "-fsanitize=address,undefined",
                     "-fno-pie",
                     "-no-pie",

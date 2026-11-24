@@ -55,12 +55,11 @@ static struct hevc_frame *codec_hevc_show_pending(struct amvdec_session *s,bool 
 static void codec_hevc_deliver_frame(struct amvdec_session *s,struct hevc_frame *f){assert(s->status==STATUS_NEEDS_RESUME&&f==&last);delivered++;}
 static void codec_hevc_forget_frames(struct codec_hevc *h){h->frames_num=0;live_refs=0;forgotten++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){assert(((struct codec_hevc *)s->priv)->frames_num==0);live_refs=0;flushed++;}
-static void codec_hevc_finish_eos(struct amvdec_session *s){(void)s;assert(0);}
+static void codec_hevc_handle_eos(struct amvdec_session *s){(void)s;assert(0);}
 #define AMVDEC_POOL_RESTART 3
 static void amvdec_pool_end(struct amvdec_session *s,int end){assert(s->status==STATUS_NEEDS_RESUME&&end==AMVDEC_POOL_RESTART);restarts++;}
 static void codec_hevc_discard_prior_output(struct amvdec_session *s){(void)s;}
 static void codec_hevc_show_frames(struct amvdec_session *s){(void)s;}
-static void codec_hevc_clear_inputs(struct codec_hevc *h){(void)h;assert(0);}
 static void amvdec_src_change(struct amvdec_session *s,u32 w,u32 h,u32 n){assert(s->status==STATUS_RUNNING&&w==320&&h==192&&n==16);events++;}
 static u32 amvdec_pool_count(struct amvdec_session *s){(void)s;return pool_count;}
 static int codec_hevc_setup_pool(struct amvdec_session *s){assert(s->dpb_size==16&&live_refs==8);setups++;return 0;}

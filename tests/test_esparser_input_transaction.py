@@ -8,6 +8,42 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ParserInputTransactionTests(unittest.TestCase):
+    def test_stop_holds_later_input_behind_the_drain_marker(self):
+        source = (ROOT / "vdec/esparser.c").read_text()
+        body = source[source.index("void esparser_queue_all(struct"):
+                      source.index("void esparser_queue_all_src(")]
+        code = r'''
+#include <assert.h>
+#include <stdbool.h>
+#define READ_ONCE(x) (x)
+#define STATUS_STOPPED 0
+#define V4L2_FMT_FLAG_DYN_RESOLUTION 1
+struct v4l2_m2m_buffer {int vb;};
+struct format {int flags;};
+struct amvdec_session {bool should_stop,stop_requested,streamon_cap;int status,lock;void *m2m_ctx;struct format *fmt_out;};
+static struct v4l2_m2m_buffer buffers[2];static int cursor,submitted;
+#define v4l2_m2m_for_each_src_buf_safe(ctx,buf,n) \
+ for(cursor=0,buf=&buffers[0],n=&buffers[1];cursor<2;cursor++,buf=&buffers[cursor])
+static void mutex_lock(int *p){assert(!*p);*p=1;}
+static void mutex_unlock(int *p){assert(*p);*p=0;}
+static int esparser_queue(struct amvdec_session *s,int *b){assert(s->lock&&!s->stop_requested);(void)b;submitted++;return 0;}
+''' + body + r'''
+int main(void){struct format f={.flags=V4L2_FMT_FLAG_DYN_RESOLUTION};struct amvdec_session s={.status=1,.fmt_out=&f};
+ s.stop_requested=true;esparser_queue_all(&s);assert(!submitted&&!s.lock);
+ s.stop_requested=false;esparser_queue_all(&s);assert(submitted==2&&!s.lock);
+ s.should_stop=true;esparser_queue_all(&s);assert(submitted==2&&!s.lock);
+ s.should_stop=false;s.status=STATUS_STOPPED;esparser_queue_all(&s);assert(submitted==2&&!s.lock);
+ return 0;}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / "test.c").write_text(code)
+            subprocess.run(["cc", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
+                            "-Wno-unused-but-set-variable", "-fsanitize=address,undefined",
+                            "-fno-pie", "-no-pie", str(path / "test.c"),
+                            "-o", str(path / "test")], check=True)
+            subprocess.run([str(path / "test")], check=True)
+
     def test_prepared_input_failures_abort_without_kicking(self):
         source = (ROOT / "vdec/esparser.c").read_text()
         body = source[source.index("static int\nesparser_queue("):

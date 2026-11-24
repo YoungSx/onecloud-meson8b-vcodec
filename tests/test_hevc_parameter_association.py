@@ -63,7 +63,7 @@ struct codec_hevc {
  int lock,watchdog;union rpm_param rpm_param;
  u32 width,height,dst_width,dst_height,dpb_size,lcu_x_num,lcu_y_num,lcu_total,lcu_size;
  u32 curr_poc,prev_tid0_poc,slice_segment_addr,slice_addr,random_access_poc;
- bool have_picture,skip_rasl,picture_output,picture_no_prior;int is_10bit;
+ u32 pending_eos;bool eos_seen,have_picture,skip_rasl,picture_output,picture_no_prior,after_eos;int is_10bit;
  struct hevc_sps_geometry sps,applied;struct hevc_tile_grid tiles;
  struct hevc_parameter_sets parameters;struct list_head input_pictures;
 };
@@ -136,6 +136,12 @@ int main(void){struct codec_hevc h={0};struct core c={0};struct format f={1920,1
  assert(codec_hevc_picture_for_offset(&h,0xfffffff8,&info));
  assert(codec_hevc_picture_for_offset(&h,0x28,&info));
  assert(!codec_hevc_picture_for_offset(&h,0x28,&info));
+ /* A natural EOS before the next CRA is recorded without consuming that picture's snapshot. */
+ const u8 eos[]={0,0,1,0x48,1,0x80};struct vb2_buffer boundary={(u8 *)eos,sizeof(eos)};
+ assert(!codec_hevc_inspect_input(&s,&boundary,0x30)&&h.pending_eos==1);
+ first.size=sps(a,0,0,0,5,true,false);assert(!codec_hevc_inspect_input(&s,&first,0x40));
+ h.have_picture=false;h.after_eos=true;h.rpm_param.p.m_nalUnitType=21;decode_offset=0x41;
+ assert(codec_hevc_process_rpm(&s)>=0&&h.picture_no_prior&&h.skip_rasl&&!h.after_eos);
  return 0;}
 '''
         with tempfile.TemporaryDirectory() as directory:

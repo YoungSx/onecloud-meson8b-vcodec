@@ -282,6 +282,9 @@ struct codec_hevc {
 	u32 dpb_size;
 	bool waiting_for_buffer;
 	bool eos_seen;
+	u32 pending_eos;
+	bool drain_pending;
+	bool after_eos;
 	/* the last watchdog check found the client waiting on the decoder */
 	bool client_waited;
 	/* Immutable SPS snapshot selected for the current picture's input offset. */
@@ -849,10 +852,16 @@ static void codec_hevc_forget_frames(struct codec_hevc *hevc)
 	hevc->col_frame = NULL;
 }
 
-static const u8 *codec_hevc_eos_sequence(u32 *length)
+static const u8 *codec_hevc_eos_sequence(struct amvdec_session *sess, u32 *length)
 {
 	static const u8 eos[4096] = { 0, 0, 1, 0x48, 1, 0x80 };
+	struct codec_hevc *hevc = sess->priv;
 
+	/* Publish before the parser kick; older in-band EOS notifications come first. */
+	mutex_lock(&hevc->lock);
+	hevc->drain_pending = true;
+	hevc->eos_seen = false;
+	mutex_unlock(&hevc->lock);
 	*length = sizeof(eos);
 	return eos;
 }
@@ -1572,6 +1581,9 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 		hevc->applied = info.geometry;
 		hevc->picture_output = info.output;
 		hevc->picture_no_prior = info.no_output_of_prior;
+		if (hevc->after_eos && param->p.m_nalUnitType == NAL_UNIT_CODED_SLICE_CRA)
+			hevc->picture_no_prior = true;
+		hevc->after_eos = false;
 	}
 	if (codec_hevc_is_skipped_rasl(hevc))
 		return 0;
@@ -1676,6 +1688,8 @@ static int codec_hevc_inspect_input(struct amvdec_session *sess, struct vb2_buff
 	ret = hevc_input_picture_info(&hevc->parameters, data, length, &info);
 	if (ret < 0)
 		goto unlock;
+	hevc->pending_eos += info.sequence_ends;
+	hevc->eos_seen = false;
 	if (ret > 0) {
 		input = kmalloc(sizeof(*input), GFP_KERNEL);
 		if (!input) {
@@ -1771,6 +1785,48 @@ static void codec_hevc_resume(struct amvdec_session *sess)
 	}
 }
 
+static void codec_hevc_handle_eos(struct amvdec_session *sess)
+{
+	struct codec_hevc *hevc = sess->priv;
+	struct amvdec_core *core = sess->core;
+	bool drain = false;
+
+	if (hevc->pending_eos) {
+		hevc->pending_eos--;
+	} else if (hevc->drain_pending && READ_ONCE(sess->stop_requested)) {
+		hevc->drain_pending = false;
+		drain = true;
+	} else {
+		amvdec_abort(sess);
+		return;
+	}
+	if (drain)
+		codec_hevc_flush_output(sess);
+	else
+		/* Keep the reorder tail for the next IRAP's prior-output decision. */
+		codec_hevc_show_frames(sess);
+	hevc->have_picture = false;
+	hevc->skip_rasl = false;
+	hevc->curr_poc = INVALID_POC;
+	hevc->col_poc = INVALID_POC;
+	hevc->cur_frame = NULL;
+	hevc->col_frame = NULL;
+	hevc->slice_addr = 0;
+	hevc->slice_segment_addr = 0;
+	hevc->after_eos = true;
+	if (drain) {
+		hevc->eos_seen = true;
+		codec_hevc_clear_inputs(hevc);
+		codec_hevc_finish_eos(sess);
+	}
+	/* EOS is a sequence boundary; ACTION_DONE resumes the auto NAL parser. */
+	amvdec_clear_dos_bits(core, HEVC_WAIT_FLAG, BIT(1));
+	amvdec_write_dos(core, HEVC_DEC_STATUS_REG, HEVC_ACTION_DONE);
+	amvdec_write_dos(core, HEVC_MCPU_INTR_REQ, AMRISC_MAIN_REQ);
+	if (!drain)
+		schedule_work(&sess->esparser_queue_work);
+}
+
 static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 {
 	struct amvdec_core *core = sess->core;
@@ -1786,10 +1842,7 @@ static irqreturn_t codec_hevc_threaded_isr(struct amvdec_session *sess)
 	if (dec_status == HEVC_NAL_SEARCH_DONE &&
 	    amvdec_read_dos(core, HEVC_ASSIST_SCRATCH_J) == 36) {
 		dev_dbg(core->dev, "HEVC firmware EOS: pending pictures %u\n", hevc->frames_num);
-		hevc->eos_seen = true;
-		codec_hevc_flush_output(sess);
-		codec_hevc_clear_inputs(hevc);
-		codec_hevc_finish_eos(sess);
+		codec_hevc_handle_eos(sess);
 		goto unlock;
 	}
 	if (dec_status != HEVC_SLICE_SEGMENT_DONE) {

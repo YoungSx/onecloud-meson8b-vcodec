@@ -95,5 +95,16 @@ int main(void)
 	length = slice(packet, 63, 19, false, 0, false, false);
 	assert(hevc_input_picture_info(&sets, packet, length, &info) == 1);
 	assert(info.output && !info.no_output_of_prior);
+	/* Sequence-end counts include standalone NALs and boundaries before/after VCL. */
+	u8 boundary[80] = { 0, 0, 1, 0x48, 1, 0x80 };
+	assert(!hevc_input_picture_info(&sets, boundary, 6, &info));
+	assert(info.sequence_ends == 1);
+	length = slice(packet, 63, 21, false, 0, true, false);
+	memcpy(boundary + 6, packet, length);
+	memcpy(boundary + 6 + length, boundary, 6);
+	assert(hevc_input_picture_info(&sets, boundary, 12 + length, &info) == 1);
+	assert(info.sequence_ends == 2 && info.output && !info.no_output_of_prior);
+	assert(!hevc_input_picture_info(&sets, boundary, 0, &info));
+	assert(!info.sequence_ends);
 	return 0;
 }
