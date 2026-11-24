@@ -6852,7 +6852,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/esparser.c
-@@ -0,0 +1,523 @@
+@@ -0,0 +1,542 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -6869,6 +6869,7 @@
 +#include <linux/of_device.h>
 +#include <linux/reset.h>
 +#include <linux/interrupt.h>
++#include <linux/dma-buf.h>
 +#include <media/videobuf2-dma-contig.h>
 +#include <media/v4l2-mem2mem.h>
 +
@@ -7163,6 +7164,43 @@
 +	return offset;
 +}
 +
++static int esparser_prepare_input(struct amvdec_session *sess, struct vb2_buffer *vb,
++				  u32 offset, u32 *payload_size)
++{
++	struct amvdec_core *core = sess->core;
++	struct amvdec_codec_ops *codec_ops = sess->fmt_out->codec_ops;
++	struct dma_buf *dbuf = vb->planes[0].dbuf;
++	int ret, end_ret;
++
++	if (dbuf) {
++		ret = dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
++		if (ret)
++			return ret;
++	}
++	ret = codec_ops->inspect_input ? codec_ops->inspect_input(sess, vb, offset) : 0;
++	if (ret) {
++		ret = ret < 0 ? ret : -EINVAL;
++		goto finish;
++	}
++	/* Input preparation may replace the userspace header or whole payload. */
++	*payload_size = amvdec_input_size(vb);
++	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_VP9) {
++		*payload_size = vp9_update_header(core, vb);
++		if (!*payload_size) {
++			ret = -EINVAL;
++			goto finish;
++		}
++	}
++	ret = esparser_pad_start_code(core, vb, *payload_size);
++finish:
++	if (dbuf) {
++		end_ret = dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
++		if (ret >= 0 && end_ret)
++			ret = end_ret;
++	}
++	return ret;
++}
++
 +static int
 +esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 +{
@@ -7206,13 +7244,12 @@
 +
 +	v4l2_m2m_src_buf_remove_by_buf(sess->m2m_ctx, vbuf);
 +	offset = esparser_get_offset(sess);
-+	if (codec_ops->inspect_input && codec_ops->inspect_input(sess, vb, offset)) {
++	pad_size = esparser_prepare_input(sess, vb, offset, &payload_size);
++	if (pad_size < 0) {
 +		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 +		amvdec_abort(sess);
 +		return 0;
 +	}
-+	/* Annex L preparation may replace the userspace header with a vendor one. */
-+	payload_size = amvdec_input_size(vb);
 +
 +	ret = amvdec_add_ts(sess, vb->timestamp, vbuf->timecode, offset, vbuf->flags);
 +	if (ret) {
@@ -7228,26 +7265,8 @@
 +	vbuf->field = V4L2_FIELD_NONE;
 +	vbuf->sequence = sess->sequence_out++;
 +
-+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_VP9) {
-+		payload_size = vp9_update_header(core, vb);
-+
-+		/* If unable to alter buffer to add headers */
-+		if (payload_size == 0) {
-+			amvdec_remove_ts(sess, vb->timestamp);
-+			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-+
-+			return 0;
-+		}
-+	}
-+
-+	pad_size = esparser_pad_start_code(core, vb, payload_size);
-+	if (pad_size < 0) {
-+		amvdec_remove_ts(sess, vb->timestamp);
-+		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-+		amvdec_abort(sess);
-+		return 0;
-+	}
 +	/* Publish before the kick; the decoder can finish during the wait. */
++	dma_wmb();
 +	atomic_inc(&sess->esparser_queued_bufs);
 +	ret = esparser_write_data(core, phy, payload_size + pad_size);
 +
