@@ -1426,6 +1426,18 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	u32 lcu_size;
 	u32 is_10bit = 0;
 
+	/* Continued slices also feed these fields to POC and MPRED processing. */
+	if (param->p.log2_max_pic_order_cnt_lsb_minus4 > 12 ||
+	    param->p.num_ref_idx_l0_active > MAX_REF_ACTIVE ||
+	    param->p.num_ref_idx_l1_active > MAX_REF_ACTIVE ||
+	    param->p.slice_type > I_SLICE ||
+	    param->p.collocated_from_l0_flag > 1 ||
+	    param->p.log2_parallel_merge_level > 6 ||
+	    param->p.five_minus_max_num_merge_cand > 4 ||
+	    param->p.first_slice_segment_in_pic_flag > 1 ||
+	    param->p.dependent_slice_segment_flag > 1)
+		return -EINVAL;
+
 	if (param->p.slice_segment_address	||
 	    !param->p.pic_width_in_luma_samples	||
 	    !param->p.pic_height_in_luma_samples)
@@ -1437,14 +1449,7 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    param->p.pic_height_in_luma_samples > sess->fmt_out->max_height ||
 	    param->p.log2_min_coding_block_size_minus3 > 3 ||
 	    param->p.log2_diff_max_min_coding_block_size > 3 ||
-	    param->p.log2_max_pic_order_cnt_lsb_minus4 > 12 ||
-	    param->p.num_ref_idx_l0_active > MAX_REF_ACTIVE ||
-	    param->p.num_ref_idx_l1_active > MAX_REF_ACTIVE ||
-	    param->p.slice_type > I_SLICE ||
-	    !(param->p.m_temporalId & 7) ||
-	    param->p.collocated_from_l0_flag > 1 ||
-	    param->p.log2_parallel_merge_level > 6 ||
-	    param->p.five_minus_max_num_merge_cand > 4)
+	    !(param->p.m_temporalId & 7))
 		return -EINVAL;
 
 	hevc->width = param->p.pic_width_in_luma_samples;
