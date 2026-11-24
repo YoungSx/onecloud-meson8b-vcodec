@@ -86,6 +86,17 @@ class RuntimeDeviceTests(unittest.TestCase):
             (root / 'SHA256SUMS').write_text(''.join(
                 f'{runtime.sha(root / name)}  {name}\n' for name in names))
             self.assertEqual(len(runtime.checked_package(root)), len(names))
+            h263 = 'firmware/meson/vdec/meson8b_h263.bin'
+            (root / h263).write_bytes(b'H.263 firmware')
+            with (root / 'SHA256SUMS').open('a') as manifest:
+                manifest.write(runtime.sha(root / h263) + '  ' + h263 + '\n')
+            self.assertEqual(len(runtime.checked_package(root)), len(names) + 1)
+            extra = 'firmware/meson/vdec/unexpected.bin'
+            (root / extra).write_bytes(b'unexpected firmware')
+            with (root / 'SHA256SUMS').open('a') as manifest:
+                manifest.write(runtime.sha(root / extra) + '  ' + extra + '\n')
+            with self.assertRaisesRegex(ValueError, 'unexpected firmware'):
+                runtime.checked_package(root)
             (root / 'docs/installation.md').write_bytes(b'tampered guide')
             with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
                 runtime.checked_package(root)

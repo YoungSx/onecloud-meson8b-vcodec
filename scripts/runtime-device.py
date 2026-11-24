@@ -58,7 +58,10 @@ def checked_package(package):
         'firmware/meson/venc/meson8b_avc_enc.bin',
         'firmware/meson/venc/meson8b_jpeg_enc.bin',
     }
-    if {n for n in files if n.startswith('firmware/')} != expected_fw:
+    firmware_files = {n for n in files if n.startswith('firmware/')}
+    # Older packages predate H.263; both inventories remain valid for rollback.
+    if firmware_files not in (expected_fw, expected_fw | {
+            'firmware/meson/vdec/meson8b_h263.bin'}):
         raise ValueError('unexpected firmware payload')
     return files
 
