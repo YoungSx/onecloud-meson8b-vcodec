@@ -757,3 +757,46 @@ encoder/runtime及默认Overlay字节未变。正式包MJPEG854×480/1080p各3/3
 六组仍28/30，未采用新结束标记。上游2026-10的
 [MPEG-4提案](https://lkml.iu.edu/2610.3/01574.html)使用S4的frame-based微码和
 私有stateless参考控件，不是当前S805 stream-based固件的可直接替换协议。
+
+## 11-25 MJPEG 滤波与输入边界
+
+源码`41773bbae5edf8e932f8da914c68a9ef6163cd8e`改用固定S805
+[jpegdec.c的双点滤波表](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/jpegdec.c#L197)。
+旧MJPEG三角表在1:1输出时仍平均邻近像素，导致小尺寸纹理超过既有误差门槛；
+新表在整数相位保留原样本。微码、canvas、颜色范围与输出几何保持各自协议。
+真实BMEM编程函数回归在旧表失败、新表通过；SOF/SOS检查覆盖截断、全部
+16-bit段长度、采样/精度/尺寸、重复分量与scan绑定。128项Python、C sanitizer、
+严格checkpatch、原ARM外部/additive构建、补丁一致性及干净源码包回归通过。
+
+同一候选十组SOF0输入各三图（含同内容的头部对照），共30/30顺序与全平面
+质量通过：FFmpeg的4:2:0小图、854×480、1080p，独立libjpeg/Pillow的
+4:2:0/常见4:2:2纹理及渐变、4:4:4，以及直接DQT和带COM的相同JPEG。
+4:2:0最大全平面平均绝对差0.025，最低PSNR约64.2 dB；4:2:2与4:4:4
+向NV12M的硬件色度采样仍不逐字节等于软件，最大平均绝对差分别约1.19/1.29，
+最低PSNR约35.7/37.3 dB，未放宽原2.0门槛。
+
+现有失败4:2:2样片为Y=2×2、Cb/Cr=1×2；常见成功布局为2×1、1×1、1×1。
+两者虽有同一采样比例，固件并非都能处理。SOF1扩展顺序JPEG也输出3/3但
+图像错误，渐进JPEG花屏，灰度仅0/3；不以帧数宣称支持。当前仅接收已实测
+的8-bit SOF0三分量交错scan及归一化4:2:0/4:2:2/4:4:4，以上失败组合明确
+返回EOPNOTSUPP，协商尺寸不符返回EINVAL；该检查不改码流或做软件解码。
+五类错误均在零输出时终止队列，随后有效输入可重开；两种提前STREAMOFF
+顺序各交付一图后正常退出，帧池归零，正式service/OpenList恢复。
+
+本机直接DQT开头的输入与带COM版本软件/硬件内容均一致；没有套用另一芯片
+[S4提案](https://lkml.iu.edu/hypermail/linux/kernel/2610.3/01570.html)中补COM或仅接受
+4:2:0的条件。正式decoder SHA256为
+`950643c882a8b44cc52d103154db0e3565b81f73b6704002735c1bcf7d7c4151`。
+正式包已按标准安装保留部署，encoder/runtime与默认Overlay字节未变；十组
+30图的内容/质量、五类拒绝及两种提前关闭顺序在安装后再次通过。原版FFmpeg
+H.26450/50、HEVC10/10、tiles4/4及自然EOS20/20精确一致。包校验、unit
+enabled/active、五容器、四项HTTP200、帧池归零与启动文件哈希不变均通过。
+该提交的Host与ARM/package CI通过；上一f581f98整包/unit/state已在外部
+SHA256备份，新安装用独立state，无重启、boot DT/CMA修改或整包降级演练。
+记录标识`mjpeg-quality-41773bb`；原始输入/输出、逐帧质量、安装状态及工具
+在工作区外本地SHA256归档，无永久公开附件。
+本次范围不证明所有JPEG采样组合、渐进/灰度或迅雷原厂同机对照已完成。
+
+固定厂商另有[S805静态JPEG固件](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/m8/ucode/jpeg/jpeg_mc.c)
+及独立jpegdec的头部/配置握手，允许报告单分量。它尚未移植/实机验证，不能
+据当前MJPEG固件失败断言S805硅片缺少这些JPEG能力。

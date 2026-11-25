@@ -27,6 +27,7 @@ AVS 标准 UAPI/应用落点仍需明确；WMV3 Annex L/RCV转换已实现，尾
 | GE2D | 标准 GREY/NV12/NV12M M2M、四 canvas、色度格式器与第二输出、裁剪/1–1/4缩小、probe全平面自检；显式decoder DMA CAPTURE接入 | 主机命令/队列/生命周期/回退回归及ARM构建；独立复制/裁剪、常量缩小、DMA-BUF与decoder400幅精确像素通过，两组纹理缩小完成质量比较。默认NEON，原版FFmpeg全链仍未验收。连续CAPTURE占CMA，默认20缓冲不保证可用。 |
 | HEVC tiles | 标准均匀余数分配、最多 5×5 网格、有界尺寸、MPRED rectangle/row jump/new tile、跨 tile 滤波 | 几何和实际 MPRED/SAO 函数 ASan/UBSan、ARM 构建；042573f修正S805 SAO scratch单位后，4×2 1080p 4/4、非均匀640×384 3/3逐帧精确一致。 |
 | H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化、baseline/PLUS I/P、会话内UFEP续帧、自定义尺寸/时钟/舍入位 | 12幅baseline及新增18幅PLUS中间流与厂商逐字节一致；官方软解、状态/容量/HD边界回归、ARM构建；VOP边界修正已部署，四份各3/3及四种176×144至704×396输入各12/12顺序/全平面通过。Slice Structured仍拒绝，HD与异常矩阵待补。 |
+| MJPEG | SOF/SOS几何与采样检查，PSCALE的unity双点滤波，planar色度对齐与NV12M转换 | 十组SOF0的归一化4:2:0/4:2:2/4:4:4各3/3完整内容/质量通过；五类错误输入拒绝与两种提前关闭顺序通过。SOF1、渐进、灰度及重复采样因子仍不支持。 |
 | WMV3 | 标准 Annex L/RCV 的序列/单帧边界、厂商长度/校验前缀、VC-1 simple/main 选择 | 前缀/容量/尺寸/状态回归、5 图独立 RCV 软件参考、ARM 构建；当前包320×240为3/5，已输出帧顺序/全平面检查通过，尾帧未通过；无官方WMV3 M2M包装器。 |
 | 编码多会话 | 标准 V4L2 M2M 逐帧调度，最多8个句柄；分别保留参考、canvas、固件、SPS/PPS 与码控，切换时恢复硬件 | 实际 activation/stop、canvas 角色、错误清理与 IRQ 同步主机回归和 ARM 构建；两路720p/两路1080p各12幅完整软解/YUV通过，HD最低采样CMA约5.1 MiB；不保证8路1080p或总吞吐。 |
 
