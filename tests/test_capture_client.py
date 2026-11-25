@@ -20,17 +20,17 @@ class CaptureClientTests(unittest.TestCase):
 #undef main
 #include <assert.h>
 #include <stdarg.h>
-static int stopped,polls;
+static int stopped,polls,fault;
 int test_poll(struct pollfd *fds,nfds_t n,int timeout) {
  assert(n==1&&timeout==10000&&polls<2);
- fds[0].revents=polls++?POLLIN:POLLOUT|POLLIN;return 1;
+ fds[0].revents=fault==1?POLLERR:(polls?POLLIN:POLLOUT|POLLIN);polls++;return 1;
 }
 int test_ioctl(int unused,unsigned long request,...) {
  (void)unused;va_list ap;va_start(ap,request);void *arg=va_arg(ap,void *);va_end(ap);
  if((unsigned int)request==(unsigned int)VIDIOC_DECODER_CMD){assert(!out_queued&&pictures==1);stopped++;return 0;}
  struct v4l2_buffer *b=arg;
  assert((unsigned int)request==(unsigned int)VIDIOC_DQBUF||(unsigned int)request==(unsigned int)VIDIOC_QBUF);
- if(b->type==V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE){assert((unsigned int)request==(unsigned int)VIDIOC_DQBUF&&!stopped);return 0;}
+ if(b->type==V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE){assert((unsigned int)request==(unsigned int)VIDIOC_DQBUF&&!stopped);if(fault==2)b->flags=V4L2_BUF_FLAG_ERROR;return 0;}
  if((unsigned int)request==(unsigned int)VIDIOC_QBUF)return 0;
  b->index=0;b->m.planes[0].bytesused=stopped?0:4;b->m.planes[1].bytesused=stopped?0:2;
  if(stopped)b->flags=V4L2_BUF_FLAG_LAST;
@@ -62,6 +62,10 @@ int main(void) {
  assert(!dump_frame(&b) && pictures==2);
  pictures=0;out_queued=1;ncap=1;assert(!run_capture_loop());
  assert(stopped==1&&polls==2&&pictures==1&&!out_queued);
+ for(fault=1;fault<=2;fault++){
+  polls=stopped=0;pictures=0;out_queued=1;
+  assert(run_capture_loop()==1 && polls==1 && !stopped && !pictures);
+ }
  return 0;
 }
 '''

@@ -532,6 +532,10 @@ int main(int argc, char **argv)
 			fprintf(stderr, "timeout; frames=%lu\n", pictures);
 			return 1;
 		}
+		if (ncap && (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+			fprintf(stderr, "decoder queue failed; frames=%lu\n", pictures);
+			return 1;
+		}
 
 		if (pfd.revents & POLLPRI) {
 			if (ioctl(fd, VIDIOC_DQEVENT, &ev) == 0 &&
@@ -556,6 +560,10 @@ int main(int argc, char **argv)
 			b.length = 1;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
+				if (b.flags & V4L2_BUF_FLAG_ERROR) {
+					fprintf(stderr, "decoder rejected input access unit\n");
+					return 1;
+				}
 				out_queued--;
 				if (chunk_idx < nchunks) {
 					size_t chunk = chunks[chunk_idx];
@@ -572,6 +580,9 @@ int main(int argc, char **argv)
 					espos += chunk;
 					chunk_idx++;
 				}
+			} else if (errno != EAGAIN) {
+				perror("DQBUF(OUTPUT)");
+				return 1;
 			}
 		}
 
@@ -581,6 +592,10 @@ int main(int argc, char **argv)
 			b.length = VIDEO_MAX_PLANES;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
+				if (b.flags & V4L2_BUF_FLAG_ERROR) {
+					fprintf(stderr, "decoder returned a corrupt picture\n");
+					return 1;
+				}
 				dump_frame(&b);
 				if (stop_early(pictures))
 					return 0;
@@ -590,6 +605,9 @@ int main(int argc, char **argv)
 					return 0;
 				}
 				xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
+			} else if (errno != EAGAIN) {
+				perror("DQBUF(CAPTURE)");
+				return 1;
 			}
 		}
 
