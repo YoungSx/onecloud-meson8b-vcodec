@@ -289,7 +289,23 @@ static V4L2Buffer* v4l2_dequeue_v4l2buf(V4L2Context *ctx, int timeout)
                                                 "packets/frames.\n");
     }
 
+    /* if we are draining and there are no more capture buffers queued in the driver we are done */
+    if (!V4L2_TYPE_IS_OUTPUT(ctx->type) && ctx_to_m2mctx(ctx)->draining) {
+        for (i = 0; i < ctx->num_buffers; i++) {
+            /* capture buffer initialization happens during decode hence
+             * detection happens at runtime
+             */
+            if (!ctx->buffers)
+                break;
 
+            if (ctx->buffers[i].status == V4L2BUF_IN_DRIVER)
+                goto start;
+        }
+        ctx->done = 1;
+        return NULL;
+    }
+
+start:
     if (V4L2_TYPE_IS_OUTPUT(ctx->type))
         pfd.events =  POLLOUT | POLLWRNORM;
     else {
@@ -324,12 +340,7 @@ static V4L2Buffer* v4l2_dequeue_v4l2buf(V4L2Context *ctx, int timeout)
         else
             av_log(logger(ctx), AV_LOG_WARNING, "%s POLLERR\n", ctx->name);
 
-        /* The queues may not be streaming yet. Once active, use the normal
-         * dequeue path to distinguish EAGAIN from a terminal queue error.
-         */
-        if (!ctx->buffers || !ctx->streamon)
-            return NULL;
-        goto dequeue;
+        return NULL;
     }
 
     /* 1. handle resolution changes */

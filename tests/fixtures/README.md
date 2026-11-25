@@ -45,3 +45,13 @@ The source is pinned by the Linux archive hash in `scripts/build-kernel.sh`.
 `test_decoder_aspect.py` runs these actual core functions with the decoder's
 registered callbacks, checking both CAPTURE type spellings, coded crop versus
 composed output, and aspect-ratio propagation. It needs no local kernel tree.
+
+`ffmpeg-v4l2/v4l2_context.c` is the unmodified file from the pinned official
+FFmpeg 7.0.2 source archive, SHA256
+`079c39759fa0702e53162425ae8c368a937db9ee0e76b6c911494fbcb43eb7de`.
+The optional patches are applied forward in temporary test trees; a patch must
+never silently reverse an already patched fixture. `test_ffmpeg_drain.py` runs
+the actual upstream and patched dequeue function with a temporarily consumer
+owned CAPTURE pool, a later completed frame, LAST and a terminal dequeue error.
+This checks the user space state machine; it does not simulate hardware pixels
+or establish whole FFmpeg command compatibility.

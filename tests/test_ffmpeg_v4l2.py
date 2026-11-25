@@ -13,7 +13,7 @@ class FFmpegV4L2Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             tree = pathlib.Path(directory)
             shutil.copytree(ROOT / 'tests/fixtures/ffmpeg-v4l2', tree / 'libavcodec')
-            subprocess.run(['patch', '-p1', '--batch', '--fuzz=0', '-i',
+            subprocess.run(['patch', '-p1', '--forward', '--batch', '--fuzz=0', '-i',
                             str(ROOT / 'patches/ffmpeg-7.0.2-v4l2-bugs.patch')],
                            cwd=tree, check=True, stdout=subprocess.DEVNULL)
             source = (tree / 'libavcodec/v4l2_buffers.c').read_text()
@@ -117,7 +117,7 @@ int main(void){
             for fixed in (False, True):
                 if fixed:
                     for name in ('drain', 'bugs', 'sar'):
-                        subprocess.run(['patch', '-p1', '--batch', '--fuzz=0', '-i',
+                        subprocess.run(['patch', '-p1', '--forward', '--batch', '--fuzz=0', '-i',
                                         str(ROOT / f'patches/ffmpeg-7.0.2-v4l2-{name}.patch')],
                                        cwd=tree, check=True, stdout=subprocess.DEVNULL)
                 source = (tree / 'libavcodec/v4l2_context.c').read_text()
