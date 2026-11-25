@@ -184,7 +184,7 @@ static int set_canvas_mjpeg(struct amvdec_session *sess,
 	/* U plane */
 	ret = meson_canvas_config(core->canvas, canvas_id[1],
 				  slot->paddr + slot->luma,
-				  width / 2, height / 2,
+				  ALIGN(width / 2, 32), height / 2,
 				  MESON_CANVAS_WRAP_NONE,
 				  MESON_CANVAS_BLKMODE_LINEAR, 0);
 	if (ret)
@@ -193,7 +193,7 @@ static int set_canvas_mjpeg(struct amvdec_session *sess,
 	/* V plane */
 	ret = meson_canvas_config(core->canvas, canvas_id[2],
 				  slot->paddr + slot->luma + slot->luma / 4,
-				  width / 2, height / 2,
+				  ALIGN(width / 2, 32), height / 2,
 				  MESON_CANVAS_WRAP_NONE,
 				  MESON_CANVAS_BLKMODE_LINEAR, 0);
 	if (ret)

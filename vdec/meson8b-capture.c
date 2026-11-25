@@ -185,21 +185,24 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 	if (ret || !mjpeg)
 		return ret;
 
-	/* MJPEG writes planar U then V (luma/4 each): interleave them
-	 * into the NV12M UV plane.
-	 */
-	src += shadow->luma;
-	for (i = 0; i < size[1] / 2; i += 8) {
-		u64 u, v;
-		u8 *out = dst[1];
-		int j;
+	/* PSCALE writes chroma in 32-byte spans, independent of luma stride. */
+	{
+		u32 source_stride = ALIGN(geo->width, 64) / 2;
+		u32 dest_stride = ALIGN(geo->width, 32);
+		u32 row, x;
 
-		if (meson8b_copy_swap64(&u, src + i, 8) ||
-		    meson8b_copy_swap64(&v, src + size[1] / 2 + i, 8))
+		if (source_stride * (geo->height / 2) > shadow->luma / 4)
 			return -EINVAL;
-		for (j = 0; j < 8; j++) {
-			out[i * 2 + j * 2] = ((u8 *)&u)[j];
-			out[i * 2 + j * 2 + 1] = ((u8 *)&v)[j];
+		memset(dst[1], 0, size[1]);
+		for (row = 0; row < geo->height / 2; row++) {
+			const u8 *u = src + shadow->luma + row * source_stride;
+			const u8 *v = u + shadow->luma / 4;
+			u8 *out = dst[1] + row * dest_stride;
+
+			for (x = 0; x < geo->width / 2; x++) {
+				out[x * 2] = u[x ^ 7];
+				out[x * 2 + 1] = v[x ^ 7];
+			}
 		}
 	}
 	return 0;
@@ -325,6 +328,9 @@ bool amvdec_has_pool(const struct amvdec_session *sess)
 /* Bytes of one luma plane in a slot; the chroma plane follows at half that. */
 static u32 amvdec_pool_luma(struct amvdec_session *sess)
 {
+	/* Each planar MJPEG chroma stride must remain a multiple of 32. */
+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
+		return ALIGN(ALIGN(sess->width, 64) * ALIGN(sess->height, 32), SZ_64K);
 	if (sess->reference_width && sess->reference_height)
 		return ALIGN(ALIGN(sess->reference_width, 64) *
 			     ALIGN(sess->reference_height, 64), SZ_64K);
