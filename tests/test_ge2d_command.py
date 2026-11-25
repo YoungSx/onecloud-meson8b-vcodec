@@ -11,7 +11,7 @@ class Ge2dCommandTests(unittest.TestCase):
     def test_canvas_endian_command_and_fault_cleanup(self):
         source = (ROOT / "ge2d/meson8b-ge2d.c").read_text()
         macros = source[source.index("#define GEN_CTRL0"):source.index("struct ge2d_ctx;")]
-        body = source[source.index("static int ge2d_blit("):source.index("static int ge2d_selftest(")]
+        body = source[source.index("static int ge2d_blit_one("):source.index("static int ge2d_selftest(")]
         code = r'''
 #include <assert.h>
 #include <errno.h>
@@ -71,7 +71,7 @@ int main(void) {
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(canvas_calls==calls+4);
  assert(registers[GEN_CTRL0/4]==(BIT(0)|BIT(10)|BIT(11)));
- assert(registers[GEN_CTRL2/4]==(BIT(23)|(15u<<19)|(15u<<3)|2));
+ assert(registers[GEN_CTRL2/4]==(BIT(23)|(15u<<19)|(14u<<3)|2));
  assert(registers[GEN_CTRL3/4]==(BIT(0)|(10u<<19)|BIT(16)|(15u<<10)|BIT(8)));
  assert(registers[SRC_CANVAS/4]==(3u<<24|5u<<16|5u<<8));
  assert(registers[DST_CANVAS/4]==(4u|6u<<16));
@@ -79,7 +79,17 @@ int main(void) {
  crop=(struct meson8b_ge2d_crop){.left=2,.top=2,.width=256,.height=16};
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(registers[SRC_CLIPX/4]==(2u<<16|257));
- assert(registers[SRC_X/4]==(2u<<30|2u<<16|3u<<14|257));
+ assert(registers[SRC_X/4]==(2u<<16|257));
+ assert(registers[GEN_CTRL0/4]==0);
+ assert(registers[GEN_CTRL2/4]==BIT(23));
+ assert(registers[SRC_CLIPY/4]==(1u<<16|8));
+ assert(canvas_calls==calls+8 && starts==6);
+ input.little_endian=true;crop.width=512;crop.height=32;crop.left=crop.top=0;
+ output.width=512;output.height=32;output.stride=512;output.address[1]=0x204000;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[GEN_CTRL2/4]==(BIT(23)|BIT(7)));
+ crop=(struct meson8b_ge2d_crop){.left=2,.top=2,.width=256,.height=16};
+ output.width=256;output.height=16;output.stride=256;output.address[1]=0x201000;
  crop.left=1;unsigned no_start=starts;
  assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==no_start);
  crop.left=2;input.address[1]=UINT32_MAX-7;

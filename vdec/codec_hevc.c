@@ -973,8 +973,7 @@ codec_hevc_set_sao(struct amvdec_session *sess, struct hevc_frame *frame)
 	union rpm_param *param = &hevc->rpm_param;
 	u32 pic_height_cu =
 		(hevc->height + hevc->lcu_size - 1) / hevc->lcu_size;
-	u32 sao_mem_unit = (hevc->lcu_size == 16 ? 9 :
-			   hevc->lcu_size == 32 ? 14 : 24) << 4;
+	u32 sao_mem_unit = hevc_sao_mem_unit(hevc->lcu_size);
 	u32 sao_vb_size = (sao_mem_unit + (2 << 4)) * pic_height_cu;
 	u32 misc_flag0 = param->p.misc_flag0;
 	dma_addr_t buf_y_paddr;
@@ -1637,7 +1636,7 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 		return -EINVAL;
 	/* The S805 firmware indexes shared SAO scratch by tile row and column. */
 	{
-		u32 unit = (lcu_size == 16 ? 9 : lcu_size == 32 ? 14 : 24) << 4;
+		u32 unit = hevc_sao_mem_unit(lcu_size);
 
 		if (hevc->tiles.columns * (unit + 32) * hevc->lcu_y_num > SAO_VB_SIZE ||
 		    hevc->tiles.rows * unit * hevc->lcu_x_num > SAO_ABV_SIZE)

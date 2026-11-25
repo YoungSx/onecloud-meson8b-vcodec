@@ -13,6 +13,9 @@ int main(void)
 	struct hevc_tile tile;
 	u16 width[4] = { 3, 8, 5, 2 }, height[4] = { 4, 7, 2, 1 };
 
+	assert(hevc_sao_mem_unit(16) == 128);
+	assert(hevc_sao_mem_unit(32) == 192);
+	assert(hevc_sao_mem_unit(64) == 320);
 	assert(!hevc_tile_grid_init(&grid, 30, 17, 3, 3, 1, width, height));
 	assert(grid.x[0] == 0 && grid.x[1] == 7 && grid.x[2] == 15 &&
 	       grid.x[3] == 22 && grid.x[4] == 30);

@@ -4,6 +4,12 @@
 
 #define HEVC_TILE_AXIS_MAX 5
 
+/* S805 firmware scratch stride per CTU, in 16-byte units. */
+static inline u32 hevc_sao_mem_unit(u32 lcu_size)
+{
+	return ((lcu_size / 8) * 2 + 4) << 4;
+}
+
 struct hevc_tile_grid {
 	u32 columns, rows, picture_width, picture_height;
 	u32 x[HEVC_TILE_AXIS_MAX + 1], y[HEVC_TILE_AXIS_MAX + 1];

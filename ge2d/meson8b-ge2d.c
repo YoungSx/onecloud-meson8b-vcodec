@@ -109,10 +109,10 @@ static int ge2d_reset(struct meson8b_ge2d *core)
 }
 
 /* Source and destination remain held until command completion or reset. */
-static int ge2d_blit(struct meson8b_ge2d *core,
-		     const struct meson8b_ge2d_image *src,
-		     const struct meson8b_ge2d_image *dst,
-		     const struct meson8b_ge2d_crop *crop)
+static int ge2d_blit_one(struct meson8b_ge2d *core,
+			 const struct meson8b_ge2d_image *src,
+			 const struct meson8b_ge2d_image *dst,
+			 const struct meson8b_ge2d_crop *crop)
 {
 	u32 width = crop->width, height = crop->height;
 	u32 out_width = dst->width, out_height = dst->height;
@@ -159,7 +159,7 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 	ge2d_write(core, GEN_CTRL1, (3 << 22) | (0x3f << 16));
 	ge2d_write(core, GEN_CTRL2, (dst->little_endian ? BIT(23) : 0) |
 		   (src->little_endian ? BIT(7) : 0) |
-		   (nv12 ? (15 << 19) | (15 << 3) | 2 : 0));
+		   (nv12 ? (15 << 19) | ((src->little_endian ? 15 : 14) << 3) | 2 : 0));
 	ge2d_write(core, GEN_CTRL3, BIT(0) |
 		   (nv12 ? (10 << 19) | BIT(16) | (15 << 10) | BIT(8) : 0));
 	ge2d_write(core, SRC_CANVAS, (u32)core->src_canvas << 24 |
@@ -221,6 +221,42 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 		return -ETIMEDOUT;
 	}
 	dma_rmb();
+	return 0;
+}
+
+/* Bypass chroma interpolation when only copying or cropping NV12 bytes. */
+static int ge2d_blit(struct meson8b_ge2d *core,
+		     const struct meson8b_ge2d_image *src,
+		     const struct meson8b_ge2d_image *dst,
+		     const struct meson8b_ge2d_crop *crop)
+{
+	u32 plane;
+
+	if (!src->nv12 || crop->width != dst->width || crop->height != dst->height)
+		return ge2d_blit_one(core, src, dst, crop);
+	if (meson8b_ge2d_image_valid(src) || meson8b_ge2d_image_valid(dst) ||
+	    meson8b_ge2d_crop_valid(src, crop) || !dst->nv12 ||
+	    meson8b_ge2d_images_overlap(src, dst))
+		return -EINVAL;
+	for (plane = 0; plane < 2; plane++) {
+		struct meson8b_ge2d_image input = *src, output = *dst;
+		struct meson8b_ge2d_crop region = *crop;
+		int ret;
+
+		input.nv12 = false;
+		output.nv12 = false;
+		input.address[0] = src->address[plane];
+		output.address[0] = dst->address[plane];
+		if (plane) {
+			input.height /= 2;
+			output.height /= 2;
+			region.top /= 2;
+			region.height /= 2;
+		}
+		ret = ge2d_blit_one(core, &input, &output, &region);
+		if (ret)
+			return ret;
+	}
 	return 0;
 }
 
@@ -295,7 +331,7 @@ static int ge2d_selftest(struct meson8b_ge2d *core)
 
 		for (i = 0; i < size; i++) {
 			u8 value = i < luma ? (i * 37 + i / 512 * 13) & 255 :
-				   (i & 1 ? 0xb7 : 0x35);
+				   (i * 37 + i / 512 * 13 + (i & 1 ? 0xb7 : 0x35)) & 255;
 
 			src[i ^ 7] = value;
 		}

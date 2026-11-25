@@ -78,6 +78,13 @@ int main(void) {
  codec_hevc_set_sao(&s,&f);
  assert(regs[HEVC_DBLK_CFG9/4]&1);
  assert(regs[HEVC_SAO_CTRL0/4]&BIT(8));
+ assert(regs[HEVC_sao_mem_unit/4]==320);
+ assert(regs[HEVC_sao_vb_size/4]==(320+32)*17);
+ for(u32 lcu=16;lcu<=64;lcu*=2){
+  h.lcu_size=lcu;codec_hevc_set_sao(&s,&f);
+  assert(regs[HEVC_sao_mem_unit/4]==((lcu/8)*2+4)*16);
+ }
+ h.lcu_size=64;
  h.rpm_param.p.tiles_flags=0;h.rpm_param.p.misc_flag0=0;h.new_tile=false;
  h.rpm_param.p.slice_segment_address=30;
  codec_hevc_set_sao(&s,&f);codec_hevc_set_mpred(&s,&f,&f);

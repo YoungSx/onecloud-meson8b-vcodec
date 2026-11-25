@@ -887,7 +887,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_hevc.c
-@@ -0,0 +1,1939 @@
+@@ -0,0 +1,1938 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 Maxime Jourdan <mjourdan@baylibre.com>
@@ -1863,8 +1863,7 @@
 +	union rpm_param *param = &hevc->rpm_param;
 +	u32 pic_height_cu =
 +		(hevc->height + hevc->lcu_size - 1) / hevc->lcu_size;
-+	u32 sao_mem_unit = (hevc->lcu_size == 16 ? 9 :
-+			   hevc->lcu_size == 32 ? 14 : 24) << 4;
++	u32 sao_mem_unit = hevc_sao_mem_unit(hevc->lcu_size);
 +	u32 sao_vb_size = (sao_mem_unit + (2 << 4)) * pic_height_cu;
 +	u32 misc_flag0 = param->p.misc_flag0;
 +	dma_addr_t buf_y_paddr;
@@ -2527,7 +2526,7 @@
 +		return -EINVAL;
 +	/* The S805 firmware indexes shared SAO scratch by tile row and column. */
 +	{
-+		u32 unit = (lcu_size == 16 ? 9 : lcu_size == 32 ? 14 : 24) << 4;
++		u32 unit = hevc_sao_mem_unit(lcu_size);
 +
 +		if (hevc->tiles.columns * (unit + 32) * hevc->lcu_y_num > SAO_VB_SIZE ||
 +		    hevc->tiles.rows * unit * hevc->lcu_x_num > SAO_ABV_SIZE)
@@ -8247,12 +8246,18 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/hevc-tiles.h
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,96 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +#ifndef MESON8B_HEVC_TILES_H
 +#define MESON8B_HEVC_TILES_H
 +
 +#define HEVC_TILE_AXIS_MAX 5
++
++/* S805 firmware scratch stride per CTU, in 16-byte units. */
++static inline u32 hevc_sao_mem_unit(u32 lcu_size)
++{
++	return ((lcu_size / 8) * 2 + 4) << 4;
++}
 +
 +struct hevc_tile_grid {
 +	u32 columns, rows, picture_width, picture_height;
@@ -17610,7 +17615,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/ge2d/meson8b-ge2d.c
-@@ -0,0 +1,946 @@
+@@ -0,0 +1,982 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* S805 canvas GE2D; register protocol from Hardkernel Linux 5aed95d35d25.
 + * A byte-plane self-test proves endian conversion before exposing the device.
@@ -17722,10 +17727,10 @@
 +}
 +
 +/* Source and destination remain held until command completion or reset. */
-+static int ge2d_blit(struct meson8b_ge2d *core,
-+		     const struct meson8b_ge2d_image *src,
-+		     const struct meson8b_ge2d_image *dst,
-+		     const struct meson8b_ge2d_crop *crop)
++static int ge2d_blit_one(struct meson8b_ge2d *core,
++			 const struct meson8b_ge2d_image *src,
++			 const struct meson8b_ge2d_image *dst,
++			 const struct meson8b_ge2d_crop *crop)
 +{
 +	u32 width = crop->width, height = crop->height;
 +	u32 out_width = dst->width, out_height = dst->height;
@@ -17772,7 +17777,7 @@
 +	ge2d_write(core, GEN_CTRL1, (3 << 22) | (0x3f << 16));
 +	ge2d_write(core, GEN_CTRL2, (dst->little_endian ? BIT(23) : 0) |
 +		   (src->little_endian ? BIT(7) : 0) |
-+		   (nv12 ? (15 << 19) | (15 << 3) | 2 : 0));
++		   (nv12 ? (15 << 19) | ((src->little_endian ? 15 : 14) << 3) | 2 : 0));
 +	ge2d_write(core, GEN_CTRL3, BIT(0) |
 +		   (nv12 ? (10 << 19) | BIT(16) | (15 << 10) | BIT(8) : 0));
 +	ge2d_write(core, SRC_CANVAS, (u32)core->src_canvas << 24 |
@@ -17834,6 +17839,42 @@
 +		return -ETIMEDOUT;
 +	}
 +	dma_rmb();
++	return 0;
++}
++
++/* Bypass chroma interpolation when only copying or cropping NV12 bytes. */
++static int ge2d_blit(struct meson8b_ge2d *core,
++		     const struct meson8b_ge2d_image *src,
++		     const struct meson8b_ge2d_image *dst,
++		     const struct meson8b_ge2d_crop *crop)
++{
++	u32 plane;
++
++	if (!src->nv12 || crop->width != dst->width || crop->height != dst->height)
++		return ge2d_blit_one(core, src, dst, crop);
++	if (meson8b_ge2d_image_valid(src) || meson8b_ge2d_image_valid(dst) ||
++	    meson8b_ge2d_crop_valid(src, crop) || !dst->nv12 ||
++	    meson8b_ge2d_images_overlap(src, dst))
++		return -EINVAL;
++	for (plane = 0; plane < 2; plane++) {
++		struct meson8b_ge2d_image input = *src, output = *dst;
++		struct meson8b_ge2d_crop region = *crop;
++		int ret;
++
++		input.nv12 = false;
++		output.nv12 = false;
++		input.address[0] = src->address[plane];
++		output.address[0] = dst->address[plane];
++		if (plane) {
++			input.height /= 2;
++			output.height /= 2;
++			region.top /= 2;
++			region.height /= 2;
++		}
++		ret = ge2d_blit_one(core, &input, &output, &region);
++		if (ret)
++			return ret;
++	}
 +	return 0;
 +}
 +
@@ -17908,7 +17949,7 @@
 +
 +		for (i = 0; i < size; i++) {
 +			u8 value = i < luma ? (i * 37 + i / 512 * 13) & 255 :
-+				   (i & 1 ? 0xb7 : 0x35);
++				   (i * 37 + i / 512 * 13 + (i & 1 ? 0xb7 : 0x35)) & 255;
 +
 +			src[i ^ 7] = value;
 +		}
