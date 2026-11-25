@@ -13,6 +13,8 @@
 #include "dos_regs.h"
 #include "esparser.h"
 #include "vdec_helpers.h"
+#include "vdec-input.h"
+#include "mjpeg-header.h"
 
 /* MJPEG needs no workspace: unlike mpeg12/mpeg4/vc1 the microcode keeps
  * all its state in scratch registers and LMEM (vendor vmjpeg.c).
@@ -40,6 +42,14 @@ struct codec_mjpeg {
 	struct delayed_work drain_work;
 	bool draining;
 };
+
+static int codec_mjpeg_inspect_input(struct amvdec_session *sess,
+				     struct vb2_buffer *vb, u32 offset)
+{
+	(void)offset;
+	return mjpeg_validate_header(amvdec_input_data(vb), amvdec_input_size(vb),
+				     sess->width, sess->height);
+}
 
 static int codec_mjpeg_can_recycle(struct amvdec_core *core)
 {
@@ -84,24 +94,23 @@ static int codec_mjpeg_start(struct amvdec_session *sess)
  *
  * MJPEG register setup that must precede the restart (vendor
  * vmjpeg_prot_init()):
- * - MREG_DECODE_PARAM = (height << 4) | 0x8000: the ucode gets the frame
- *   height and its buffer address mode from the host, there is no
- *   in-stream size like MPEG sequence headers.
- * - The PSCALE triangle filter table: the ucode runs every picture
- *   through the post-scaler, an unprogrammed BMEM yields corrupt output.
+ * - MREG_DECODE_PARAM = (height << 4) | 0x8000 supplies the negotiated
+ *   height and buffer address mode; the input hook checks SOF geometry.
+ * - The ucode runs every picture through PSCALE. Use the vendor jpegdec
+ *   bilinear table: its unity phase preserves pixels instead of blurring them.
  */
 static void codec_mjpeg_init_hw(struct amvdec_session *sess)
 {
 	static const u32 filt_coef[33] = {
-		0x20402000, 0x20402000, 0x1f3f2101, 0x1f3f2101,
-		0x1e3e2202, 0x1e3e2202, 0x1d3d2303, 0x1d3d2303,
-		0x1c3c2404, 0x1c3c2404, 0x1b3b2505, 0x1b3b2505,
-		0x1a3a2606, 0x1a3a2606, 0x19392707, 0x19392707,
-		0x18382808, 0x18382808, 0x17372909, 0x17372909,
-		0x16362a0a, 0x16362a0a, 0x15352b0b, 0x15352b0b,
-		0x14342c0c, 0x14342c0c, 0x13332d0d, 0x13332d0d,
-		0x12322e0e, 0x12322e0e, 0x11312f0f, 0x11312f0f,
-		0x10303010,
+		0x00800000, 0x007e0200, 0x007c0400, 0x007a0600,
+		0x00780800, 0x00760a00, 0x00740c00, 0x00720e00,
+		0x00701000, 0x006e1200, 0x006c1400, 0x006a1600,
+		0x00681800, 0x00661a00, 0x00641c00, 0x00621e00,
+		0x00602000, 0x005e2200, 0x005c2400, 0x005a2600,
+		0x00582800, 0x00562a00, 0x00542c00, 0x00522e00,
+		0x00503000, 0x004e3200, 0x004c3400, 0x004a3600,
+		0x00483800, 0x00463a00, 0x00443c00, 0x00423e00,
+		0x00404000,
 	};
 	struct amvdec_core *core = sess->core;
 	int i;
@@ -116,7 +125,7 @@ static void codec_mjpeg_init_hw(struct amvdec_session *sess)
 	amvdec_write_dos(core, MREG_DECODE_PARAM,
 			 (sess->height << 4) | 0x8000);
 
-	/* pscale enable + PSCALE cbus bmem enable; 4-point triangle */
+	/* PSCALE and CBUS BMEM enable; unity phase of the two-point filter. */
 	amvdec_write_dos(core, PSCALE_CTRL, 0xc000);
 	amvdec_write_dos(core, PSCALE_BMEM_ADDR, 0);
 	for (i = 0; i < 33; i++) {
@@ -299,4 +308,5 @@ struct amvdec_codec_ops codec_mjpeg_ops = {
 	.recycle = codec_mjpeg_recycle,
 	.drain = codec_mjpeg_drain,
 	.resume = codec_mjpeg_resume,
+	.inspect_input = codec_mjpeg_inspect_input,
 };
