@@ -1619,9 +1619,9 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 		   3 + param->p.log2_diff_max_min_coding_block_size);
 	if (lcu_size < 16 || lcu_size > 64)
 		return -EINVAL;
+	/* SPS bounds decode storage; one extra slot covers asynchronous delivery. */
 	hevc->dpb_size = min_t(u32, HEVC_MAX_DPB_SIZE,
-			       param->p.sps_num_reorder_pics_0 + 6);
-	hevc->dpb_size = max(hevc->dpb_size, hevc->applied.dpb);
+		max(hevc->applied.dpb, (u32)param->p.sps_num_reorder_pics_0 + 1) + 1);
 	dev_dbg(sess->core->dev, "HEVC RPM size %ux%u poc %u slice %u first %u reorder %u dpb %u\n",
 		 hevc->width, hevc->height, param->p.POClsb, param->p.slice_type,
 		 param->p.first_slice_segment_in_pic_flag, param->p.sps_num_reorder_pics_0,

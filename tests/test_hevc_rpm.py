@@ -69,6 +69,15 @@ int main(void){
  h.rpm_param.p.sps_num_reorder_pics_0=15;
  assert(!codec_hevc_process_rpm(&s)&&h.dpb_size==16);
  h.rpm_param.p.sps_num_reorder_pics_0=0;
+ /* The SPS bounds retained decode pictures; reserve one delivery slot. */
+ for(u32 dpb=1;dpb<=16;dpb++)for(u32 reorder=0;reorder<dpb;reorder++){
+  queued_geometry.dpb=dpb;queued_geometry.reorder=reorder;
+  h.rpm_param.p.sps_num_reorder_pics_0=reorder;
+  assert(!codec_hevc_process_rpm(&s));
+  assert(h.dpb_size==(dpb<16?dpb+1:16));
+ }
+ queued_geometry.dpb=5;queued_geometry.reorder=0;
+ h.rpm_param.p.sps_num_reorder_pics_0=0;
  /* Subsequent slices keep geometry; the same fields still feed POC/MPRED. */
  h.rpm_param.p.slice_segment_address=1;h.rpm_param.p.first_slice_segment_in_pic_flag=0;
  assert(!codec_hevc_process_rpm(&s)&&h.width==1920&&h.height==1088);

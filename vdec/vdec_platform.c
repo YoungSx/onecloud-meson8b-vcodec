@@ -22,7 +22,7 @@
 static const struct amvdec_format vdec_formats_meson8b[] = {
 	{
 		.pixfmt = V4L2_PIX_FMT_HEVC,
-		.min_buffers = 6,
+		.min_buffers = 2,
 		.max_buffers = HEVC_MAX_DPB_SIZE,
 		.max_width = 1920,
 		.max_height = 1088,
