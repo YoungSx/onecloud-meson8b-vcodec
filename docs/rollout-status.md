@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`de20e8704556da7af8ede2d52aed2b43022ab719`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
+| 已部署开发驱动 | 完整运行包源码`f581f98a24f53402bb91cec7f1c6b2026a527b0a`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | 官方底座8.1.3，FFmpeg/ffprobe逐字节未改；宿主原7.0.2是另一套工具。 |
@@ -17,7 +17,7 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `f77d0c63609d11fccb49d19ff2b20c83650dc13334e31bd2c32b1f0abf2b80a5` |
+| meson-vdec.ko | `f9569fd03ebd213a40a5bddb73f0a4b7cba6d5b62418a57bea5fd0c82a7adc73` |
 | meson-venc.ko | `48bfa619e3a392418ed5f1f358cdbed20a85a172b9fdf16f8d484c7cac748aa4` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
@@ -43,6 +43,10 @@ VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒�
 一致；不代表所有序列组合通过。仍开放：WMV3为3/5，MPEG-4两份30幅流为28/30。1080p60幅解码→编码约2.82 s，完整
 软解60/60与YUV质量通过，未达1.3×实时，音频/HLS与GE2D端到端收益未验收。
 
+当前包另修正MJPEG的PSCALE平面色度行跨度及帧池容量。4:2:0的854×480、
+1920×1080各3/3顺序/全平面质量通过；正式包复验H.264 50/50、HEVC10/10、
+tiles4/4和自然EOS20/20精确一致。320×240纹理误差及4:2:2异常仍开放。
+
 用户重启时`30989c8`自动加载成功，四项HTTP200；随后升级并保留当前包。
 最近完整健康检查：unit enabled/active、五容器运行、四项HTTP200、帧池归零、
 26个启动文件哈希未变。最后一次旧格式临时试验后SSH断连，恢复命令的完整
@@ -50,7 +54,7 @@ VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒�
 pstore为空，不据此排除或确认旧内核故障；本次局域网正常的链路故障独立记录。
 没有由代理重启、更换内核/boot DT或调整64 MiB CMA。
 
-当前与升级前`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
+当前与升级前`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
 构建机的SHA256备份，更早资料保留。新state位于持久系统分区；未演练整包
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。
