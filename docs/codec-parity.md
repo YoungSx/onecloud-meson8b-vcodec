@@ -17,16 +17,16 @@ WanOS，无备用板/串口。新增硬件路径先完成工作机实现和边�
 
 历史 H.264 #5 调查保持开放，按用户选择暂停主动复现。没有适用于 S805 的
 HEVC 编码、Main10 或可靠高级 H.264 编码路径时，不添加虚假的能力枚举。
-AVS 标准 UAPI/应用落点、WMV3 Annex L/RCV 封装也必须明确后再开放格式。
+AVS 标准 UAPI/应用落点仍需明确；WMV3 Annex L/RCV转换已实现，尾帧未通过。
 
 ## 新增实现与验收
 
 | 项目 | 实现 | 验证与边界 |
 | --- | --- | --- |
 | 阶段测量 | 原 argv、有界超时、CPU/CMA、计数差值、独立完整软解 | 主机错误注入及实际软件命令通过；视频帧数/可选哈希，音频与有损质量另外验收。 |
-| GE2D | 标准 GREY/NV12/NV12M M2M、四 canvas、色度格式器与第二输出、裁剪/1–1/4缩小、probe全平面自检；显式decoder DMA CAPTURE接入 | 主机命令/队列/生命周期/回退回归及ARM构建；默认NEON；独立复制/裁剪及常量缩小、DMA-BUF与decoder110幅短内容通过，纹理及全链仍待验收。连续CAPTURE占CMA，默认20缓冲不保证可用。 |
+| GE2D | 标准 GREY/NV12/NV12M M2M、四 canvas、色度格式器与第二输出、裁剪/1–1/4缩小、probe全平面自检；显式decoder DMA CAPTURE接入 | 主机命令/队列/生命周期/回退回归及ARM构建；独立复制/裁剪、常量缩小、DMA-BUF与decoder400幅精确像素通过，两组纹理缩小完成质量比较。默认NEON，原版FFmpeg全链仍未验收。连续CAPTURE占CMA，默认20缓冲不保证可用。 |
 | HEVC tiles | 标准均匀余数分配、最多 5×5 网格、有界尺寸、MPRED rectangle/row jump/new tile、跨 tile 滤波 | 几何和实际 MPRED/SAO 函数 ASan/UBSan、ARM 构建；042573f修正S805 SAO scratch单位后，4×2 1080p 4/4、非均匀640×384 3/3逐帧精确一致。 |
-| H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化、baseline/PLUS I/P、会话内UFEP续帧、自定义尺寸/时钟/舍入位 | 12幅baseline及新增18幅PLUS中间流与厂商逐字节一致；官方软解、状态/容量/HD边界回归、ARM构建；VOP边界修正已部署，baseline/PLUS/UFEP四份各3/3顺序/全平面通过；更大尺寸与异常矩阵待补。 |
+| H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化、baseline/PLUS I/P、会话内UFEP续帧、自定义尺寸/时钟/舍入位 | 12幅baseline及新增18幅PLUS中间流与厂商逐字节一致；官方软解、状态/容量/HD边界回归、ARM构建；VOP边界修正已部署，四份各3/3及四种176×144至704×396输入各12/12顺序/全平面通过。Slice Structured仍拒绝，HD与异常矩阵待补。 |
 | WMV3 | 标准 Annex L/RCV 的序列/单帧边界、厂商长度/校验前缀、VC-1 simple/main 选择 | 前缀/容量/尺寸/状态回归、5 图独立 RCV 软件参考、ARM 构建；当前包320×240为3/5，已输出帧顺序/全平面检查通过，尾帧未通过；无官方WMV3 M2M包装器。 |
 | 编码多会话 | 标准 V4L2 M2M 逐帧调度，最多8个句柄；分别保留参考、canvas、固件、SPS/PPS 与码控，切换时恢复硬件 | 实际 activation/stop、canvas 角色、错误清理与 IRQ 同步主机回归和 ARM 构建；两路720p/两路1080p各12幅完整软解/YUV通过，HD最低采样CMA约5.1 MiB；不保证8路1080p或总吞吐。 |
 
@@ -67,13 +67,14 @@ H.263自定义尺寸按32×32至1920×1080、4像素步进协商，宏块按向�
 新会话CRA及BLA按厂商路径丢弃较小POC的RASL前导图片，连续播放的后续
 CRA保留有效RASL，RADL不丢弃。丢弃先于几何/DPB/参考表与像素阶段，每幅
 仅首slice消耗对应时间戳，再以ACTION_DONE继续搜索。slice头只解析一次，
-CAPTURE协商/缓冲重试不重置随机接入状态；当前仅主机/ARM验证，未实机。
+CAPTURE协商/缓冲重试不重置随机接入状态；实机CRA入口24/24、开放GOP36/36
+全像素通过，不扩大为所有前导图片类型通过。
 
 固定S805厂商[源](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/amports/vh265.c#L3177)
 把LongTerm_Curr/Col/Ref设为0并标TODO；不能以LT寄存器存在作为完整协议
 依据。当前短期参考路径显式清零HEVC_MPRED_LT_REF，与厂商已实现路径一致。
 这不新增长期参考支持，也不证明芯片做不到；长期RPS/POC和固件输出仍缺
-可验收的同芯片依据。源码已随`1cf0e71`部署，但前导图片仍无实机验收。
+可验收的同芯片依据。当前实机范围见[重启后记录](validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
 
 当前RPM校验在每个slice上检查POC位数、参考数/列表标志、slice类型、merge
 字段及布尔标志，先于几何快速返回；后续slice和空几何通知不能跳过这些
@@ -125,7 +126,9 @@ EOS继续路径的实现与主机验证见下文，软件参考不能替代该�
 快照与重排尾图，重置当前图/随机接入状态，下一CRA按序列起点处理并推断
 丢弃旧待输出图。STOP与正在提交的OUTPUT在会话锁下排序，后续输入等START
 唤醒，避免自然EOS或后加数据抢占drain。未知/重复终止通知报错。该路径
-只有主机/ARM和标准样片软件参考，固件搜索继续、取消/重开及EOS仍需实机。
+主机/ARM回归通过；de20e87修正SEARCH_DONE通知后的消费握手为DISCARD_NAL
+（0xf0），原版FFmpeg串接两段20/20、三段30/30全像素一致。取消/重开及
+更广序列组合仍需验收。
 
 ## 压缩输入有效载荷
 

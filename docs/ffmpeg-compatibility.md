@@ -113,3 +113,10 @@ For checksum diagnostics, bound filter and rawvideo output threads using
 standard options. The input codec and hardware frame pool are unchanged.
 This addresses a reproduced output-retention case; rare historical short
 output remains a separate open investigation.
+
+
+11-25显式GE2D采集下，原版7.0.2在低CAPTURE缓冲有短输出；独立原生
+客户端同路径400幅逐帧一致。可选bugfix验收工具在CAPTURE 2恢复small/crop
+和HEVC1080p完整哈希，但H.2641080p仍超时；8缓冲又可能耗尽64 MiB CMA。
+生产工具保持官方原版，GE2D默认关闭；不能据上述部分对照宣称完整零拷贝链
+已兼容。完整范围见[验收记录](validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
