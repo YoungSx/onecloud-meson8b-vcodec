@@ -117,7 +117,7 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	u32 width = crop->width, height = crop->height;
 	u32 out_width = dst->width, out_height = dst->height;
 	u32 x = crop->left + width - 1, y = crop->top + height - 1;
-	u32 status, hstep, vstep, misc, phase;
+	u32 status, hstep, vstep, misc, phase, advance = 0;
 	bool preh, prev, nv12 = src->nv12;
 	int ret;
 
@@ -190,6 +190,13 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	misc = (4 << 4) | 4;
 	misc |= (preh ? BIT(14) : 0) | (prev ? BIT(13) : 0);
 	misc |= (width != out_width ? BIT(11) : 0) | (height != out_height ? BIT(12) : 0);
+	if (width != out_width) {
+		u32 length = (124u << 24) / hstep;
+
+		/* Divide horizontal reads to fit the scaler's 128-pixel line buffer. */
+		misc |= BIT(28) | (length << 15);
+		advance = hstep * length;
+	}
 	if (width != out_width || height != out_height) {
 		ge2d_write(core, SCALE_IDX, 0);
 		for (phase = 0; phase < 33; phase++)
@@ -205,7 +212,7 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	ge2d_write(core, VSC_SLOPE, 0);
 	ge2d_write(core, HSC_INI, 0);
 	ge2d_write(core, VSC_INI, 0);
-	ge2d_write(core, HSC_ADV, 0);
+	ge2d_write(core, HSC_ADV, advance);
 	/* Logic COPY for color and alpha; no color matrix or filtering. */
 	ge2d_write(core, ALU_CTRL, (5 << 20) | (1 << 12) | (5 << 8) | 1);
 	dma_wmb();

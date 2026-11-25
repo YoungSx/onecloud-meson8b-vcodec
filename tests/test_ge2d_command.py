@@ -67,6 +67,9 @@ int main(void) {
  assert(registers[HSC_STEP/4]==2u<<24 && registers[VSC_STEP/4]==2u<<24);
  assert(registers[DST_X/4]==255 && registers[DST_Y/4]==15);
  assert(registers[SC_MISC/4]&(BIT(11)|BIT(12)));
+ assert(registers[SC_MISC/4]&(BIT(28)));
+ assert(((registers[SC_MISC/4]>>15)&0x1fff)==62);
+ assert(registers[HSC_ADV/4]==124u<<24);
  input.nv12=output.nv12=true;input.little_endian=false;
  unsigned calls=canvas_calls;
  assert(!ge2d_blit(&c,&input,&output,&crop));
@@ -83,6 +86,7 @@ int main(void) {
  assert(registers[SRC_X/4]==(2u<<16|257));
  assert(registers[GEN_CTRL0/4]==0);
  assert(registers[GEN_CTRL2/4]==BIT(23));
+ assert(!registers[HSC_ADV/4] && !(registers[SC_MISC/4]&BIT(28)));
  assert(registers[SRC_CLIPY/4]==(1u<<16|8));
  assert(canvas_calls==calls+8 && starts==6);
  input.little_endian=true;crop.width=512;crop.height=32;crop.left=crop.top=0;
