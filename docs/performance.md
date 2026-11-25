@@ -51,7 +51,9 @@ endian 转换并逐字节核对，再检查 512×32→256×16 的常量平面过
 ```sh
 python3 scripts/make-overlay.py --tree /sys/firmware/devicetree/base \
   --ge2d --output ge2d-test.dts
-# 在工作机编译 overlay 和模块，沿用临时 overlay 加载/恢复流程。
+# 在工作机编译；原5.15运行树可能没有/__symbols__，不要加-@。
+dtc -I dts -O dtb -o ge2d-test.dtbo ge2d-test.dts
+# 模块沿用临时overlay加载/恢复流程。
 arm-linux-gnueabihf-gcc-11 -O2 -Wall -Wextra -Werror -static \
   tests/ge2d-copy.c -o build/ge2d-copy
 # 用枚举得到的 GE2D 设备号；示例编号不代表固定设备。
@@ -78,7 +80,10 @@ DMA范围、对齐及重叠；错误输出清零两个平面的 payload。
 
 当前通过实际命令、格式、裁剪、队列和客户端的主机 ASan/UBSan 回归与 ARM
 构建。取消/重开、不同 DMA-BUF 导出器、纹理缩放及共享时钟/业务仍需实机。
-没有 GE2D 实机像素或性能验收，不能宣称已加速转码。
+11-25首次临时Overlay在GE2D模块加载前被拒绝；5.15要求导出符号Overlay的
+目标树已有`/__symbols__`，因此当前编译去掉`-@`，保留本地phandle fixups。
+主机生成/引用检查通过，默认Overlay字节不变；去掉导出的候选仍待实机加载。
+没有GE2D实机像素或性能验收，不能宣称已加速转码。
 
 ## 显式 decoder 接入（未部署）
 

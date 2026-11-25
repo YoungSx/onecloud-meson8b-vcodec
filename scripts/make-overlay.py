@@ -91,7 +91,8 @@ def render(tree, ge2d=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tree', type=pathlib.Path, default=pathlib.Path('/sys/firmware/devicetree/base'))
-    parser.add_argument('--output', type=pathlib.Path, required=True, help='New .dts file; compile externally with dtc -@')
+    parser.add_argument('--output', type=pathlib.Path, required=True,
+                        help='New .dts file; compile externally with dtc -I dts -O dtb, without -@')
     parser.add_argument('--ge2d', action='store_true', help='Include the opt-in GE2D hardware verification device')
     args = parser.parse_args()
     text = render(args.tree, args.ge2d)

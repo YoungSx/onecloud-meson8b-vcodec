@@ -24,4 +24,4 @@ endif
 DTC ?= dtc
 .PHONY: dtbo
 dtbo: meson8b-runtime.dts
-	$(DTC) -@ -I dts -O dtb -o firmware/meson/vdec/meson8b-runtime.dtbo $<
+	$(DTC) -I dts -O dtb -o firmware/meson/vdec/meson8b-runtime.dtbo $<
