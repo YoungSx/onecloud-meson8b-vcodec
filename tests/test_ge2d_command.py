@@ -34,6 +34,7 @@ struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char 
 static u32 registers[128];
 static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
+static unsigned poll_error_at;
 static unsigned asserted;
 static int reset_control_assert(void *r) {(void)r;asserted++;return 0;}
 static int ge2d_reset(struct meson8b_ge2d *c) {(void)c;resets++;return reset_error;}
@@ -44,7 +45,7 @@ static int meson_canvas_config(void *c,unsigned i,dma_addr_t a,u32 s,u32 h,int w
  (void)c;(void)i;(void)a;assert((s==512||s==256) && (h==32||h==16||h==8) && !w && !b && !e);canvas_calls++;return canvas_error;
 }
 static u32 readl(void *r) {(void)r;return 0;}
-#define readl_poll_timeout(r,status,cond,interval,limit) ((void)(r), (status)=0, (void)(cond), assert((interval)==50 && (limit)==100000),poll_error)
+#define readl_poll_timeout(r,status,cond,interval,limit) ((void)(r), (status)=0, (void)(cond), assert((interval)==50 && (limit)==100000),(poll_error_at && starts==poll_error_at ? -ETIMEDOUT : poll_error))
 #define dev_err(...) ((void)0)
 static void dma_wmb(void) {barriers++;}
 static void dma_rmb(void) {barriers++;}
@@ -111,6 +112,12 @@ int main(void) {
  before=starts;
  assert(ge2d_copy(&c,0x100000,0x200000,512,32,true)==-EIO && starts==before);
  assert(BUSY_MASK & GENMASK(28,17));
+ /* Chroma failure stops the split copy and holds the engine in reset. */
+ c.offline=false;poll_error=0;poll_error_at=starts+2;before=starts;
+ input.little_endian=true;output.address[1]=0x201000;
+ assert(ge2d_blit(&c,&input,&output,&crop)==-ETIMEDOUT);
+ assert(starts==before+2&&c.offline&&asserted==2);
+ before=starts;assert(ge2d_blit(&c,&input,&output,&crop)==-EIO&&starts==before);
  return 0;
 }
 '''
