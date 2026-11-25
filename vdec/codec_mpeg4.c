@@ -56,7 +56,9 @@ struct codec_mpeg4 {
 	struct h263_context h263;
 };
 
-static const u8 eos_sequence[SZ_1K] = { 0x00, 0x00, 0x01, 0xB1 };
+static const u8 eos_sequence[SZ_1K] = {
+	0x00, 0x00, 0x01, 0xB1, 0x00, 0x00, 0x01, 0xB6,
+};
 
 static int codec_mpeg4_inspect_input(struct amvdec_session *sess, struct vb2_buffer *vb,
 				     u32 offset)
@@ -225,12 +227,13 @@ static void codec_mpeg4_drain_work(struct work_struct *work)
 static void codec_mpeg4_drain(struct amvdec_session *sess)
 {
 	struct codec_mpeg4 *mpeg4 = sess->priv;
+	u32 length = sess->fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 8 : 4;
 
 	if (mpeg4->draining)
 		return;
 
-	/* H.263 reaches the firmware as the vendor MPEG-4 macroblock stream. */
-	if (esparser_queue_eos(sess->core, eos_sequence, 4)) {
+	/* h263_mc releases its final picture at the next VOP start, without pixels. */
+	if (esparser_queue_eos(sess->core, eos_sequence, length)) {
 		amvdec_abort(sess);
 		return;
 	}

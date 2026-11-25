@@ -20,21 +20,31 @@ class DecoderDrainTests(unittest.TestCase):
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
-typedef uint8_t u8;
-struct amvdec_session {void *priv,*core;};
+typedef uint8_t u8;typedef uint32_t u32;
+#define SZ_1K 1024
+#define V4L2_PIX_FMT_H263 1
+struct format {u32 pixfmt;};
+struct amvdec_session {void *priv,*core;struct format *fmt_out;};
 static const u8 eos_sequence[1024];
 static int writes,scheduled,aborted,result;
+static unsigned int last_len;
+static const u8 *last_data;
 static int esparser_queue_eos(void *core,const u8 *data,unsigned int len) {
-    (void)core;(void)data;(void)len;writes++;return result;
+    (void)core;last_len=len;last_data=data;writes++;return result;
 }
 static void amvdec_abort(struct amvdec_session *s) {(void)s;aborted++;}
 static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;scheduled++;}
 """
+                if codec == 'mpeg4':
+                    begin = source.index('static const u8 eos_sequence[')
+                    end_array = source.index(';', begin) + 1
+                    body = body.replace('static const u8 eos_sequence[1024];',
+                                        source[begin:end_array])
                 body += "struct codec_" + codec + " {bool draining;int drain_work;};\n"
                 body += source[start:end]
                 body += r"""
 int main(void) {
-    struct CODEC c={0};struct amvdec_session s={.priv=&c};
+    struct CODEC c={0};struct format f={0};struct amvdec_session s={.priv=&c,.fmt_out=&f};
     int errors[]={-ENOMEM,-ETIMEDOUT,-EINTR};
     for(unsigned int i=0;i<sizeof(errors)/sizeof(errors[0]);i++) {
         result=errors[i];DRAIN(&s);
@@ -46,6 +56,14 @@ int main(void) {
     return 0;
 }
 """.replace("CODEC", "codec_" + codec).replace("DRAIN", "codec_" + codec + "_drain")
+                if codec == 'mpeg4':
+                    body = body.replace('    return 0;\n}', r"""
+    assert(last_len==4);
+    c.draining=false;f.pixfmt=V4L2_PIX_FMT_H263;DRAIN(&s);
+    assert(last_len==8 && last_data[3]==0xb1 && last_data[7]==0xb6);
+    assert(c.draining && scheduled==2 && writes==5);
+    return 0;
+}""".replace('DRAIN', 'codec_mpeg4_drain'))
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory)
                     (path / "test.c").write_text(body)
