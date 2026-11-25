@@ -28,10 +28,11 @@
 | P3 逐 slice 提前交付协议研究 | [#22](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/22) |
 | P2 低目标码率可达性与严格 CBR 条件研究 | [#24](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/24) |
 
-11-24安装`1cf0e71`后，核心静态尺寸编解码通过；tiles像素、H.263/WMV3尾帧
-仍失败。11-25切换复核为400/400与60/60全像素一致，原少帧摘要已纠正；
-H.263新候选尾帧修正3/3，尚未正式部署。优先修复其余实机缺口，结果见
-[后续验收](docs/validation-records.md#11-25-切换修正与新增路径诊断)，不以退出码或历史版本通过替代。
+11-25后续：H.263四份3/3已部署，HEVC tiles精确像素修正及GE2D复制/裁剪、
+常量缩小已完成有界硬件验收；两路720p/1080p编码内容通过。尺寸切换400/400
+与60/60、裁剪切换33/33通过；旧少帧摘要/固定画布参考已纠正。当前优先处理
+WMV3/MPEG-4尾帧、自然HEVC EOS握手、GE2D纹理/完整标准工具链与吞吐。
+最新范围见[重启后验收](docs/validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
 
 每项 issue 保存固定来源、计划和验收门槛。素材生成/软解、边界测试、
 故障注入、sanitizers 和交叉构建优先在工作机做；WanOS 只承担离线无法
