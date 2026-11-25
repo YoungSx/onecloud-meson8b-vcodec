@@ -103,11 +103,17 @@ vmalloc 内存。帧池保留固件字节序，逐帧通过 GE2D 写可见 NV12M
 转换；DMA-BUF CPU 访问成对同步，GE2D 超时后先复位停机再回退。
 
 连续 CAPTURE 会消耗 CMA。默认20个 FFmpeg缓冲不保证能和固件帧池一起
-容纳在64 MiB中；仅在测试设备先用 `-num_capture_buffers 1` 或直接客户端的
-`CAPTURE_BUFFERS=1` 做完整图片检查，再测实际内存/回压。NEON 默认路径不
+容纳在64 MiB中；原版FFmpeg的`num_capture_buffers`最小值为2，直接客户端可用
+`CAPTURE_BUFFERS=1`做完整图片检查，再测实际内存/回压。压缩输入也占CMA，
+原版`num_output_buffers`默认为16、最小值为2；它与CAPTURE的数量分别计算。
+低缓冲不保证官方FFmpeg内部帧队列可用，不能把上述最小值当成推荐配置。NEON默认路径不
 要求这些限制。显式接入原生客户端取消FNV诊断读取后，400幅精确可见像素通过，含H.264
 1080p300幅和HEVC1080p30幅。300幅交付不读取图片约7.27 s；原版FFmpeg
 低缓冲仍有短输出/断言失败，高缓冲又可能耗尽CMA。生产默认NEON，不将短样片通过扩大为全链部署通过。
+
+标准OUTPUT2/CAPTURE12加实际scale后，H.264小流缩至160×120的50/50与
+1080p短流缩至720p的10/10通过独立软件哈希对照；HEVC同类检查仍8/30，
+不能声明完整官方工具链兼容。细节和失败在[专项记录](validation-records.md#11-25-旧格式尾图现场与-ge2d-官方工具链边界)。
 
 最近相同1080p首60图，默认NEON下decode/null约1.827 s，加入CPU软件scale
 约7.119 s，硬解→4 Mbps硬编约2.821 s；后者完整60/60及YUV质量通过，约

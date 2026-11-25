@@ -120,3 +120,10 @@ output remains a separate open investigation.
 和HEVC1080p完整哈希，但H.2641080p仍超时；8缓冲又可能耗尽64 MiB CMA。
 生产工具保持官方原版，GE2D默认关闭；不能据上述部分对照宣称完整零拷贝链
 已兼容。完整范围见[验收记录](validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
+
+新增真实dequeue函数回归复现了上述drain边界：当所有CAPTURE暂由消费端
+持有，官方7.0.2提前设置done，丢掉随后归还缓冲并完成的图片；既有可选修复
+保留等待，并区分空LAST和终止ioctl错误。测试fixture恢复为固定官方原文件、
+校验SHA256，补丁强制forward应用，防止再次应用时自动反向撤销。该测试不
+改变生产工具，也不能证明GE2D完整链已通过。固定n8.1.3源码仍保留相同的
+无排队CAPTURE即结束判断；完整命令行为须单独实测。
