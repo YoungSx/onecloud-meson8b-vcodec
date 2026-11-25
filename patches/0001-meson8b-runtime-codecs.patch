@@ -238,7 +238,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec_h264.c
-@@ -0,0 +1,626 @@
+@@ -0,0 +1,629 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2019 BayLibre, SAS
@@ -690,6 +690,9 @@
 +		mutex_unlock(&sess->bufs_recycle_lock);
 +	}
 +	codec_h264_set_par(sess);
++	if (amvdec_has_pool(sess) && sess->streamon_cap &&
++	    (sess->width != frame_width || sess->height != frame_height))
++		amvdec_pool_end(sess, AMVDEC_POOL_RESTART);
 +	amvdec_src_change(sess, frame_width, frame_height, dpb_size);
 +}
 +

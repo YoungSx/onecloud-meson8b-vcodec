@@ -91,7 +91,9 @@ static int dump_frame(struct v4l2_buffer *b)
 		bytes += n;
 	}
 	if (hashf && bytes)
-		fprintf(hashf, "%lu %zu %016llx\n", pictures++, bytes, hash);
+		fprintf(hashf, "%lu %zu %016llx\n", pictures, bytes, hash);
+	if (bytes)
+		pictures++;
 	return bytes != 0;
 }
 
@@ -247,9 +249,11 @@ static void reinit_capture(void)
 {
 	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
-	/* STREAMOFF discards undelivered pictures, so take them first. */
-	drain_capture(type);
-	xioctl(VIDIOC_STREAMOFF, &type, "STREAMOFF(CAPTURE)");
+	/* Initial source change has no running CAPTURE queue to drain. */
+	if (ncap) {
+		drain_capture(type);
+		xioctl(VIDIOC_STREAMOFF, &type, "STREAMOFF(CAPTURE)");
+	}
 	for (int i = 0; i < ncap; i++)
 		for (int j = 0; j < capbufs[i].nplanes; j++)
 			munmap(capbufs[i].planes[j].start,
@@ -304,7 +308,8 @@ int main(int argc, char **argv)
 	FILE *es;
 	unsigned char *esbuf;
 	long eslen;
-	unsigned long frames = 0, resolutions = 1;
+	unsigned long resolutions = 1;
+	bool dynamic = false;
 	int eos = 0, running = 0;
 
 	/* Chunks split on H.264 start-code boundaries: the firmware
@@ -316,7 +321,8 @@ int main(int argc, char **argv)
 
 	if (getenv("STREAMOFF_AFTER"))
 		streamoff_after = strtoul(getenv("STREAMOFF_AFTER"), NULL, 10);
-	streamoff_capture_first = getenv("STREAMOFF_CAPTURE_FIRST") != NULL;
+	if (getenv("STREAMOFF_CAPTURE_FIRST"))
+		streamoff_capture_first = !!strtoul(getenv("STREAMOFF_CAPTURE_FIRST"), NULL, 10);
 
 	if (argc < 3 || argc > 6) {
 		fprintf(stderr, "usage: %s DEVICE ELEMENTARY_STREAM "
@@ -480,10 +486,14 @@ int main(int argc, char **argv)
 
 	if (argc < 6)
 		setup_output(1920, 1080);
-	setup_capture();
+	dynamic = out_fourcc == V4L2_PIX_FMT_H264 || out_fourcc == V4L2_PIX_FMT_HEVC;
+	resolutions = dynamic ? 0 : 1;
+	if (!dynamic)
+		setup_capture();
 	xioctl(VIDIOC_SUBSCRIBE_EVENT, &sub, "SUBSCRIBE_EVENT");
 	xioctl(VIDIOC_STREAMON, &out_type, "STREAMON(OUTPUT)");
-	xioctl(VIDIOC_STREAMON, &cap_type, "STREAMON(CAPTURE)");
+	if (!dynamic)
+		xioctl(VIDIOC_STREAMON, &cap_type, "STREAMON(CAPTURE)");
 	running = 1;
 
 	/* Queue the first chunk unconditionally: poll() on an m2m fd
@@ -493,6 +503,10 @@ int main(int argc, char **argv)
 		struct v4l2_buffer b = {0};
 		struct v4l2_plane planes[1] = {0};
 
+		if (!nchunks || chunks[0] > outbufs[0].planes[0].length) {
+			fprintf(stderr, "first access unit exceeds OUTPUT capacity\n");
+			return 1;
+		}
 		memcpy(outbufs[0].planes[0].start, esbuf, chunks[0]);
 		b.type = out_type;
 		b.memory = V4L2_MEMORY_MMAP;
@@ -515,7 +529,7 @@ int main(int argc, char **argv)
 		struct v4l2_event ev;
 
 		if (poll(&pfd, 1, 10000) < 1) {
-			fprintf(stderr, "timeout; frames=%lu\n", frames);
+			fprintf(stderr, "timeout; frames=%lu\n", pictures);
 			return 1;
 		}
 
@@ -536,34 +550,29 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		if (pfd.revents & POLLOUT && chunk_idx < nchunks) {
-			/* Dequeue one completed OUTPUT buffer, refill with
-			 * the next start-code-aligned chunk, requeue. One at
-			 * a time keeps the esparser from running ahead of
-			 * the firmware's parser state. */
+		if (pfd.revents & POLLOUT) {
 			b.type = out_type;
 			b.memory = V4L2_MEMORY_MMAP;
 			b.length = 1;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
-				size_t chunk = chunks[chunk_idx];
+				out_queued--;
+				if (chunk_idx < nchunks) {
+					size_t chunk = chunks[chunk_idx];
 
-				if (chunk > outbufs[b.index].planes[0].length)
-					chunk = outbufs[b.index].planes[0].length;
-				memcpy(outbufs[b.index].planes[0].start,
-				       esbuf + espos, chunk);
-				espos += chunk;
-				chunk_idx++;
-
-				b.type = out_type;
-				b.memory = V4L2_MEMORY_MMAP;
-				b.length = 1;
-				b.m.planes = planes;
-				planes[0].bytesused = chunk;
-				packet_timestamp(&b, esbuf + espos - chunk, chunk, chunk_idx - 1);
-				xioctl(VIDIOC_QBUF, &b, "QBUF(OUTPUT)");
+					if (chunk > outbufs[b.index].planes[0].length) {
+						fprintf(stderr, "access unit exceeds OUTPUT capacity\n");
+						return 1;
+					}
+					memcpy(outbufs[b.index].planes[0].start, esbuf + espos, chunk);
+					planes[0].bytesused = chunk;
+					packet_timestamp(&b, esbuf + espos, chunk, chunk_idx);
+					xioctl(VIDIOC_QBUF, &b, "QBUF(OUTPUT)");
+					out_queued++;
+					espos += chunk;
+					chunk_idx++;
+				}
 			}
-			continue;
 		}
 
 		if (pfd.revents & POLLIN) {
@@ -572,62 +581,28 @@ int main(int argc, char **argv)
 			b.length = VIDEO_MAX_PLANES;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
-				frames += dump_frame(&b);
-				if (stop_early(frames))
+				dump_frame(&b);
+				if (stop_early(pictures))
 					return 0;
 				if (b.flags & V4L2_BUF_FLAG_LAST) {
 					printf("EOS frames=%lu resolutions=%lu\n",
-					       frames, resolutions);
+					       pictures, resolutions);
 					return 0;
 				}
 				xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 			}
-			continue;
 		}
 
-		/* All chunks queued: drain remaining OUTPUT completions so
-		 * the esparser queue is empty, then enter drain mode. */
-		if (chunk_idx >= nchunks && !eos) {
+		/* STOP follows every completed input; CAPTURE keeps using this same loop. */
+		if (chunk_idx >= nchunks && !out_queued && !eos && ncap) {
 			struct v4l2_decoder_cmd cmd = { .cmd = V4L2_DEC_CMD_STOP };
 
-			/* Non-blocking DQBUF(OUTPUT) returns EAGAIN until
-			 * more complete, so poll the fd and keep draining
-			 * both queues.
-			 */
-			while (out_queued > 0) {
-				struct pollfd dpfd = { .fd = fd,
-					.events = POLLOUT | POLLIN | POLLPRI };
-
-				if (poll(&dpfd, 1, 5000) < 1)
-					break;
-				for (;;) {
-					b.type = out_type;
-					b.memory = V4L2_MEMORY_MMAP;
-					b.length = 1;
-					b.m.planes = planes;
-					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
-						break;
-					out_queued--;
-				}
-				for (;;) {
-					b.type = cap_type;
-					b.memory = V4L2_MEMORY_MMAP;
-					b.length = VIDEO_MAX_PLANES;
-					b.m.planes = planes;
-					if (ioctl(fd, VIDIOC_DQBUF, &b) < 0)
-						break;
-					frames += dump_frame(&b);
-					if (stop_early(frames))
-						return 0;
-					xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
-				}
-			}
-			/* Idle meanwhile, like a client blocked on its source */
 			if (stop_delay_ms)
 				usleep(stop_delay_ms * 1000);
 			xioctl(VIDIOC_DECODER_CMD, &cmd, "DEC_CMD_STOP");
 			eos = 1;
 		}
+
 	}
 	(void)running;
 }

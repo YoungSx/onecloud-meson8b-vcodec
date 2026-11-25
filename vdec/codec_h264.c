@@ -449,6 +449,9 @@ static void codec_h264_src_change(struct amvdec_session *sess)
 		mutex_unlock(&sess->bufs_recycle_lock);
 	}
 	codec_h264_set_par(sess);
+	if (amvdec_has_pool(sess) && sess->streamon_cap &&
+	    (sess->width != frame_width || sess->height != frame_height))
+		amvdec_pool_end(sess, AMVDEC_POOL_RESTART);
 	amvdec_src_change(sess, frame_width, frame_height, dpb_size);
 }
 
