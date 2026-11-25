@@ -21,6 +21,7 @@
 /* HEVC reg mapping */
 #define HEVC_DEC_STATUS_REG	HEVC_ASSIST_SCRATCH_0
 	#define HEVC_ACTION_DONE	0xff
+	#define HEVC_DISCARD_NAL	0xf0
 #define HEVC_RPM_BUFFER		HEVC_ASSIST_SCRATCH_1
 #define HEVC_SHORT_TERM_RPS	HEVC_ASSIST_SCRATCH_2
 #define HEVC_VPS_BUFFER		HEVC_ASSIST_SCRATCH_3
@@ -1823,9 +1824,9 @@ static void codec_hevc_handle_eos(struct amvdec_session *sess)
 		/* Keep terminal drain paused while the frame pool delivers its tail. */
 		return;
 	}
-	/* EOS is a sequence boundary; ACTION_DONE resumes the auto NAL parser. */
+	/* SEARCH_DONE awaits a NAL decision; consume EOS before searching again. */
 	amvdec_clear_dos_bits(core, HEVC_WAIT_FLAG, BIT(1));
-	amvdec_write_dos(core, HEVC_DEC_STATUS_REG, HEVC_ACTION_DONE);
+	amvdec_write_dos(core, HEVC_DEC_STATUS_REG, HEVC_DISCARD_NAL);
 	amvdec_write_dos(core, HEVC_MCPU_INTR_REQ, AMRISC_MAIN_REQ);
 	schedule_work(&sess->esparser_queue_work);
 }

@@ -142,6 +142,7 @@ typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef int32_t s32
 #define HEVC_DEC_STATUS_REG HEVC_ASSIST_SCRATCH_0
 #define HEVC_CODED_SLICE_SEGMENT_DAT 5
 #define HEVC_ACTION_DONE 255
+#define HEVC_DISCARD_NAL 240
 #define AMRISC_MAIN_REQ 4
 #define NAL_UNIT_CODED_SLICE_RASL_N 8
 #define NAL_UNIT_CODED_SLICE_RASL_R 9

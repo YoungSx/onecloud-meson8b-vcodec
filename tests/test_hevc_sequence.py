@@ -32,6 +32,7 @@ typedef uint8_t u8;typedef uint32_t u32;typedef int irqreturn_t;
 #define HEVC_DEC_STATUS_REG HEVC_ASSIST_SCRATCH_0
 #define HEVC_WAIT_FLAG HEVC_ASSIST_SCRATCH_E
 #define HEVC_ACTION_DONE 255
+#define HEVC_DISCARD_NAL 240
 #define AMRISC_MAIN_REQ 4
 #define HEVC_NAL_SEARCH_DONE 9
 #define HEVC_SLICE_SEGMENT_DONE 8
@@ -49,7 +50,7 @@ struct amvdec_session {struct amvdec_core *core;void *priv;int esparser_queue_wo
 static int flushed,bumped,cleared,last,aborted,writes,scheduled;static int snapshots=2;
 static void mutex_lock(int *p){assert(!*p);*p=1;}static void mutex_unlock(int *p){assert(*p);*p=0;}
 static u32 amvdec_read_dos(struct amvdec_core *c,u32 r){(void)c;if(r==HEVC_DEC_STATUS_REG)return 9;if(r==HEVC_ASSIST_SCRATCH_J)return 36;return 0;}
-static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 v){(void)c;assert((r==HEVC_DEC_STATUS_REG&&v==255)||(r==HEVC_MCPU_INTR_REQ&&v==4));writes++;}
+static void amvdec_write_dos(struct amvdec_core *c,u32 r,u32 v){(void)c;assert((r==HEVC_DEC_STATUS_REG&&v==240)||(r==HEVC_MCPU_INTR_REQ&&v==4));writes++;}
 static void amvdec_clear_dos_bits(struct amvdec_core *c,u32 r,u32 v){(void)c;assert(r==HEVC_WAIT_FLAG&&v==2);writes++;}
 static void schedule_work(int *p){(void)p;scheduled++;}
 static void codec_hevc_flush_output(struct amvdec_session *s){struct codec_hevc *h=s->priv;flushed++;h->frames_num=0;}
