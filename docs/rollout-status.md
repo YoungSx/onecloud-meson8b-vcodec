@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`41773bbae5edf8e932f8da914c68a9ef6163cd8e`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
+| 已部署开发驱动 | 完整运行包源码`39703c70bc50be183e6f7c9d74fb4adf46468016`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | 官方底座8.1.3，FFmpeg/ffprobe逐字节未改；宿主原7.0.2是另一套工具。 |
@@ -17,7 +17,7 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `950643c882a8b44cc52d103154db0e3565b81f73b6704002735c1bcf7d7c4151` |
+| meson-vdec.ko | `6bcc728e07cecd29e9de4937536b54ed3e169f1863d8d736534064e0df1b2c9a` |
 | meson-venc.ko | `48bfa619e3a392418ed5f1f358cdbed20a85a172b9fdf16f8d484c7cac748aa4` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
@@ -35,6 +35,13 @@ GE2D独立修正已完成GREY、NV12/NV12M复制/裁剪、常量平面缩小与D
 300/300；取消逐字节FNV读取后300幅交付约7.27 s。原版FFmpeg低缓冲提前
 结束、八缓冲HEVC1080p出现CMA不足。水平缩放分段修正后，两组纹理输出与独立
 bilinear的质量比较已完成；完整标准转码链仍未验收。GE2D只做临时加载，正式运行包仍为三个模块、默认NEON，不启用它。
+
+当前HEVC池按SPS上限加一个交付槽，典型1080p内部参考面由24降至18 MiB。
+正式NEON14组250/250内容及两种提前关闭顺序通过；两槽DPB1为6/6精确。
+候选GE2D的HEVC1080p→720p曾30/30精确，但正式重复验收进程SIGSEGV，
+恢复服务先遇工具包校验失败，随后重复哈希又一致、差异原件未取得。已按
+原清单恢复工具字节和NEON服务，保留GE2D失败与未知根因，不继承候选通过。
+当前包Host与ARM/package CI通过，详见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
 
 编码复验覆盖11种支持的输入布局、1080p、GOP/强制IDR、多slice、同fd重开、
 VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒绝。两路
@@ -57,7 +64,7 @@ VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒�
 pstore为空，不据此排除或确认旧内核故障；本次局域网正常的链路故障独立记录。
 没有由代理重启、更换内核/boot DT或调整64 MiB CMA。
 
-当前与升级前`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
+当前与升级前`41773bb`、`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
 构建机的SHA256备份，更早资料保留。新state位于持久系统分区；未演练整包
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。

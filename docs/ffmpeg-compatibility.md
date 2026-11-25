@@ -127,3 +127,9 @@ output remains a separate open investigation.
 校验SHA256，补丁强制forward应用，防止再次应用时自动反向撤销。该测试不
 改变生产工具，也不能证明GE2D完整链已通过。固定n8.1.3源码仍保留相同的
 无排队CAPTURE即结束判断；完整命令行为须单独实测。
+
+39703c7压缩HEVC内部帧池的额外预留后，官方7.0.2使用标准OUTPUT2/CAPTURE10
+并实际scale至720p，可在64 MiB CMA内完成1080p30/30精确内容。相同缓冲直接
+NV12输出仍12/30；这是一条有界缩放链的通过，默认NEON和生产官方工具不变，
+不是所有GE2D链、完整转码或吞吐验收。正式包重复GE2D缩放时又出现SIGSEGV、
+零输出及短暂工具包校验异常，未计通过，恢复生产NEON；来源见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
