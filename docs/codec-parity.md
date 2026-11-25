@@ -26,7 +26,7 @@ AVS 标准 UAPI/应用落点、WMV3 Annex L/RCV 封装也必须明确后再开�
 | 阶段测量 | 原 argv、有界超时、CPU/CMA、计数差值、独立完整软解 | 主机错误注入及实际软件命令通过；视频帧数/可选哈希，音频与有损质量另外验收。 |
 | GE2D | 标准 GREY/NV12/NV12M M2M、四 canvas、色度格式器与第二输出、裁剪/1–1/4缩小、probe全平面自检；显式decoder DMA CAPTURE接入 | 主机命令/队列/生命周期/回退回归及ARM构建；默认NEON，新增路径未实机。连续CAPTURE占CMA，默认20缓冲不保证可用。 |
 | HEVC tiles | 标准均匀余数分配、最多 5×5 网格、有界尺寸、MPRED rectangle/row jump/new tile、跨 tile 滤波 | 几何和实际 MPRED/SAO 函数 ASan/UBSan、ARM 构建；当前包4×2 1080p为4/4、非均匀640×384为3/3，但实机像素哈希不一致，未通过。 |
-| H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化、baseline/PLUS I/P、会话内UFEP续帧、自定义尺寸/时钟/舍入位 | 12幅baseline及新增18幅PLUS中间流与厂商逐字节一致；官方软解、状态/容量/HD边界回归、ARM构建；当前包四种三图短流均2/3，已输出图像全平面检查通过，EOS未通过；可选工具拒绝。 |
+| H.263 | 固定 h263_mc、单 AU 有界 VLC/反量化、baseline/PLUS I/P、会话内UFEP续帧、自定义尺寸/时钟/舍入位 | 12幅baseline及新增18幅PLUS中间流与厂商逐字节一致；官方软解、状态/容量/HD边界回归、ARM构建；已部署包仍有尾帧限制；0b24b63候选三种尺寸各3/3顺序/全平面通过，尚未正式安装，UFEP矩阵待补。 |
 | WMV3 | 标准 Annex L/RCV 的序列/单帧边界、厂商长度/校验前缀、VC-1 simple/main 选择 | 前缀/容量/尺寸/状态回归、5 图独立 RCV 软件参考、ARM 构建；当前包320×240为3/5，已输出帧顺序/全平面检查通过，尾帧未通过；无官方WMV3 M2M包装器。 |
 | 编码多会话 | 标准 V4L2 M2M 逐帧调度，最多8个句柄；分别保留参考、canvas、固件、SPS/PPS 与码控，切换时恢复硬件 | 实际 activation/stop、canvas 角色、错误清理与 IRQ 同步主机回归和 ARM 构建；当前包两路320×240各30帧完整软解/YUV检查通过；CMA不保证8路1080p，切换重载有额外开销。 |
 
