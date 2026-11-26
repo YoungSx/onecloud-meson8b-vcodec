@@ -786,6 +786,9 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		fmt_out = sess->fmt_out;
+		/* No decoder scaling is negotiated: CAPTURE follows the source. */
+		pixmp->width = sess->width;
+		pixmp->height = sess->height;
 		break;
 	default:
 		return NULL;
@@ -845,9 +848,8 @@ static int vdec_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	struct amvdec_session *sess =
 		container_of(file->private_data, struct amvdec_session, fh);
 
-	vdec_try_fmt_common(sess, sess->core->platform->num_formats, f);
-
-	return 0;
+	return vdec_try_fmt_common(sess, sess->core->platform->num_formats, f) ?
+		0 : -EINVAL;
 }
 
 static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
@@ -873,9 +875,8 @@ static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		pixmp->height = sess->height;
 	}
 
-	vdec_try_fmt_common(sess, sess->core->platform->num_formats, f);
-
-	return 0;
+	return vdec_try_fmt_common(sess, sess->core->platform->num_formats, f) ?
+		0 : -EINVAL;
 }
 
 static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
@@ -888,12 +889,29 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	struct v4l2_pix_format_mplane orig_pixmp;
 	struct v4l2_format format;
 	u32 pixfmt_out = 0, pixfmt_cap = 0;
+	int ret = 0;
+
+	/* Queue ioctls use sess->lock, whereas format ioctls use core->lock. */
+	mutex_lock(&sess->lock);
+	if (f->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
+	    f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+	if (vb2_is_busy(v4l2_m2m_get_dst_vq(sess->m2m_ctx)) ||
+	    (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
+	     vb2_is_busy(v4l2_m2m_get_src_vq(sess->m2m_ctx)))) {
+		ret = -EBUSY;
+		goto unlock;
+	}
 
 	orig_pixmp = *pixmp;
 
 	fmt_out = vdec_try_fmt_common(sess, num_formats, f);
-	if (!fmt_out)
-		return -EINVAL;
+	if (!fmt_out) {
+		ret = -EINVAL;
+		goto unlock;
+	}
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		pixfmt_out = pixmp->pixelformat;
@@ -943,7 +961,9 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		sess->pixfmt_cap = format.fmt.pix_mp.pixelformat;
 
-	return 0;
+unlock:
+	mutex_unlock(&sess->lock);
+	return ret;
 }
 
 static int vdec_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)

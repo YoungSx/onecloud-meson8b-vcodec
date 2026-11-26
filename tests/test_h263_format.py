@@ -57,7 +57,14 @@ struct codec_mpeg4 {u8 *h263_output;struct h263_context h263;};
 struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
 struct core {struct platform *platform;};
-struct amvdec_session {int fh;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;};
+struct vb2_queue {bool busy;};struct m2m {struct vb2_queue src,dst;};
+struct amvdec_session {int fh,lock;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;struct m2m *m2m_ctx;};
+static inline struct vb2_queue *v4l2_m2m_get_src_vq(struct m2m *m){return &m->src;}
+static inline struct vb2_queue *v4l2_m2m_get_dst_vq(struct m2m *m){return &m->dst;}
+static int locked;
+static void mutex_lock(int *lock){(void)lock;assert(!locked);locked=1;}
+static void mutex_unlock(int *lock){(void)lock;assert(locked);locked=0;}
+static inline bool vb2_is_busy(struct vb2_queue *q){assert(locked);return q->busy;}
 struct file {void *private_data;};
 struct v4l2_frmsizeenum {u32 pixel_format,index,type;struct {u32 width,height;} discrete;
  struct {u32 min_width,max_width,step_width,min_height,max_height,step_height;} stepwise;};
@@ -78,7 +85,7 @@ static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!
 int main(int argc,char **argv){
  assert(argc==3);
  struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}}};struct platform p={formats,2};
- struct core c={&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=128,.height=96};
+ struct m2m m={0};struct core c={&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=128,.height=96,.m2m_ctx=&m};
  s.src_buffer_size=SZ_1M;
  struct v4l2_format format={.type=1};
  const u32 requested[][2]={{1,1},{163,99},{1930,1090}};
@@ -91,8 +98,8 @@ int main(int argc,char **argv){
  }
  format.type=2;format.fmt.pix_mp.width=163;format.fmt.pix_mp.height=99;
  assert(vdec_try_fmt_common(&s,2,&format)==&formats[0]);
- assert(format.fmt.pix_mp.width==164&&format.fmt.pix_mp.height==100&&format.fmt.pix_mp.num_planes==2);
- assert(format.fmt.pix_mp.plane_fmt[0].bytesperline==192);
+ assert(format.fmt.pix_mp.width==128&&format.fmt.pix_mp.height==96&&format.fmt.pix_mp.num_planes==2);
+ assert(format.fmt.pix_mp.plane_fmt[0].bytesperline==128);
  format.type=1;format.fmt.pix_mp.pixelformat=2;format.fmt.pix_mp.width=1;format.fmt.pix_mp.height=1;
  assert(vdec_try_fmt_common(&s,2,&format)==&formats[1]);
  assert(format.fmt.pix_mp.width==256&&format.fmt.pix_mp.height==144);
@@ -117,6 +124,24 @@ int main(int argc,char **argv){
  assert(!vdec_s_fmt(&f,NULL,&format)&&s.fmt_out==&formats[1]&&s.width==256&&s.height==144);
  format.fmt.pix_mp.pixelformat=1;format.fmt.pix_mp.width=164;format.fmt.pix_mp.height=100;
  assert(!vdec_s_fmt(&f,NULL,&format)&&s.width==164&&s.height==100);
+ /* CAPTURE is unscaled; a different request cannot replace source geometry. */
+ format=(struct v4l2_format){.type=2};format.fmt.pix_mp.pixelformat=3;
+ format.fmt.pix_mp.width=320;format.fmt.pix_mp.height=240;
+ struct amvdec_session saved=s;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&s.width==164&&s.height==100);
+ assert(format.fmt.pix_mp.width==164&&format.fmt.pix_mp.height==100);
+ /* Allocated queues reject mutation before codec, geometry or color changes. */
+ for(unsigned out=0;out<2;out++)for(unsigned src=0;src<2;src++)for(unsigned dst=0;dst<2;dst++){
+  format=(struct v4l2_format){.type=out?1:2};format.fmt.pix_mp.pixelformat=out?2:3;
+  format.fmt.pix_mp.width=1920;format.fmt.pix_mp.height=1080;format.fmt.pix_mp.colorspace=77;
+  s=saved;m.src.busy=src;m.dst.busy=dst;
+  int rc=vdec_s_fmt(&f,NULL,&format);
+  if(dst||(out&&src))assert(rc==-EBUSY&&!memcmp(&s,&saved,sizeof(s)));
+  else{assert(!rc);if(!out)assert(s.width==saved.width&&s.height==saved.height);}
+ }
+ m.src.busy=m.dst.busy=false;s=saved;
+ format=(struct v4l2_format){.type=99};
+ assert(vdec_s_fmt(&f,NULL,&format)==-EINVAL&&!memcmp(&s,&saved,sizeof(s)));
  s.width=128;s.height=96;
  u8 input[20000],original[10000],translated[20000];
  FILE *stream=fopen(argv[1],"rb");assert(stream);
