@@ -81,6 +81,12 @@ prescale 配置。`VIDIOC_S_SELECTION` 支持 OUTPUT crop，NV12 坐标/尺寸�
 量程与 transfer 信息，不进行色彩矩阵转换。输入/输出各平面验证容量、32位
 DMA范围、对齐及重叠；错误输出清零两个平面的 payload。
 
+独立GE2D M2M在每次处理导入缓冲前等待已有的DMA-BUF fence：读OUTPUT只等
+exclusive写者，写CAPTURE等shared读者与exclusive写者，每平面最多1 s且可
+中断。等待在硬件锁外，超时/中断归还两端ERROR、输出零payload，不启动
+命令。MMAP不增加等待。完成/所有权仍由V4L2 QBUF/DQBUF交接，没有发布新的
+DMA-BUF completion fence；不能让其他设备在本次任务完成前并发使用这些面。
+
 当前通过实际命令、格式、裁剪、队列和客户端的主机 ASan/UBSan 回归与 ARM
 构建。取消/重开、不同 DMA-BUF 导出器、纹理缩放及共享时钟/业务仍需实机。
 11-25修正Overlay导出符号、NV12源色度排列及复制路径后，独立硬件验收通过：

@@ -1207,3 +1207,26 @@ checkpatch、原5.15.79 ARM外部/additive构建和补丁零fuzz/源码一致性
 暂停。Host exporter/引擎替身不证明真实cache/fence、像素或吞吐，也不关闭
 历史运行时异常及尾帧问题。记录标识`decoder-capture-sync-e4d73b1`；源码包、
 模块/运行包和报告仅在构建机工作区外SHA256校验归档，无永久公开附件。
+
+## 11-26 GE2D 导入缓冲 fence
+
+驱动源码`4e426d6`为独立GE2D M2M补入处理前的DMA-BUF fence等待。OUTPUT
+等exclusive写者，CAPTURE等全部读写者；每平面最多1 s、可中断，不持有
+硬件锁。超时/中断不运行blit，两个缓冲返回ERROR、输出两平面payload为零，
+任务正常结束。MMAP不访问导入状态；同一import每次重排队都重新等待。
+原5.15.79的vb2映射/prepare只处理映射及缓存，不代替fence等待。完成与
+所有权仍依靠QBUF/DQBUF交接，未新增completion fence，不宣称完整隐式同步。
+
+旧worker在未完成fence时仍启动blit，实际函数断言可复现；修正后覆盖四个
+平面的超时/中断、输入shared读者不阻塞、输出shared读者阻塞、三次重排队、
+四种MMAP/导入组合及单平面错误原样返回。跳过输入等待、跳过输出等待、把
+输出错设为只等写者三项故障注入均被检出。139项Host/独立提交源码包测试、
+ASan/UBSan、严格checkpatch、原5.15.79 ARM外部/additive构建及补丁零fuzz/
+源码一致性通过。外部与additive GE2D模块SHA256相同：
+`f5c42f654ad737b2bf4c3e5bf9525b225e29a5439c684b089c15f992648802c3`。
+
+本轮仅工作机验证，未连接/加载/部署实机；在役`7991ba4`健康未重查，生产
+GE2D继续关闭，新硬件实验仍暂停。fence替身不证明真实导出器、cache/DMA
+内容、取消时延或吞吐，也不关闭历史运行时异常。记录标识
+`ge2d-buffer-fences-4e426d6`；源码/模块和完整报告仅在构建机工作区外SHA256
+校验归档，无永久公开附件，硬件缩放、音频/HLS及1.3×实时目标仍未完成。
