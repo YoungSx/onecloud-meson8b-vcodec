@@ -58,7 +58,8 @@
 #define ANTIFLICK 0xe0
 #define GEN_CTRL3 0x120
 #define SOFT_RESET BIT(31)
-#define BUSY_MASK (BIT(0) | BIT(1) | GENMASK(28, 17))
+/* Include buffered/pipeline commands and outstanding destination writes. */
+#define BUSY_MASK (BIT(0) | BIT(1) | BIT(2) | BIT(4) | GENMASK(28, 17))
 
 struct ge2d_ctx;
 

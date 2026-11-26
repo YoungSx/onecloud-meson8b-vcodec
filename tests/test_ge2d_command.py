@@ -36,6 +36,8 @@ static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
 static unsigned poll_error_at;
 static unsigned asserted;
+static u32 status_samples[16];
+static unsigned status_count, status_reads;
 static int reset_control_assert(void *r) {(void)r;asserted++;return 0;}
 static int ge2d_reset(struct meson8b_ge2d *c) {(void)c;resets++;return reset_error;}
 static void ge2d_write(struct meson8b_ge2d *c,u32 r,u32 v) {
@@ -45,7 +47,17 @@ static int meson_canvas_config(void *c,unsigned i,dma_addr_t a,u32 s,u32 h,int w
  (void)c;(void)i;(void)a;assert((s==512||s==256) && (h==32||h==16||h==8) && !w && !b && !e);canvas_calls++;return canvas_error;
 }
 static u32 readl(void *r) {(void)r;return 0;}
-#define readl_poll_timeout(r,status,cond,interval,limit) ((void)(r), (status)=0, (void)(cond), assert((interval)==50 && (limit)==100000),(poll_error_at && starts==poll_error_at ? -ETIMEDOUT : poll_error))
+#define readl_poll_timeout(r,status,cond,interval,limit) ({ \
+ (void)(r);assert((interval)==50 && (limit)==100000); \
+ int result=-ETIMEDOUT; \
+ if(poll_error_at && starts==poll_error_at) result=-ETIMEDOUT; \
+ else if(poll_error) result=poll_error; \
+ else for(unsigned attempt=0;attempt<16;attempt++){ \
+  (status)=status_count?status_samples[status_reads<status_count?status_reads:status_count-1]:0; \
+  status_reads++;if(cond){result=0;break;} \
+ } \
+ result; \
+})
 #define dev_err(...) ((void)0)
 static void dma_wmb(void) {barriers++;}
 static void dma_rmb(void) {barriers++;}
@@ -106,6 +118,13 @@ int main(void) {
  assert(ge2d_copy(&c,1ull<<32,0x200000,512,32,true)==-EINVAL);
  assert(ge2d_copy(&c,0x100001,0x200000,512,32,true)==-EINVAL);
  assert(starts==before);
+ /* Queued commands can precede BUSY; write responses can outlive it. */
+ u32 pending[]={BIT(2),BIT(4),BIT(1),BIT(0),BIT(17),GENMASK(28,17),BIT(3)|BIT(5)|BIT(6)};
+ for(unsigned i=0;i<sizeof(pending)/sizeof(pending[0]);i++)status_samples[i]=pending[i];
+ status_count=sizeof(pending)/sizeof(pending[0]);status_reads=0;
+ assert(!ge2d_copy(&c,0x100000,0x200000,512,32,true));
+ assert(status_reads==status_count&&!c.offline&&!asserted);
+ status_count=status_reads=0;before=starts;
  canvas_error=-ENOMEM;
  assert(ge2d_copy(&c,0x100000,0x200000,512,32,true)==-ENOMEM && starts==before);
  canvas_error=0;reset_error=-EIO;
@@ -122,6 +141,15 @@ int main(void) {
  assert(ge2d_blit(&c,&input,&output,&crop)==-ETIMEDOUT);
  assert(starts==before+2&&c.offline&&asserted==2);
  before=starts;assert(ge2d_blit(&c,&input,&output,&crop)==-EIO&&starts==before);
+ /* A stuck buffered/pipeline command must take the same reset path. */
+ for(unsigned bit=2;bit<=4;bit+=2){
+  c.offline=false;poll_error_at=0;status_count=1;status_reads=0;status_samples[0]=BIT(bit);
+  unsigned resets_before=asserted;
+  assert(ge2d_copy(&c,0x100000,0x200000,512,32,true)==-ETIMEDOUT);
+  assert(c.offline&&asserted==resets_before+1&&status_reads==16);
+  before=starts;
+  assert(ge2d_copy(&c,0x100000,0x200000,512,32,true)==-EIO&&starts==before);
+ }
  return 0;
 }
 '''
