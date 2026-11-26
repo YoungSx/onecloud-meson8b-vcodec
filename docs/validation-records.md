@@ -1164,3 +1164,24 @@ scale过滤器不调用该接口，仍是CPU缩放；未修改FFmpeg或生产应
 记录保留，当前健康状态未在本轮重查。源码快照测试使用固定上游缓存，
 不依赖本地报告；原件/候选模块及63项运行包仅在构建机校验归档，无永久
 公开附件。
+
+## 11-26 CAPTURE 转换失败的结束边界
+
+驱动源码`dcbc890`修正帧池交付失败路径：图片转换失败仍返回ERROR和两平面
+零payload，但保留时间戳、序号、flags/timecode/field、source-change序号重置
+及最终EOS标记。此前提前返回会丢失失败图片上的LAST/EOS，可能让客户端
+等待结束边界。EOS继续在LAST出队的buf_finish发布，不在转换完成时提前发。
+
+实际交付/空结束/出队函数的ASan/UBSan回归覆盖24种组合：原尺寸/缩放、
+转换成功/失败、普通图片/source-change LAST/最终EOS，以及空FLUSH/LAST/
+RESTART；检查旧几何交付、零payload、元数据、一次EOS及新片段重新协商。
+旧实现回归失败；撤去失败图片的LAST、EOS或序号重置，三项故障注入均被
+检出。139项Host与独立提交源码包测试、严格checkpatch、原5.15.79 ARM
+外部/additive构建、补丁零fuzz/源码一致性通过。候选decoder SHA256：
+`7c97240a0b73386d93a94835a2e1347c1385d3d080f52f01248332f1dd2b05c8`。
+
+本轮只在工作机验证，未连接/部署实机，继续暂停新硬件实验；未重查在役
+`7991ba4`健康。转换桩不证明真实像素、DMA或缩放质量，也不关闭历史H.264
+299/300、MPEG-4/WMV3尾帧及containerd/SFTP/FFmpeg异常。硬件缩放、音频/HLS
+与1.3×实时仍未完成。记录标识`capture-boundary-errors-dcbc890`；源码包、
+模块和报告仅在构建机工作区外SHA256校验归档，无永久公开附件。

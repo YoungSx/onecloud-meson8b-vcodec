@@ -36,6 +36,11 @@ IRQ 完成数、帧池长度、槽号、PTS、几何、copy/DQBUF 数及 LAST/EO
 B 帧交付排序，不模拟固件 DPB、运动补偿或参考帧内容。单线程按步骤调度
 覆盖确定的交错，不证明真实 SMP 锁/内存序、vb2 poll 行为或硅片 DMA。
 
+后续[转换失败边界回归](../tests/test_capture_boundary_errors.py)覆盖失败图片的
+LAST/EOS、元数据及source-change序号重置；`dcbc890`修复这些标记被提前返回
+丢弃的问题。[验证范围](validation-records.md#11-26-capture-转换失败的结束边界)
+仅为工作机控制流，不建立与历史299/300的因果关系。
+
 ## 与已有修复的对应关系
 
 | 机制 | 已有修复 | 回归及仍缺证据 |
