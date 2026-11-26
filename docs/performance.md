@@ -27,7 +27,33 @@ decoder `convert_ns` 和 encoder `copy_ns` 等计数差值。软件验图在计�
 失败日志与报告保留在指定报告目录。设备计数是全局值，其他会话会污染差值；
 并存业务负载需单独记录。输出容器、磁盘 I/O 也在命令耗时内，不称为纯硬件耗时。
 音频阶段可用原版 FFmpeg 的 `-benchmark` 单独测量，再用完整命令检查音视频
-时间线；本脚本的独立内容检查入口当前针对视频。
+时间线。需要验收音视频输出时，增加`--audio-seconds`指定预期音频时长：
+
+```sh
+mkdir -p build/reports/av-hls
+python3 scripts/measure-pipeline.py --stage av-hls \
+  --report build/reports/av-hls/result.json --output build/reports/av-hls/index.m3u8 \
+  --frames 300 --media-seconds 10 --audio-seconds 10 --timeline-tolerance 0.05 -- \
+  ffmpeg -nostdin -v error -i input.mp4 -map 0:v:0 -map 0:a:0 \
+  -c:v copy -c:a aac -hls_time 2 -hls_list_size 0 \
+  -hls_segment_filename build/reports/av-hls/segment-%03d.ts \
+  build/reports/av-hls/index.m3u8
+```
+
+示例输入为300幅/10秒且有10秒音频，视频仅复制，用于封装/音频阶段；完整
+硬件链应保留应用原argv。`--ffmpeg`与`--ffprobe`选择独立软件验证工具，
+验图/验音仍在计时区间外。原版ARM工具现启用标准HLS demuxer，无FFmpeg
+源码修改。已验证范围是有限、未加密的本地MPEG-TS HLS，不是直播/加密/网络
+或全部OpenList组合。
+
+音频检查读取首个音轨每幅软解的样本数和原时间戳，核对累计样本时长、
+逐幅连续性和首尾音画偏差；不使用容器duration冒充完整解码。视频时间戳
+也必须连续，无法取得有效时序则失败。默认容差50 ms用于AAC首尾padding，
+可显式调整；它不放宽逐幅断口检查。JSON分别标记`audio_timeline_checked`
+与`audio_content_checked`，后者当前为false：不校验波形质量或音轨选择是否
+符合应用要求。视频仍核对完整帧数及可选参考哈希；解码错误、音频缺失/
+缩短、错位、断口和分段缺失均不能算成功。m3u8的`output_sha256`只覆盖
+列表，归档还须保留全部分段及其SHA256。
 
 ## GE2D 第一个验收边界
 
