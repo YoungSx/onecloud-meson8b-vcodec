@@ -1,79 +1,79 @@
 # 后续开发
 
-当前能力和实机证据统一见[能力与限制](docs/validation.md)，生产安装来源见
-[部署快照](docs/rollout-status.md)。不把历史阶段完成等同于所有目标完成。
+2026-11-26 按源码、部署记录与原 issue 关闭条件核对后的任务索引。
+最新在役包为 `20220a8`，默认 NEON、GE2D 关闭；其600幅精确解码、185幅
+编码及小尺寸AAC/HLS有界验收不代表完整厂商追平或1.3×吞吐已完成。
+能力、精确部署来源和版本结论分别见[能力与限制](docs/validation.md)、
+[部署快照](docs/rollout-status.md)及[验证记录](docs/validation-records.md)。
+下表是本次核对快照，后续状态以链接的 issue 为准。
 
-| 优先级 | 开发工作 | 验收门槛 |
+## 当前主线
+
+| 优先级 | 工作与尚未完成的门槛 | Issue |
 | --- | --- | --- |
-| P0 可靠性 | 闭环第二次 LAN 失联；验证当前包冷启动/异常重启恢复；跟进偶发 H.264 短输出 | 先有可保留故障现场的入口和足够磁盘空间；记录 IRQ/任务/网络证据、完整帧数/内容、业务与回滚。持续生产压力实验仍暂停。 |
-| P1 性能 | 测量解码、转换、编码、音频和完整 OpenList 命令的瓶颈，只改已测瓶颈 | 相同1080p输入与应用原命令，目标1.3×实时；不能降质/丢帧后宣称达标。当前未达到。 |
-| P2 格式完整性 | MPEG/VC-1 帧尾、MPEG-4 部分 B 帧内容；低目标码率的可达性/失败行为 | 逐帧对齐软件参考，覆盖EOS/取消/重开；不重放猜测尾帧，不盲目提高QP上限。 |
-| P3 平台与数据路径 | 研究线实机/跨板验收；有寄存器依据后评估GE2D、少拷贝、逐片提前交付 | 独立开发板或可靠救援入口；内容、DMA生命周期、电源/时钟与收益均有实测。仅构建不算完成。 |
+| P0 | 第二次LAN/Tailnet同时失联的独立现场、机制与修复；不套用第一轮共享时钟解释 | [#4](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/4) |
+| P0 | containerd/FFmpeg/SFTP运行时异常及瞬时哈希差异取证；与网络失联分开，根因未知 | [#34](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/34) |
+| P0 | 历史H.264 299/300与IRQ/LAST/EOS的因果关系；已有主机重放和300/300短测，仍按原选择暂停主动复现 | [#5](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/5) |
+| P1 | 当前包冷启动、异常重启及实际v0.4.0整包降级；热升级和备份不能替代 | [#6](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/6) |
+| P1 | 原命令完整1080p视频/音频/HLS瓶颈与1.3×目标；最新60图直接转码约0.72× | [#7](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/7) |
+| P1 | 已有GE2D转换的真实DMA生命周期、标准缓冲交接、减少CPU拷贝与完整链收益 | [#14](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/14) |
+| P1 | 已实现decoder独立CAPTURE缩放的纹理/色度、回压、取消、尺寸切换和标准链路验收；尚未实机 | [#32](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/32) |
 
-11-23[联网能力复核](docs/capability-recheck.md)重新开放有厂商依据的候选，
-用户随后决定先做 P0 队列/错误恢复/共享资源的离线回归。以下均作为后续
-推荐 TODO 登记。早期未测试的 HEVC tiles 草稿已移出；随后按新的追平目标
-恢复独立实现，当前进度和未实机边界见下文。
+素材、软件参考、真实函数回归、故障注入、sanitizers和交叉构建在工作机
+完成；WanOS只承担无法离线证明的必要有界验收。保持官方原版FFmpeg与
+安全固定父钟，不修改生产boot DT/CMA。生产持续压力仍暂停，短测或新
+源码不自动继承其他二进制的验收。官方FFmpeg的`-vf scale`仍走CPU；
+decoder缩放接口接入完整标准链的内容与收益尚未验收。
 
-| 推荐 TODO | Issue |
+## 格式完整性与剩余验收
+
+| 工作 | 当前进度与剩余条件 | Issue |
+| --- | --- | --- |
+| MPEG-2 B图尾帧 | 30/30新短流通过不能关闭原150图偶发149/150；仍需原样片/完整内容与EOS对照 | [#8](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/8) |
+| VC-1 advanced | 尾部唯一图像与RPS重复显示分开处理，7幅/15幅两份原样片及隔行/HD覆盖仍缺 | [#9](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/9) |
+| MPEG-4 Part2尾帧 | 既有28/30等失败仍未闭环，不重放VOP或补造图片 | [#10](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/10) |
+| MPEG-4 B图内容 | 保留内容相关损坏现场，逐行/全平面检查，不能由已通过子集推出已修复 | [#11](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/11) |
+| WMV3 simple/main | Annex L/RCV已部署，3/5尾帧与完整simple/main验收仍缺 | [#17](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/17) |
+| HEVC tiles | 几何/MPRED/SAO和均匀/非均匀基础像素已通过；多slice与回压/取消/切换组合验收继续 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15) |
+| H.263 | baseline/PLUS/UFEP及有界内容已通过；固件错误恢复、HD等声明范围与官方工具配置待补 | [#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16) |
+| 码控 | 低目标可达性和饱和/错误行为；严格CBR不是已证实的S805原版能力 | [#24](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/24) |
+| 原厂对照 | 获取原厂配置及可恢复环境，按同输入/质量/内存分别比较播放、解码和转码 | [#33](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/33) |
+
+## 尚未移植的厂商路径与协议研究
+
+这些任务排在可靠性和完整链性能之后。标准UAPI和同芯片微码/寄存器依据
+先于能力注册，不借其他FOURCC或后代IP伪装支持。
+
+| 工作 | 跟踪 |
 | --- | --- |
-| P3 GE2D 字节序转换与减少 CPU 拷贝 | [#14](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/14) |
-| P2 HEVC tiles 的几何、SAO 和 MV 移植 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15) |
-| P2 H.263 固件、帧边界和 EOS | [#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16) |
-| P3 WMV3 Annex L/RCV 集成 | [#17](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/17) |
-| P3 AVS JiZhun 标准接口与固件 | [#18](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/18) |
-| P3 单 HCODEC 多编码上下文调度 | [#19](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/19) |
-| P3 B帧/CABAC/Main/High 编码协议研究 | [#20](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/20) |
-| P3 HEVC 长期参考帧协议研究 | [#21](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/21) |
-| P3 逐 slice 提前交付协议研究 | [#22](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/22) |
-| P2 低目标码率可达性与严格 CBR 条件研究 | [#24](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/24) |
+| AVS JiZhun标准接口与微码移植 | [#18](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/18) |
+| RealVideo8/9接入与RV10边界 | [#27](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/27) |
+| H.264 MVC双视图/参考及标准接口 | [#28](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/28) |
+| MPEG-4旧变体/DivX3.11的不同微码与输入接口 | [#29](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/29) |
+| 独立JPEG图片解码、缩放及旋转 | [#30](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/30) |
+| GE2D其他RGB/YUV布局、矩阵、翻转/旋转和混合 | [#31](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/31) |
+| H.264 B/CABAC/Main/High编码可执行协议研究 | [#20](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/20) |
+| HEVC长期参考RPS/POC与微码协议研究；原厂字段仍为0/TODO | [#21](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/21) |
+| 逐slice提前交付的稳定发布边界及标准语义 | [#22](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/22) |
 
-11-25后续：H.263四份3/3已部署，HEVC tiles精确像素修正及GE2D复制/裁剪、
-常量缩小已完成有界硬件验收；两路720p/1080p编码内容通过。尺寸切换400/400
-与60/60、裁剪切换33/33通过；旧少帧摘要/固定画布参考已纠正。当前优先处理
-WMV3/MPEG-4尾帧、GE2D完整标准工具链与吞吐；自然HEVC EOS消费
-握手已修复并通过20/30幅精确串接检查。
-MJPEG色度行跨度与unity滤波已修复；常见SOF0的4:2:0/4:2:2/4:4:4内容通过，
-灰度、SOF1/渐进和重复采样因子布局仍不支持。
-HEVC帧池现按SPS需求加一个交付槽，1080p典型流节省6 MiB CMA；原版FFmpeg
-显式GE2D候选的1080p→720p短缩放链曾30/30内容通过，但正式重复验收进程崩溃，
-恢复后继续默认NEON；直接输出/完整转码及实时吞吐仍未通过。
-11-26显式GE2D去除缓存别名后，原生600幅与单独解码加CPU缩放150幅内容
-通过；加入编码的完整链仍受CMA与官方工具缓冲保留限制。编码参考面按
-实际NV12画布缩容，720p节省约3.36 MiB，但未使该全链通过，不能宣称实时。
-随后MMAP采集改为普通缓存内存与单张GE2D中转面，官方7.0.2/8.1.3的完整
-60幅直接转码和CPU缩放转码通过有界内容检查；仍需减少复制、集成硬件缩放、
-补音频/HLS及1.3×吞吐验收，生产继续默认NEON。
-decoder已新增显式GE2D下的标准CAPTURE独立缩放候选，源参考尺寸保持；
-138项Host/ARM通过，真实缩放像素、滤波质量与转码收益仍未验收，未部署。
-最新范围见[重启后验收](docs/validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
+S805 HEVC编码、Main10及高级H.264编码没有可靠同芯片可用路径时，不增加
+虚假枚举。研究结论与尚未移植的已知厂商路径分别处理；细节见
+[厂商能力追平](docs/codec-parity.md)和[编码依据](docs/encoding-feasibility.md)。
 
-11-26后续候选已补齐CAPTURE结束边界、DMA-BUF错误传播和独立GE2D fence
-等待；音视频测量入口可在主机完整软解有限本地HLS并检查样本/时间线，
-不能据此新增硬件验收。当前因containerd/工具异常根因未明暂停新实机实验。
-恢复可靠取证/救援与存储余量后，下一核心门槛是候选GE2D缩放的真实内容、
-取消/回压/尺寸切换，随后使用原版工具和应用原命令验证视频+AAC/HLS与瓶颈。
-WMV3/MPEG-4尾帧及同机厂商对照仍开放，不能以主机控制流代替固件完成证据。
+## 已完成并关闭的批次
 
-每项 issue 保存固定来源、计划和验收门槛。素材生成/软解、边界测试、
-故障注入、sanitizers 和交叉构建优先在工作机做；WanOS 只承担离线无法
-证明的短时硬件验收。候选实验不解除生产长测暂停。
+| 完成项 | 依据与边界 | Issue |
+| --- | --- | --- |
+| 单HCODEC多H.264上下文逐帧调度 | owner/参考/canvas隔离及主机错误恢复回归，两路720p/1080p各12幅内容通过；不承诺八路实时 | [#19](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/19)（completed） |
+| HEVC stop、编码微码DMA及头计数三项P0错误 | 已合并、真实函数故障回归及原ARM/有界部署验收通过；不关闭历史#4/#5因果关系 | [#23](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/23)（completed） |
 
-当前按用户选择，历史 H.264 #5 少帧调查保留开放、暂停主动复现。
-开发顺序调整为 P1 性能拆分与 GE2D 验证、HEVC tiles，然后补有厂商依据的
-格式/会话能力。阶段测量器及独立 GE2D 验证入口见[性能指南](docs/performance.md)；
-GE2D已通过有界像素、纹理缩放及官方工具视频转码短测；完整音频/HLS仍未
-通过，默认保留NEON，
-不宣称已追平吞吐。
-追平目标以 S805 厂商协议和内容/性能对照验收，迅雷出厂固件的具体启用
-配置与同机基准尚缺。生产持续压力实验继续暂停。
-当前完成项与逐项未验收边界见[厂商能力追平](docs/codec-parity.md)。
+## 应用与平台边界
 
-OpenList 继续适配官方原版 FFmpeg，保留标准发现/调度/错误上报边界；驱动负责
-固件、格式、控件和队列协议。禁止以私有 FFmpeg 功能分支解决应用问题。
-HEVC 编码仍无适用硬件/微码路径。High/Main/CABAC/B帧编码的可用路径
-尚未找到，多会话当前包已通过两路720p/两路1080p各12幅内容验收，不能扩大到
-任意并发或实时吞吐。
+配套官方FFmpeg镜像的自动构建/发布由[#12](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/12)
+跟踪；自动播放/跳转/取消/错误端到端回归由[#13](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/13)
+跟踪。人工播放、小尺寸AAC/HLS或已有镜像交付不替代自动化关闭条件；应用
+代码仍在OpenList后端/前端fork，禁止维护私有FFmpeg功能分支。
 
-历史 v0.1–v0.3 与 v0.4 阶段计划在[历史目录](docs/history/README.md)，不再作为
-当前执行清单。新增二进制必须有对应的实机报告，不自动继承旧版验收。
+研究内核/跨板支持只有构建侧证据，实机与救援条件见
+[移植记录](docs/research-validation.md)。历史阶段结论留在[历史目录](docs/history/README.md)，
+不作为当前执行清单。原厂同机基准及完整厂商追平仍未完成。

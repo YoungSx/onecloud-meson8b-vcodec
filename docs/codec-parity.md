@@ -9,11 +9,19 @@ WanOS，无备用板/串口。新增硬件路径先完成工作机实现和边�
 
 ## 当前执行顺序
 
-1. 性能拆分；GE2D 字节序/缓冲自检通过后，继续裁剪、NV12 缩放和 DMA 生命周期。
-2. HEVC tiles，覆盖均匀/非均匀、slice、MV 与滤波。
-3. H.263、WMV3 等有固件依据的格式，再处理 MPEG/VC-1 完整性。
-4. 单 HCODEC 多会话调度及资源预算；严格区分实例数与总吞吐。
-5. 对相同输入、质量、内存条件完成厂商路径与移植的硬件内容/性能对照。
+1. 可靠性取证和性能拆分；已有GE2D转换继续补DMA生命周期/少拷贝收益，
+   decoder独立CAPTURE缩放由[#32](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/32)跟踪。
+2. MPEG/VC-1/WMV3尾帧与内容完整性；HEVC tiles、H.263已部署实现的剩余
+   多slice/回压/取消/切换及支持范围验收。
+3. AVS及尚未接入的RealVideo、MVC、MPEG-4旧变体和独立JPEG图片路径。
+4. 单HCODEC多上下文调度已完成并关闭[#19](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/19)，
+   任意并发和实时总吞吐不由两路短测保证。
+5. 建立同输入、质量、内存条件的原厂内容/性能基线，见[#33](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/33)。
+
+完整issue与当前状态索引见[路线图](../ROADMAP.md)。tiles和H.263的基础内容
+通过不代表其原issue全部组合验收已完成，当前分别保留[#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15)、
+[#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16)；三项具体P0修复批次
+[#23](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/23)已完成关闭，历史故障仍独立开放。
 
 历史 H.264 #5 调查保持开放，按用户选择暂停主动复现。没有适用于 S805 的
 HEVC 编码、Main10 或可靠高级 H.264 编码路径时，不添加虚假的能力枚举。
@@ -168,6 +176,17 @@ H.264复用原码表并验证原映射行为。内部保存SAR x/y，CROPCAP按�
 样本出现2/12并保留失败。源码、工具与边界见[编码SAR](ffmpeg-compatibility.md#编码-sps-像素比例)。
 
 ## AVS 接口缺口与旧格式边界
+
+2026-11-26扩大固定厂商源码/手册对照，除AVS外还确认以下未接入路径：
+RealVideo8/9的`vreal.c`（手册还列RV10）、`vh264mvc.c`多视图解码、
+`vmpeg4.c`中MPEG4_3/4/5对应不同微码，以及`jpegdec.c`独立图片/PSCALE路径。
+分别由[#27](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/27)、
+[#28](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/28)、
+[#29](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/29)、
+[#30](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/30)跟踪接口/协议和有界内容验收。
+GE2D目前GREY/NV12子集之外的矩阵、旋转/翻转、混合等由
+[#31](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/31)跟踪。源码存在不代表
+已确认全部S805微码/标准UAPI语义，更不等于迅雷出厂镜像或本项目已通过。
 
 AVS JiZhun 的 S805 固件和厂商帧协议存在，不属于已证明的硬件缺失。
 本轮再次核对 Linux 5.15.79 UAPI 及主线固定提交
