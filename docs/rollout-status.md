@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`799d2ccbaa61a080bc165dfd483d8a561de9596a`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
+| 已部署开发驱动 | 完整运行包源码`7991ba41c35f088348cc86eaf416ad7499a7ca0a`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | 官方底座8.1.3，FFmpeg/ffprobe逐字节未改；宿主原7.0.2是另一套工具。 |
@@ -17,7 +17,7 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `5dec820fa46d20bdafbbe0ddae911ea1192482243e6fbf3abbaa784a72397b45` |
+| meson-vdec.ko | `6d499aa75f39959186401d9fd97afc398fd962632d98ad9b63f64498c8adf058` |
 | meson-venc.ko | `219da47d296e71525b2c816f7f85c5c2f8663c38d0585586c89e78983716a32c` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
@@ -52,11 +52,19 @@ FFmpeg三条缩放链90幅及重加载后的两次HEVC共60幅逐帧精确，未
 哈希不变。当前源码130项主机/干净源码包测试与ARM双构建通过，GE2D继续
 只作临时验收，不代表完整转码或实时收益。见[coherent帧池记录](validation-records.md#11-26-ge2d-coherent-帧池)。
 
-11-26随后部署当前编码参考面预算修正：720p两张NV12参考面减少约3.36 MiB
+11-26随后部署编码参考面预算修正：720p两张NV12参考面减少约3.36 MiB
 CMA。正式19组148幅编码顺序/全YUV质量及两条NEON转码各60/60通过，完整
 63项包、服务/五容器/四项HTTP200、帧池归零及26个启动文件哈希不变。当前
 131项主机/干净源码包测试与ARM双构建通过。GE2D完整转码仍因CMA或低缓冲
 短输出失败，未达到实时目标，详见[编码预算记录](validation-records.md#11-26-编码参考面预算与完整转码边界)。
+
+最新包把显式GE2D的MMAP采集改为缓存普通内存和共享3 MiB中转面，避免
+1080p20个采集缓冲占约60 MiB CMA；DMA-BUF仍直接写入。候选600幅精确，
+含73幅真实连续DMA-BUF导入；官方7.0.2及镜像8.1.3的直接转码和CPU缩放
+转码各60/60内容通过，7.0.2重加载再测各60/60。正式包默认NEON600/600精确、
+MJPEG9幅和两种停流通过，包校验/五容器/四项HTTP200/帧池归零及启动文件
+哈希不变。133项主机/干净源码包和ARM双构建通过；实时目标、硬件缩放、
+音频/HLS仍未完成，生产GE2D关闭。见[采集内存记录](validation-records.md#11-26-ge2d-采集内存与官方转码)。
 
 编码复验覆盖11种支持的输入布局、1080p、GOP/强制IDR、多slice、同fd重开、
 VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒绝。两路
@@ -79,7 +87,7 @@ VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒�
 pstore为空，不据此排除或确认旧内核故障；本次局域网正常的链路故障独立记录。
 没有由代理重启、更换内核/boot DT或调整64 MiB CMA。
 
-当前与升级前`ffddcf0`、`39703c7`、`41773bb`、`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
+当前与升级前`799d2cc`、`ffddcf0`、`39703c7`、`41773bb`、`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
 构建机的SHA256备份，更早资料保留。新state位于持久系统分区；未演练整包
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。

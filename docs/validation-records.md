@@ -1006,3 +1006,53 @@ GE2D计数宣称零拷贝、内容完整或性能达标。历史H.264少帧问�
 四项HTTP200、帧池归零及26个启动文件哈希不变，GE2D未加载。没有重启、
 改变CMA或演练整包降级。完整输出、失败现场及安装/回退资料仅经校验保存
 于工作区外构建机归档，无永久公开附件。
+
+## 11-26 GE2D 采集内存与官方转码
+
+驱动源码`0ebf549`、DMA-BUF测试客户端`7991ba4`。显式GE2D的MMAP采集改用
+缓存vmalloc内存，只按显示几何分配一张coherent中转面；交付锁保护GE2D
+写入与CPU拷贝。1080p20个MMAP缓冲从约60 MiB CMA变为共享3 MiB，不含
+原参考池。DMA-BUF导入仍由原`vb2_dma_contig`验证连续范围并直接写入；
+MMAP导出可能分散，不保证连续导入。尺寸切换/停流/关闭释放中转面，
+pool_bytes包含它；MJPEG和错误路径保留CPU回退。默认NEON路径与4 MiB
+VIFIFO保持，未重新采用旧2 MiB FIFO候选。
+
+实际分配适配器和转换函数的Host回归覆盖两种内存模式、导出/同步/释放、
+失败清理、中转面复用/重分配、padding、超时回退与停流释放。客户端新增
+DRM dumb-buffer导入、CPU同步及清理。133项Host/干净源码包、C sanitizer、
+严格checkpatch、ARM外部/additive构建及补丁一致性通过。decoder SHA256：
+`6d499aa75f39959186401d9fd97afc398fd962632d98ad9b63f64498c8adf058`。
+
+WanOS原5.15.79-meson/64 MiB CMA下，显式GE2D16组600/600可见NV12逐帧
+精确，范围沿用前次small/crop/1080p、DPB16、CRA/开放GOP、裁剪切换、自然
+EOS、tiles、两槽DPB1和慢消费。HEVC small/crop、裁剪切换、自然EOS共73幅
+经Meson DRM连续DMA-BUF导入，其余MMAP；三组MJPEG回退9幅完整顺序/全YUV
+质量通过，两种提前停流正常。首次误选Lima节点不支持dumb-buffer，恢复后
+核对Meson节点重测通过，初次失败不计为DMA-BUF验收成功。
+
+同一1080p30前60幅输入、自然EOF、decoder OUTPUT2/CAPTURE20、encoder
+OUTPUT16/CAPTURE4、4 Mbps/GOP30：官方7.0.2直接转码和CPU缩至720p再编码
+各60/60，独立完整软解/全YUV质量通过，最低平面PSNR约39.29/41.91 dB。
+GE2D/编码器计数各加60，墙钟约3.09/7.72 s；重加载后再次各60/60内容通过，
+约3.86/7.51 s。波动不构成加速结论，仍未达到实时或1.3×。
+
+同一OpenList镜像内未改官方8.1.3在独立临时容器重测两条命令，各60/60
+内容/质量通过；docker命令约10.02/12.06 s包含启动，宿主docker客户端CPU
+时间不代表容器FFmpeg CPU。临时容器root访问私有目录；初次默认用户被目录
+权限拒绝、未解码，保留环境失败。生产容器用户、配置和FFmpeg字节不变。
+仅覆盖视频/CPU scale/现有复制编码，不扩大为音频/HLS、硬件缩放、零拷贝、
+低缓冲drain修复或默认生产GE2D。历史崩溃根因仍未知。
+
+取报告时远端SFTP子进程Go运行时SIGSEGV，SSH/业务检查正常；改SSH字节流
+并核对SHA256，不归因驱动。工作机ENOSPC曾中断下载/源码包；逐文件匹配
+外部归档后只清理完全重复的旧源码包，未匹配副本保留，重新取报告和生成
+源码包。新现场和生产回退资料保留；环境错误不计为编解码内容通过。
+
+同一源码完整包`7991ba41c35f088348cc86eaf416ad7499a7ca0a`已标准安装保留，
+默认NEON。升级前63项运行包与12项state文件逐一匹配设备外校验归档，使用
+新安装state。正式decoder哈希与候选相同，encoder/runtime和默认Overlay
+字节不变。正式16组600/600精确、三组MJPEG9幅全YUV质量及两种提前停流
+通过，GE2D计数0；完整包、unit enabled/active、五容器、四项HTTP200、
+帧池归零及26个启动文件哈希不变。没有重启、修改CMA、启用生产GE2D或
+演练整包降级。原件、完整源码包/运行包与新旧state经校验仅在构建机归档，
+没有永久公开附件。

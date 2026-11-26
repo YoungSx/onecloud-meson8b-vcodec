@@ -99,8 +99,10 @@ GREY/NV12M原样复制与裁剪的全部可见字节、常量Y/U/V平面缩小�
 硬件锁串行；decoder 卸载后释放引用。runtime 仍在依赖模块卸载后才移除
 挥发性 Overlay，不改 boot DT。
 
-启用后的 CAPTURE 使用 `vb2_dma_contig`，可 MMAP/DMA-BUF，而不再使用普通
-vmalloc 内存。帧池保留固件字节序，逐帧通过 GE2D 写可见 NV12M，按图片
+启用后的MMAP CAPTURE使用缓存vmalloc内存，由一张coherent中转面复用
+给所有采集缓冲；GE2D完成后复制到当前MMAP。DMA-BUF导入仍通过
+`vb2_dma_contig`验证连续范围并直接写入。MMAP导出的DMA-BUF可能分散，
+不保证能重新作为连续导入。帧池保留固件字节序，按图片
 自己的 reference/crop 几何转换；只清零行尾和对齐 padding。`ge2d_frames`
 统计成功硬件转换，`convert_ns` 是墙钟耗时。MJPEG 和错误路径继续 CPU
 转换；DMA-BUF CPU 访问成对同步，GE2D 超时后先复位停机再回退。
@@ -108,8 +110,9 @@ vmalloc 内存。帧池保留固件字节序，逐帧通过 GE2D 写可见 NV12M
 回退直接读取coherent地址，裁剪路径也相同。默认NEON仍保留cached读取，
 替代它需要目标内核支持HighMem连续缓存分配，不能复用已失败的noncoherent候选。
 
-连续 CAPTURE 会消耗 CMA。默认20个 FFmpeg缓冲不保证能和固件帧池一起
-容纳在64 MiB中；原版FFmpeg的`num_capture_buffers`最小值为2，直接客户端可用
+连续DMA-BUF CAPTURE仍消耗CMA；MMAP只需共享中转面，1080p约3 MiB。
+此前20个采集缓冲占约60 MiB CMA，当前MMAP避免该占用。
+原版FFmpeg的`num_capture_buffers`最小值为2，直接客户端可用
 `CAPTURE_BUFFERS=1`做完整图片检查，再测实际内存/回压。压缩输入也占CMA，
 原版`num_output_buffers`默认为16、最小值为2；它与CAPTURE的数量分别计算。
 低缓冲不保证官方FFmpeg内部帧队列可用，不能把上述最小值当成推荐配置。NEON默认路径不
@@ -142,3 +145,10 @@ encoder OUTPUT16可完成直接/CPU缩放转码各60/60；显式GE2D/CAPTURE12
 则在编码器分配时耗尽CMA。按真实NV12画布缩小编码参考面，720p节省约
 3.36 MiB，仍不足以容纳该完整链；CAPTURE10最后analysis分配失败，CAPTURE9
 仅9/60。所有失败和有损质量范围见[完整转码记录](validation-records.md#11-26-编码参考面预算与完整转码边界)。
+
+
+11-26共享中转面修正后，同一完整60幅1080p输入在显式GE2D/decoder
+CAPTURE20、encoder OUTPUT16下，官方7.0.2直接转码和CPU缩至720p再编码
+均60/60，重加载重复各60/60。OpenList镜像内未改8.1.3也两条各60/60，完整
+软解/全YUV质量通过。仍有CPU复制/缩放，未达到实时或1.3×目标；容器命令
+时间包含启动，不能当纯编码耗时。生产默认NEON，见[采集内存记录](validation-records.md#11-26-ge2d-采集内存与官方转码)。

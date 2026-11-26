@@ -133,3 +133,10 @@ output remains a separate open investigation.
 NV12输出仍12/30；这是一条有界缩放链的通过，默认NEON和生产官方工具不变，
 不是所有GE2D链、完整转码或吞吐验收。正式包重复GE2D缩放时又出现SIGSEGV、
 零输出及短暂工具包校验异常，未计通过，恢复生产NEON；来源见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
+
+
+11-26共享GE2D中转面后，MMAP采集不再逐缓冲占CMA，官方7.0.2与OpenList
+镜像内未改8.1.3在decoder CAPTURE20/encoder OUTPUT16下，完整1080p60幅
+直接转码及CPU缩至720p再编码均通过独立软解/全YUV质量；7.0.2重加载重复
+也通过。该有界用法不修改FFmpeg，不证明低缓冲drain错误已解决、零拷贝、
+全部OpenList HLS/音频或实时吞吐，见[采集内存记录](validation-records.md#11-26-ge2d-采集内存与官方转码)。
