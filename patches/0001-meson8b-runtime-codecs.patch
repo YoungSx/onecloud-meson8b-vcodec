@@ -18141,7 +18141,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/ge2d/meson8b-ge2d.c
-@@ -0,0 +1,1016 @@
+@@ -0,0 +1,1017 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/* S805 canvas GE2D; register protocol from Hardkernel Linux 5aed95d35d25.
 + * A byte-plane self-test proves endian conversion before exposing the device.
@@ -18358,8 +18358,9 @@
 +	ge2d_write(core, VSC_STEP, vstep);
 +	ge2d_write(core, HSC_SLOPE, 0);
 +	ge2d_write(core, VSC_SLOPE, 0);
-+	ge2d_write(core, HSC_INI, 0);
-+	ge2d_write(core, VSC_INI, 0);
++	/* Vendor stretchblt repeats the first sample for the four-tap bank. */
++	ge2d_write(core, HSC_INI, width != out_width ? BIT(29) : 0);
++	ge2d_write(core, VSC_INI, height != out_height ? BIT(29) : 0);
 +	ge2d_write(core, HSC_ADV, advance);
 +	/* Logic COPY for color and alpha; no color matrix or filtering. */
 +	ge2d_write(core, ALU_CTRL, (5 << 20) | (1 << 12) | (5 << 8) | 1);

@@ -77,6 +77,7 @@ int main(void) {
  struct meson8b_ge2d_crop crop={.width=512,.height=32};
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(registers[HSC_STEP/4]==2u<<24 && registers[VSC_STEP/4]==2u<<24);
+ assert(registers[HSC_INI/4]==BIT(29) && registers[VSC_INI/4]==BIT(29));
  assert(registers[DST_X/4]==255 && registers[DST_Y/4]==15);
  assert(registers[SC_MISC/4]&(BIT(11)|BIT(12)));
  assert(registers[SC_MISC/4]&(BIT(28)));
@@ -99,6 +100,7 @@ int main(void) {
  assert(registers[GEN_CTRL0/4]==0);
  assert(registers[GEN_CTRL2/4]==BIT(23));
  assert(!registers[HSC_ADV/4] && !(registers[SC_MISC/4]&BIT(28)));
+ assert(!registers[HSC_INI/4] && !registers[VSC_INI/4]);
  assert(registers[SRC_CLIPY/4]==(1u<<16|8));
  assert(canvas_calls==calls+8 && starts==6);
  input.little_endian=true;crop.width=512;crop.height=32;crop.left=crop.top=0;
@@ -118,6 +120,16 @@ int main(void) {
  assert(ge2d_copy(&c,1ull<<32,0x200000,512,32,true)==-EINVAL);
  assert(ge2d_copy(&c,0x100001,0x200000,512,32,true)==-EINVAL);
  assert(starts==before);
+ /* Only the axis being filtered repeats its first sample. */
+ input.nv12=output.nv12=false;crop=(struct meson8b_ge2d_crop){.width=512,.height=32};
+ output.width=256;output.height=32;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[HSC_INI/4]==BIT(29) && !registers[VSC_INI/4]);
+ output.width=512;output.height=16;output.stride=512;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(!registers[HSC_INI/4] && registers[VSC_INI/4]==BIT(29));
+ input.nv12=output.nv12=true;crop=(struct meson8b_ge2d_crop){.left=2,.top=2,.width=256,.height=16};
+ output.width=256;output.stride=256;output.address[1]=0x201000;
  /* Queued commands can precede BUSY; write responses can outlive it. */
  u32 pending[]={BIT(2),BIT(4),BIT(1),BIT(0),BIT(17),GENMASK(28,17),BIT(3)|BIT(5)|BIT(6)};
  for(unsigned i=0;i<sizeof(pending)/sizeof(pending[0]);i++)status_samples[i]=pending[i];

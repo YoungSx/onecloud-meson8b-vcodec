@@ -214,8 +214,9 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	ge2d_write(core, VSC_STEP, vstep);
 	ge2d_write(core, HSC_SLOPE, 0);
 	ge2d_write(core, VSC_SLOPE, 0);
-	ge2d_write(core, HSC_INI, 0);
-	ge2d_write(core, VSC_INI, 0);
+	/* Vendor stretchblt repeats the first sample for the four-tap bank. */
+	ge2d_write(core, HSC_INI, width != out_width ? BIT(29) : 0);
+	ge2d_write(core, VSC_INI, height != out_height ? BIT(29) : 0);
 	ge2d_write(core, HSC_ADV, advance);
 	/* Logic COPY for color and alpha; no color matrix or filtering. */
 	ge2d_write(core, ALU_CTRL, (5 << 20) | (1 << 12) | (5 << 8) | 1);
