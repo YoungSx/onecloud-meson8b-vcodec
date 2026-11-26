@@ -60,6 +60,46 @@ class ClientReferenceTests(unittest.TestCase):
                                      '1', 'NV12', '90', 'H264'], capture_output=True)
             self.assertEqual(result.returncode, 2, arguments)
 
+    def test_dma_buf_cpu_sync_retries_only_interruptions(self):
+        code = r'''
+#define ioctl sync_ioctl
+#define main diagnostic_main
+#include "encode-test.c"
+#undef main
+#include <assert.h>
+#include <stdarg.h>
+#include <sys/wait.h>
+#include <stdbool.h>
+static unsigned calls;static bool fail;
+static uint64_t expected;
+int sync_ioctl(int file,unsigned long request,...){
+ va_list ap;va_start(ap,request);struct dma_buf_sync *sync=va_arg(ap,void *);va_end(ap);
+ assert(file==17&&request==DMA_BUF_IOCTL_SYNC&&sync->flags==expected);calls++;
+ if(fail){errno=EIO;return -1;}
+ if(calls==1){errno=EINTR;return -1;}
+ if(calls==2){errno=EAGAIN;return -1;}
+ return 0;
+}
+int main(void){
+ struct mapped p={.fd=17};expected=DMA_BUF_SYNC_START|DMA_BUF_SYNC_WRITE;
+ sync_plane(&p,expected);assert(!calls);
+ dmabuf="dumb";sync_plane(&p,expected);assert(calls==3);
+ expected=DMA_BUF_SYNC_END|DMA_BUF_SYNC_WRITE;sync_plane(&p,expected);assert(calls==4);
+ pid_t child=fork();assert(child>=0);
+ if(!child){fail=true;sync_plane(&p,expected);_exit(99);}
+ int status;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==1);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
 
 class BaselineReportTests(unittest.TestCase):
     def test_frame_statistics(self):

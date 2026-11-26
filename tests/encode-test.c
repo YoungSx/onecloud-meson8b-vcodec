@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <linux/videodev2.h>
+#include <linux/dma-buf.h>
 #include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -423,6 +424,20 @@ static unsigned int memory(unsigned int type)
 	return dmabuf && type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
 }
 
+static void sync_plane(struct mapped *plane, uint64_t flags)
+{
+	struct dma_buf_sync sync = { .flags = flags };
+	int ret;
+
+	if (!dmabuf)
+		return;
+	do {
+		ret = ioctl(plane->fd, DMA_BUF_IOCTL_SYNC, &sync);
+	} while (ret < 0 && (errno == EINTR || errno == EAGAIN));
+	if (ret)
+		die("DMA_BUF_SYNC");
+}
+
 static int drm_open(const char *driver)
 {
 	for (int i = 0; i < 4; i++) {
@@ -495,7 +510,9 @@ static void setup(unsigned int type, struct mapped *planes, unsigned int n)
 
 		for (unsigned int i = 0; i < n; i++) {
 			drm_buffer(drm, &planes[i], pix.plane_fmt[i].sizeimage);
+			sync_plane(&planes[i], DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE);
 			memset(planes[i].data, 0, planes[i].size);
+			sync_plane(&planes[i], DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
 		}
 		return;
 	}
@@ -705,7 +722,11 @@ int main(int argc, char **argv)
 			fprintf(stderr, "same-fd restart before frame %u\n", frame);
 		}
 		apply_controls(frame);
+		for (unsigned int i = 0; i < pix.num_planes; i++)
+			sync_plane(&in[i], DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE);
 		put_frame(frame, plane, stride);
+		for (unsigned int i = 0; i < pix.num_planes; i++)
+			sync_plane(&in[i], DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
 		if (ref) write_reference(ref, frame, uv);
 		queue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, frame);
 		uint64_t queued = now_us();
