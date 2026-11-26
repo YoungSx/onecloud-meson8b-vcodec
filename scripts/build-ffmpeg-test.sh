@@ -32,10 +32,10 @@ fi
   --disable-doc --disable-debug --disable-autodetect --disable-everything \
   --enable-ffmpeg --enable-ffprobe --enable-avformat --enable-avcodec --enable-avfilter \
   --enable-swscale --enable-swresample --enable-protocol=file,pipe,http,tcp \
-  --enable-demuxer=mov,hevc,h264,rawvideo,mjpeg,mpegts,aac,hls \
-  --enable-muxer=framehash,framemd5,null,rawvideo,hevc,h264,mjpeg,mpegts,hls \
-  --enable-parser=hevc,h264,mjpeg,aac \
-  --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo,aac \
+  --enable-demuxer=mov,hevc,h264,h263,rawvideo,mjpeg,mpegts,aac,hls \
+  --enable-muxer=framehash,framemd5,null,rawvideo,hevc,h264,h263,mjpeg,mpegts,hls \
+  --enable-parser=hevc,h264,h263,mjpeg,aac \
+  --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,h263,h263_v4l2m2m,mjpeg,rawvideo,aac \
   --enable-encoder=rawvideo,wrapped_avframe,h264_v4l2m2m,aac \
   --enable-bsf=hevc_mp4toannexb,h264_mp4toannexb,h264_metadata \
   --enable-filter=buffer,buffersink,format,scale,null,setpts,asetpts,aresample,anull,psnr --enable-v4l2-m2m
