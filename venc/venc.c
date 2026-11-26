@@ -868,7 +868,7 @@ static void venc_free_buffers(struct venc_ctx *ctx)
 static int venc_alloc_buffers(struct venc_ctx *ctx)
 {
 	static const u32 sizes[] = {
-		0x6ba000, 0x300000, 0x300000, 0xc0000, 0x100000, 0x110000
+		0, 0, 0, 0xc0000, 0x100000, 0x110000
 	};
 	unsigned int i;
 
@@ -878,6 +878,10 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 		if (i == VENC_INPUT)
 			ctx->buffers[i].size = PAGE_ALIGN(venc_staging_bytes(ctx->src,
 					ctx->coded_width, ctx->height));
+		else if (i == VENC_REF0 || i == VENC_REF1)
+			/* Reference canvases are NV12, independent of input format. */
+			ctx->buffers[i].size = PAGE_ALIGN(ALIGN(ctx->coded_width, 32) *
+					ALIGN(ctx->height, 16) * 3 / 2);
 		/* CPU only writes staging; combine stores before the DMA kick. */
 		ctx->buffers[i].vaddr = dma_alloc_attrs(ctx->core->dev,
 			ctx->buffers[i].size, &ctx->buffers[i].paddr, GFP_KERNEL,

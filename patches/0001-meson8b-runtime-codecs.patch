@@ -14819,7 +14819,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2560 @@
+@@ -0,0 +1,2564 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -15690,7 +15690,7 @@
 +static int venc_alloc_buffers(struct venc_ctx *ctx)
 +{
 +	static const u32 sizes[] = {
-+		0x6ba000, 0x300000, 0x300000, 0xc0000, 0x100000, 0x110000
++		0, 0, 0, 0xc0000, 0x100000, 0x110000
 +	};
 +	unsigned int i;
 +
@@ -15700,6 +15700,10 @@
 +		if (i == VENC_INPUT)
 +			ctx->buffers[i].size = PAGE_ALIGN(venc_staging_bytes(ctx->src,
 +					ctx->coded_width, ctx->height));
++		else if (i == VENC_REF0 || i == VENC_REF1)
++			/* Reference canvases are NV12, independent of input format. */
++			ctx->buffers[i].size = PAGE_ALIGN(ALIGN(ctx->coded_width, 32) *
++					ALIGN(ctx->height, 16) * 3 / 2);
 +		/* CPU only writes staging; combine stores before the DMA kick. */
 +		ctx->buffers[i].vaddr = dma_alloc_attrs(ctx->core->dev,
 +			ctx->buffers[i].size, &ctx->buffers[i].paddr, GFP_KERNEL,
