@@ -10,6 +10,7 @@
  * the last input before DEC_CMD_STOP, as a stalled or paused source would.
  * CAPTURE_DMABUF=/dev/dri/cardN imports DRM dumb buffers into CAPTURE.
  * CAPTURE_SIZE=WxH requests an exact scaled output after SOURCE_CHANGE.
+ * CAPTURE_DELAY_MS=0..1000 holds each dequeued picture before returning it.
  * ENCODE_DEVICE=PATH ENCODE_STREAM=FILE encodes each imported NV12M picture
  * before returning it to the decoder; requires CAPTURE_DMABUF.
  */
@@ -56,6 +57,7 @@ static unsigned int capture_count = 8;
 static unsigned int capture_width, capture_height;
 /* pause between the last input and DEC_CMD_STOP; STOP_DELAY_MS overrides */
 static unsigned int stop_delay_ms;
+static unsigned int capture_delay_ms;
 /* OUTPUT buffers queued and not yet dequeued */
 static int out_queued;
 /* when FRAME_DUMP is set, every decoded frame's planes are appended
@@ -295,6 +297,23 @@ static int parse_capture_size(const char *text)
 	return 0;
 }
 
+static int parse_capture_delay(const char *text)
+{
+	char *end;
+	unsigned long delay;
+
+	if (!text)
+		return 0;
+	if (*text < '0' || *text > '9')
+		return -1;
+	errno = 0;
+	delay = strtoul(text, &end, 10);
+	if (errno || *end || delay > 1000)
+		return -1;
+	capture_delay_ms = delay;
+	return 0;
+}
+
 static unsigned int capture_memory(void)
 {
 	return capture_drm >= 0 ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
@@ -414,6 +433,8 @@ static int dump_frame(struct v4l2_buffer *b)
 		pictures++;
 	if (bytes)
 		encode_frame(b);
+	if (bytes && capture_delay_ms)
+		usleep(capture_delay_ms * 1000);
 	return bytes != 0;
 }
 
@@ -712,6 +733,10 @@ int main(int argc, char **argv)
 	atexit(capture_cleanup);
 	if (parse_capture_size(getenv("CAPTURE_SIZE"))) {
 		fprintf(stderr, "CAPTURE_SIZE must be an even WxH up to 1920x1088\n");
+		return 2;
+	}
+	if (parse_capture_delay(getenv("CAPTURE_DELAY_MS"))) {
+		fprintf(stderr, "CAPTURE_DELAY_MS must be 0..1000\n");
 		return 2;
 	}
 	encode_device = getenv("ENCODE_DEVICE");

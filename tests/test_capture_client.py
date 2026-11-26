@@ -8,6 +8,39 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CaptureClientTests(unittest.TestCase):
+    def test_bounded_capture_delay_parser_and_hold(self):
+        code = r'''
+#define usleep mock_usleep
+#define main diagnostic_main
+#include "res-switch-test.c"
+#undef main
+#include <assert.h>
+static unsigned slept;
+int mock_usleep(useconds_t delay){slept+=delay;return 0;}
+int main(void){
+ assert(!parse_capture_delay(NULL)&&!capture_delay_ms);
+ assert(!parse_capture_delay("1000")&&capture_delay_ms==1000);
+ const char *bad[]={"","-1","+1"," 1","1001","2ms","999999999999999999999999999"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++)assert(parse_capture_delay(bad[i])==-1&&capture_delay_ms==1000);
+ assert(!parse_capture_delay("50")&&capture_delay_ms==50);
+ unsigned char pixels[4]={1,2,3,4};ncap=1;capbufs[0].nplanes=1;
+ capbufs[0].planes[0]=(struct plane){.start=pixels,.length=sizeof(pixels)};
+ struct v4l2_plane plane={.bytesused=4};struct v4l2_buffer b={.index=0,.length=1,.m.planes=&plane};
+ assert(dump_frame(&b)&&pictures==1&&slept==50000);
+ plane.bytesused=0;assert(!dump_frame(&b)&&slept==50000);
+ assert(!parse_capture_delay("0"));plane.bytesused=4;assert(dump_frame(&b)&&slept==50000);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
     def test_scaled_size_argument(self):
         code = r'''
 #define main diagnostic_main
