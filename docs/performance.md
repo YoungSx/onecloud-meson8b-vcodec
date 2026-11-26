@@ -156,5 +156,27 @@ CAPTURE20、encoder OUTPUT16下，官方7.0.2直接转码和CPU缩至720p再编�
 后续格式协商候选复验时，8.1.3容器命令超时并遇containerd服务异常，已经
 恢复在役7991ba4的默认驱动及业务；本候选未安装。原7.0.2两条视频转码内容
 通过，8.1.3重复保留失败，见[格式边界记录](validation-records.md#11-26-解码格式协商边界)。
-decoder缩放需要独立维护源与采集几何；当前CAPTURE尺寸协商固定到源尺寸，
-不把改变源尺寸当成硬件缩放支持。
+decoder缩放需要独立维护源与采集几何；上述格式保护版本将CAPTURE固定到
+源尺寸，没有把改写源尺寸当成硬件缩放支持。
+
+## decoder 缩放候选（未实机）
+
+新源码`06504f3`在显式`capture_ge2d=1`且H.264/HEVC已解析源尺寸后，允许
+标准CAPTURE S_FMT协商独立输出大小，每轴为源尺寸的1–1/4、偶数NV12尺寸；
+TRY_FMT返回实际可用值。码流/参考面宽高和源crop保持，G_FMT的stride/容量、
+COMPOSE、交付payload及中转面使用输出大小；非等比例缩放调整像素宽高比。
+分配后仍拒绝S_FMT，source-change后重新协商。MJPEG和默认NEON不开放缩放。
+
+该候选只完成工作机回归/构建，未加载或部署，不能继承独立GE2D缩放检查的
+像素结论。缩放失败返回ERROR和零payload，不用原尺寸CPU回退写小缓冲。
+官方FFmpeg的`-vf scale`仍走CPU；本接口供使用标准V4L2协商的客户端显式
+选择，不自动改写FFmpeg命令。恢复硬件验收后可用验证客户端：
+
+```sh
+CAPTURE_SIZE=1280x720 CAPTURE_BUFFERS=4 FRAME_DUMP=scaled.nv12 \
+  ./res-switch-test /dev/video0 input.h264 H264
+```
+
+示例要求已加载本候选、启用GE2D且输入为兼容1080p；实际设备号须枚举。
+客户端核对精确协商尺寸，不支持时失败，dump为32字节stride/64 KiB容量
+平面。实机验收前仍不宣称正确画面、实时吞吐或完整转码通过；见[离线记录](validation-records.md#11-26-decoder-ge2d-缩放候选)。
