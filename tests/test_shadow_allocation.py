@@ -1,0 +1,84 @@
+"""GE2D needs coherent canvases without a second CPU cache mapping."""
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class ShadowAllocationTests(unittest.TestCase):
+    def test_coherent_ge2d_and_cached_neon_cleanup(self):
+        source = (ROOT / 'vdec/meson8b-capture.c').read_text()
+        body = source[source.index('static void amvdec_shadow_free('):
+                      source.index('typedef void (*amvdec_swap64_t)')]
+        code = r'''
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+typedef uint32_t u32;typedef uintptr_t dma_addr_t;
+#define PAGE_SIZE 4096
+#define PAGE_SHIFT 12
+#define PAGE_ALIGN(n) (((n)+PAGE_SIZE-1)&~(PAGE_SIZE-1))
+#define GFP_KERNEL 0
+#define VM_MAP 1
+#define PAGE_KERNEL 2
+#define dev_err(...) ((void)0)
+struct page {int index;};
+struct device {int unused;};
+struct amvdec_core {struct device *dev;void *ge2d_dev;};
+struct amvdec_session {struct amvdec_core *core;};
+struct amvdec_shadow {void *vaddr,*cached;dma_addr_t paddr;u32 size,luma;};
+static unsigned allocations,frees,arrays,maps,unmaps,pages_seen;
+static int fail_at;
+static bool highmem;
+static unsigned char canvas[3145728],cached[3145728];
+static struct page pages[768];
+static void *dma_alloc_coherent(struct device *d,u32 n,dma_addr_t *a,int g){
+ (void)d;assert(n==sizeof(canvas)&&!g);allocations++;if(fail_at==1)return NULL;*a=0x30000000;return canvas;
+}
+static void dma_free_coherent(struct device *d,u32 n,void *v,dma_addr_t a){
+ (void)d;assert(n==sizeof(canvas)&&v==canvas&&a==0x30000000);frees++;
+}
+static void *kmalloc_array(unsigned n,unsigned size,int g){
+ assert(n==768&&size==sizeof(struct page *)&&!g);arrays++;return fail_at==2?NULL:calloc(n,size);
+}
+static void kfree(void *p){free(p);}
+static bool is_vmalloc_addr(void *p){assert(p>= (void *)canvas&&p<(void *)(canvas+sizeof(canvas)));return highmem;}
+static struct page *vmalloc_to_page(void *p){assert(highmem);pages_seen++;return &pages[((unsigned char *)p-canvas)/PAGE_SIZE];}
+static struct page *virt_to_page(void *p){assert(!highmem);pages_seen++;return &pages[((unsigned char *)p-canvas)/PAGE_SIZE];}
+static void *vmap(struct page **p,unsigned n,int flags,int prot){
+ assert(n==768&&flags==VM_MAP&&prot==PAGE_KERNEL);for(unsigned i=0;i<n;i++)assert(p[i]==&pages[i]);maps++;return fail_at==3?NULL:cached;
+}
+static void vunmap(void *p){assert(p==cached);unmaps++;}
+''' + body + r'''
+int main(void){
+ struct device d={0};struct amvdec_core c={.dev=&d};struct amvdec_session s={.core=&c};
+ for(unsigned mode=0;mode<2;mode++)for(unsigned high=0;high<2;high++){
+  c.ge2d_dev=mode?&c:NULL;highmem=high;fail_at=0;struct amvdec_shadow sh={0};
+  unsigned a=arrays,m=maps,u=unmaps,f=frees,p=pages_seen;
+  assert(!amvdec_shadow_alloc(&s,&sh,2097152));
+  assert(sh.vaddr==canvas&&sh.paddr==0x30000000&&sh.luma==2097152&&sh.size==sizeof(canvas));
+  assert(sh.cached==(mode?NULL:cached));
+  assert(arrays==a+!mode&&maps==m+!mode&&pages_seen==p+(!mode?768:0));
+  amvdec_shadow_free(&s,&sh);assert(frees==f+1&&unmaps==u+!mode&&!sh.vaddr&&!sh.cached&&!sh.size);
+ }
+ c.ge2d_dev=NULL;
+ for(fail_at=1;fail_at<=3;fail_at++){
+  struct amvdec_shadow sh={0};unsigned f=frees,u=unmaps;
+  assert(amvdec_shadow_alloc(&s,&sh,2097152)==-ENOMEM);
+  assert(!sh.vaddr&&!sh.cached&&frees==f+(fail_at!=1)&&unmaps==u);
+ }
+ assert(allocations==7);return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            str(root / 'test.c'), '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)

@@ -35,10 +35,9 @@ static void amvdec_shadow_free(struct amvdec_session *sess,
  * dma_alloc_coherent() block. On this non-coherent SoC that mapping is
  * uncached, which made the CPU byte-order copy read at uncached speed and
  * dominate the whole decode cost. Hardware is the only writer of this
- * buffer; the CPU only reads it. Exported-API alternative: keep the
- * coherent block for the canvas and read through a cached vmap() alias,
- * invalidating before each read (dma_sync_single_for_cpu). Safe because
- * the CPU never writes through the alias, so no dirty lines can be lost.
+ * buffer; the CPU only reads it. The default NEON path retains a cached
+ * read alias pending a HighMem-capable noncoherent allocator. GE2D needs
+ * no alias; its CPU fallback reads the coherent mapping directly.
  */
 static int amvdec_shadow_alloc(struct amvdec_session *sess,
 			       struct amvdec_shadow *shadow, u32 luma)
@@ -59,6 +58,8 @@ static int amvdec_shadow_alloc(struct amvdec_session *sess,
 		return -ENOMEM;
 	}
 	shadow->luma = luma;
+	if (sess->core->ge2d_dev)
+		return 0;
 
 	pages = kmalloc_array(npages, sizeof(*pages), GFP_KERNEL);
 	if (!pages) {
@@ -108,6 +109,7 @@ static int amvdec_copy_window(struct amvdec_session *sess,
 			      void *dst[2], const u32 size[2], bool simd)
 {
 	amvdec_swap64_t copy = simd ? amvdec_swap64_neon : amvdec_swap64;
+	const u8 *source = shadow->cached ? shadow->cached : shadow->vaddr;
 	u32 src_stride = ALIGN(geo->reference_width, 32);
 	u32 dst_stride = ALIGN(geo->width, 32);
 	u32 left = geo->crop_left, width = geo->width;
@@ -119,7 +121,7 @@ static int amvdec_copy_window(struct amvdec_session *sess,
 	for (plane = 0; plane < 2; plane++) {
 		u32 rows = plane ? geo->height / 2 : geo->height;
 		u32 top = plane ? geo->crop_top / 2 : geo->crop_top;
-		const u8 *src = (const u8 *)shadow->cached +
+		const u8 *src = source +
 				(plane ? shadow->luma : 0) + top * src_stride;
 
 		/* The chroma plane is interleaved, so it keeps the luma left. */
@@ -155,10 +157,10 @@ static int amvdec_meson8b_convert(struct amvdec_session *sess,
 		if (!dst[i] || vb2_plane_size(vb, i) < size[i])
 			return -EINVAL;
 	}
-	/* Drop possibly cached lines so CPU reads see what VDEC wrote. */
-	dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
-				DMA_FROM_DEVICE);
-	src = shadow->cached;
+	if (shadow->cached)
+		dma_sync_single_for_cpu(sess->core->dev, shadow->paddr, shadow->size,
+					DMA_FROM_DEVICE);
+	src = shadow->cached ? shadow->cached : shadow->vaddr;
 	crop = geo->reference_width &&
 	       (geo->crop_left || geo->crop_top ||
 		ALIGN(geo->reference_width, 32) != ALIGN(geo->width, 32));
