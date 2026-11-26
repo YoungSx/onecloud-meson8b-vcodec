@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`20220a824de9eb501befabeed6f5957074d67584`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON。 |
+| 已部署开发驱动 | 完整运行包源码`f053ed2f0fd2400d0ce0547e710b305fd93714cd`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | OpenList镜像保持官方底座8.1.3、字节未改；新运行包附官方原版7.0.2独立工具，启用HLS输入，不替换宿主或容器FFmpeg。 |
@@ -18,11 +18,20 @@
 | 文件 | SHA256 |
 | --- | --- |
 | meson-vdec.ko | `cb3fc681c359b26fa1c048d887db0a367a9e73a67e391396e54e48150de0eb59` |
-| meson-venc.ko | `2a55b4105162fb2a61f785bc07877fc573c6353c08402eeb8ef9127c2459f625` |
+| meson-venc.ko | `3cbf0b9bb6d90b02b3c0d020cd04efd9c4a471371b622e38b543cf149b70c27b` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
 
-13:19 UTC本轮升级并保留上述`20220a8`完整包，原`7991ba4`包/state/固件87项
+后续按用户“每步完成都部署最新”要求，将单平面NV12增量正式安装为
+`6925c3f`，102幅编码复核及H.26450/HEVC10冒烟通过，新state在设备外校验。
+再完成GE2D→编码共享DMA-BUF入口`f053ed2`，7组47幅内容/顺序/质量通过，
+35幅编码直接读取、12幅非整宏块高度按预期复制。该增量仅改客户端/测试，
+包更新前核对所有模块/固件字节不变，未再次重启业务；对应客户端已部署。
+现有原五容器及另一个无关容器均保留，四项HTTP200、unit enabled/active、
+26个启动文件及containerd状态核对通过，GE2D测试模块已卸载、帧池归零。
+具体版本/失败与恢复边界见[共享交接记录](validation-records.md#11-26-ge2d-到编码器共享-dma-buf-交接)。
+
+此前13:19 UTC升级并保留`20220a8`完整包，原`7991ba4`包/state/固件87项
 先设备外校验备份。默认NEON16组600/600精确、MJPEG9幅全平面及两种提前
 关闭通过；编码22组185幅顺序/全YUV质量通过，含四种DMA-BUF导入。官方
 7.0.2直接/CPU缩放转码各60/60，另小尺寸视频50/50加AAC/HLS完整时间线
@@ -139,7 +148,7 @@ Host/源码包及软件HLS检查通过。没有安装工具或修改驱动，生
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。
 
-后续`ca0d320`单平面NV12 DMA-BUF直接读取仅临时更换encoder完成23组166幅
+此前`ca0d320`单平面NV12 DMA-BUF直接读取仅临时更换encoder完成23组166幅
 内容/计数检查，已恢复上表`20220a8`，GE2D关闭。新分支未正式安装，严格
 位流等价和完整转码收益未证明，范围见[交接记录](validation-records.md#11-26-单平面-nv12-dma-buf-直接读取)。
 

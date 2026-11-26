@@ -137,7 +137,7 @@ OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映�
 `/sys/kernel/debug/meson-venc/` 下的 `direct_frames`、`copied_frames` 和
 `copy_ns` 记录两条路径的帧数和拷贝耗时。
 
-`ca0d320`候选新增标准单内存平面NV12的直接读取：连续且8字节对齐的
+已部署的`ca0d320`增量新增标准单内存平面NV12的直接读取：连续且8字节对齐的
 DMA-BUF、协商行宽等于硬件canvas行宽、可见高度为16行倍数且完整Y/UV落在
 32-bit DMA范围内时，UV地址为`base + bytesperline * height`。720p可以满足；
 1080高、396高等不完整宏块行仍复制，以免把UV当作Y padding或读过色度末尾。
@@ -151,9 +151,22 @@ DMA-BUF、协商行宽等于硬件canvas行宽、可见高度为16行倍数且�
   1280 720 8 NV12-1 85 H264
 ```
 
-此示例仅用于临时加载候选后的短测，设备号须枚举。候选编码器有界内容/
-计数检查后已恢复在役`20220a8`，尚未正式部署本新增直接分支；它也不会把
-官方FFmpeg的MMAP队列自动变为DMA-BUF，范围见[验证记录](validation-records.md#11-26-单平面-nv12-dma-buf-直接读取)。
+设备号须枚举。初次候选测试后曾恢复`20220a8`，随后已正式升级保留，版本
+见[部署快照](rollout-status.md)。它不会把官方FFmpeg的MMAP队列自动变为
+DMA-BUF，原始边界见[验证记录](validation-records.md#11-26-单平面-nv12-dma-buf-直接读取)。
+
+验证客户端增加`-G`可让独立GE2D把图片写入编码器正在导入的同一个dumb
+DMA-BUF，等GE2D的CAPTURE/OUTPUT出队后才排给encoder，等编码器归还输入后
+再生成下一幅；共享目的面不会在CPU侧重新填充或复制：
+
+```sh
+./encode-test -G /dev/video2 -d dumb -p motion \
+  /dev/video1 output.h264 /dev/null 1280 720 8 NV12-1 85 H264
+```
+
+这是临时加载已验证GE2D及匹配Overlay后的诊断用法，要求NV12-1、dumb导入
+与相同输入/输出尺寸。示例不包含解码器或缩放，也不自动加载设备。原有
+`NV12`客户端名仍为NV12M，不能用来代替此单平面协议；测试后恢复默认NEON。
 
 ## HEVC Main 8-bit
 
