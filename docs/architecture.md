@@ -80,6 +80,9 @@ V4L2设备链接/模块引用保持供应者，硬件锁串行用户态与内核
 区节约约 3.8 MiB CMA，使已验证参考帧配置的 H.264 并发转码可行。
 MMAP 缓冲仍为 vmalloc，排队帧不占 CMA；连续的 DMA-BUF NV12/NV21 帧直接作为
 canvas 交给 MFDIN，其他 DMA-BUF 经 CPU 映射拷入 staging。
+`ca0d320`候选将此路径扩展到布局匹配、完整16行宏块高的标准单平面NV12，
+省去输入staging复制；staging分配保留，MMAP和不匹配布局继续复制，见
+[交接边界](performance.md#单平面-nv12-的编码交接增量)。
 
 微码只按主机给出的 QP 量化。驱动在每帧开始前于控件锁内选择帧类型、QP 和
 分片，编码完成后用实际输出字节更新码率控制；QPPICTURE（PPS 的 pic_init_qp）

@@ -122,11 +122,12 @@ H.264 profile/level 控件仅声明微码输出的 Baseline / Level 4.0；其他
 
 ## DMA-BUF 输入
 
-新源码在每幅编码前等待导入输入的生产者fence（每平面最多1 s），重复直接
+已部署的同步修正在每幅编码前等待导入输入的生产者fence（每平面最多1 s），重复直接
 DMA读取前重新同步缓存；CPU回退的结束同步失败会返回错误缓冲。导出器
 未提供隐式fence时，应用仍须在QBUF前等待生产者完成，并在DQBUF后再复用
 输入。CPU写入导入缓冲需成对使用DMA_BUF_IOCTL_SYNC的WRITE START/END。
-此修正尚未部署或新增实机验收，来源见[同步事务记录](validation-records.md#11-26-编码-dma-buf-同步事务)。
+同步实现见[事务记录](validation-records.md#11-26-编码-dma-buf-同步事务)，当前包的有限
+导入内容检查见[部署验收](validation-records.md#11-26-main-20220a8-部署验收)。
 
 OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映射为
 一段连续地址、8 字节对齐且行宽等于驱动报告的 bytesperline，硬件直接读取，
@@ -135,6 +136,24 @@ OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映�
 可见区域以外的对齐行，客户端应把这些行清零或保持一致。
 `/sys/kernel/debug/meson-venc/` 下的 `direct_frames`、`copied_frames` 和
 `copy_ns` 记录两条路径的帧数和拷贝耗时。
+
+`ca0d320`候选新增标准单内存平面NV12的直接读取：连续且8字节对齐的
+DMA-BUF、协商行宽等于硬件canvas行宽、可见高度为16行倍数且完整Y/UV落在
+32-bit DMA范围内时，UV地址为`base + bytesperline * height`。720p可以满足；
+1080高、396高等不完整宏块行仍复制，以免把UV当作Y padding或读过色度末尾。
+不匹配布局、分散导入和MMAP保持复制，短payload/fence错误仍失败。staging
+分配保留供回退，不能把省去复制说成释放了这块CMA。
+
+验证客户端的`NV12-1`表示该单平面格式，原`NV12`名称继续表示双平面NV12M：
+
+```sh
+./encode-test -d dumb -p motion /dev/video1 output.h264 /dev/null \
+  1280 720 8 NV12-1 85 H264
+```
+
+此示例仅用于临时加载候选后的短测，设备号须枚举。候选编码器有界内容/
+计数检查后已恢复在役`20220a8`，尚未正式部署本新增直接分支；它也不会把
+官方FFmpeg的MMAP队列自动变为DMA-BUF，范围见[验证记录](validation-records.md#11-26-单平面-nv12-dma-buf-直接读取)。
 
 ## HEVC Main 8-bit
 

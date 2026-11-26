@@ -139,5 +139,9 @@ Host/源码包及软件HLS检查通过。没有安装工具或修改驱动，生
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。
 
+后续`ca0d320`单平面NV12 DMA-BUF直接读取仅临时更换encoder完成23组166幅
+内容/计数检查，已恢复上表`20220a8`，GE2D关闭。新分支未正式安装，严格
+位流等价和完整转码收益未证明，范围见[交接记录](validation-records.md#11-26-单平面-nv12-dma-buf-直接读取)。
+
 更早的安装记录移到[历史部署](history/deployments-through-v0.4.md)，其中的
 “当前”“最终”只对应当时版本。
