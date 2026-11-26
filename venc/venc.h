@@ -167,9 +167,10 @@ static inline void *venc_stream_vaddr(struct venc_ctx *ctx)
 void venc_jpeg_init(struct venc_ctx *ctx);
 
 extern const struct vb2_mem_ops venc_input_memops;
+int venc_input_wait(struct vb2_buffer *vb);
 dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane);
 void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane);
-void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
+int venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
 
 static inline u32 venc_read(struct venc_core *core, u32 reg)
 {

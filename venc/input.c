@@ -8,6 +8,8 @@
  */
 #include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
+#include <linux/dma-resv.h>
+#include <linux/jiffies.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 
@@ -141,6 +143,23 @@ const struct vb2_mem_ops venc_input_memops = {
 	.vaddr = venc_in_vaddr,
 };
 
+/* A pinned mapping does not wait for the producer's implicit write fence. */
+int venc_input_wait(struct vb2_buffer *vb)
+{
+	unsigned int i;
+
+	if (vb->memory != V4L2_MEMORY_DMABUF)
+		return 0;
+	for (i = 0; i < vb->num_planes; i++) {
+		long ret = dma_resv_wait_timeout(vb->planes[i].dbuf->resv, false,
+						true, msecs_to_jiffies(1000));
+
+		if (ret <= 0)
+			return ret ? ret : -ETIMEDOUT;
+	}
+	return 0;
+}
+
 /* Bus address of a DMA-BUF plane mapped as one contiguous range, else 0 */
 dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane)
 {
@@ -148,22 +167,28 @@ dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane)
 
 	if (vb->memory != V4L2_MEMORY_DMABUF || !buf->sgt || !buf->contiguous)
 		return 0;
+	/* The same import can be queued again after the producer updated it. */
+	dma_sync_sgtable_for_device(buf->attach->dev, buf->sgt, DMA_TO_DEVICE);
 	return buf->dma_addr;
 }
 
 /* CPU view of a plane for the copy path; imports are bracketed for access. */
 void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane)
 {
-	void *vaddr = vb2_plane_vaddr(vb, plane);
+	void *vaddr;
 
-	if (vaddr && vb->memory == V4L2_MEMORY_DMABUF &&
+	if (vb->memory == V4L2_MEMORY_DMABUF &&
 	    dma_buf_begin_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE))
 		return NULL;
+	vaddr = vb2_plane_vaddr(vb, plane);
+	if (!vaddr && vb->memory == V4L2_MEMORY_DMABUF)
+		dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
 	return vaddr;
 }
 
-void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane)
+int venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane)
 {
 	if (vb->memory == V4L2_MEMORY_DMABUF)
-		dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
+		return dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
+	return 0;
 }

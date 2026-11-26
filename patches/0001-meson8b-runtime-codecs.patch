@@ -14200,7 +14200,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/input.c
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,194 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * OUTPUT (raw frame) buffer memory. MMAP buffers stay vmalloc and are
@@ -14211,6 +14211,8 @@
 + */
 +#include <linux/dma-buf.h>
 +#include <linux/dma-mapping.h>
++#include <linux/dma-resv.h>
++#include <linux/jiffies.h>
 +#include <linux/scatterlist.h>
 +#include <linux/slab.h>
 +
@@ -14344,6 +14346,23 @@
 +	.vaddr = venc_in_vaddr,
 +};
 +
++/* A pinned mapping does not wait for the producer's implicit write fence. */
++int venc_input_wait(struct vb2_buffer *vb)
++{
++	unsigned int i;
++
++	if (vb->memory != V4L2_MEMORY_DMABUF)
++		return 0;
++	for (i = 0; i < vb->num_planes; i++) {
++		long ret = dma_resv_wait_timeout(vb->planes[i].dbuf->resv, false,
++						true, msecs_to_jiffies(1000));
++
++		if (ret <= 0)
++			return ret ? ret : -ETIMEDOUT;
++	}
++	return 0;
++}
++
 +/* Bus address of a DMA-BUF plane mapped as one contiguous range, else 0 */
 +dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane)
 +{
@@ -14351,24 +14370,30 @@
 +
 +	if (vb->memory != V4L2_MEMORY_DMABUF || !buf->sgt || !buf->contiguous)
 +		return 0;
++	/* The same import can be queued again after the producer updated it. */
++	dma_sync_sgtable_for_device(buf->attach->dev, buf->sgt, DMA_TO_DEVICE);
 +	return buf->dma_addr;
 +}
 +
 +/* CPU view of a plane for the copy path; imports are bracketed for access. */
 +void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane)
 +{
-+	void *vaddr = vb2_plane_vaddr(vb, plane);
++	void *vaddr;
 +
-+	if (vaddr && vb->memory == V4L2_MEMORY_DMABUF &&
++	if (vb->memory == V4L2_MEMORY_DMABUF &&
 +	    dma_buf_begin_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE))
 +		return NULL;
++	vaddr = vb2_plane_vaddr(vb, plane);
++	if (!vaddr && vb->memory == V4L2_MEMORY_DMABUF)
++		dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
 +	return vaddr;
 +}
 +
-+void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane)
++int venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane)
 +{
 +	if (vb->memory == V4L2_MEMORY_DMABUF)
-+		dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
++		return dma_buf_end_cpu_access(vb->planes[plane].dbuf, DMA_FROM_DEVICE);
++	return 0;
 +}
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/jpeg-header.h
@@ -15021,7 +15046,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.c
-@@ -0,0 +1,2564 @@
+@@ -0,0 +1,2572 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * H.264 hardware encoder for Amlogic Meson8b (S805) HCODEC block,
@@ -16309,7 +16334,11 @@
 +	bool direct = fmt->planes == 2;
 +	unsigned int i;
 +	ktime_t start;
++	int ret;
 +
++	ret = venc_input_wait(b);
++	if (ret)
++		return ret;
 +	venc_fill_out_fmt(&pix, fmt);
 +	if (ctx->src_fourcc == V4L2_PIX_FMT_NV12) {
 +		u32 stride = pix.plane_fmt[0].bytesperline;
@@ -16326,7 +16355,9 @@
 +		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);
 +		venc_copy_rows(dst + width * rows, width, src + offset, stride,
 +			       ctx->width, ctx->height / 2, bytes - offset);
-+		venc_input_end_cpu(b, 0);
++		ret = venc_input_end_cpu(b, 0);
++		if (ret)
++			return ret;
 +		ctx->input[0] = staging;
 +		ctx->input[1] = staging + width * rows;
 +		dma_wmb();
@@ -16353,7 +16384,9 @@
 +		venc_copy_rows(dst, width, src, pix.plane_fmt[i].bytesperline,
 +			       ctx->width * fmt->halves[i] / 2,
 +			       ctx->height / fmt->vsub[i], vb2_plane_size(b, i));
-+		venc_input_end_cpu(b, i);
++		ret = venc_input_end_cpu(b, i);
++		if (ret)
++			return ret;
 +		ctx->input[i] = staging;
 +		staging += width * rows / fmt->vsub[i];
 +		dst += width * rows / fmt->vsub[i];
@@ -17588,7 +17621,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/venc/venc.h
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,199 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Amlogic Meson8b (S805) HCODEC H.264 hardware encoder,
@@ -17758,9 +17791,10 @@
 +void venc_jpeg_init(struct venc_ctx *ctx);
 +
 +extern const struct vb2_mem_ops venc_input_memops;
++int venc_input_wait(struct vb2_buffer *vb);
 +dma_addr_t venc_input_dma(struct vb2_buffer *vb, unsigned int plane);
 +void *venc_input_begin_cpu(struct vb2_buffer *vb, unsigned int plane);
-+void venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
++int venc_input_end_cpu(struct vb2_buffer *vb, unsigned int plane);
 +
 +static inline u32 venc_read(struct venc_core *core, u32 reg)
 +{

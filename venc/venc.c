@@ -1285,7 +1285,11 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 	bool direct = fmt->planes == 2;
 	unsigned int i;
 	ktime_t start;
+	int ret;
 
+	ret = venc_input_wait(b);
+	if (ret)
+		return ret;
 	venc_fill_out_fmt(&pix, fmt);
 	if (ctx->src_fourcc == V4L2_PIX_FMT_NV12) {
 		u32 stride = pix.plane_fmt[0].bytesperline;
@@ -1302,7 +1306,9 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);
 		venc_copy_rows(dst + width * rows, width, src + offset, stride,
 			       ctx->width, ctx->height / 2, bytes - offset);
-		venc_input_end_cpu(b, 0);
+		ret = venc_input_end_cpu(b, 0);
+		if (ret)
+			return ret;
 		ctx->input[0] = staging;
 		ctx->input[1] = staging + width * rows;
 		dma_wmb();
@@ -1329,7 +1335,9 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		venc_copy_rows(dst, width, src, pix.plane_fmt[i].bytesperline,
 			       ctx->width * fmt->halves[i] / 2,
 			       ctx->height / fmt->vsub[i], vb2_plane_size(b, i));
-		venc_input_end_cpu(b, i);
+		ret = venc_input_end_cpu(b, i);
+		if (ret)
+			return ret;
 		ctx->input[i] = staging;
 		staging += width * rows / fmt->vsub[i];
 		dst += width * rows / fmt->vsub[i];
