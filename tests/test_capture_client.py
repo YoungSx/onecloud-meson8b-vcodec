@@ -8,6 +8,55 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CaptureClientTests(unittest.TestCase):
+    def test_drm_capture_planes_sync_and_release(self):
+        code = r'''
+#define ioctl test_ioctl
+#define mmap test_mmap
+#define munmap test_munmap
+#define close test_close
+#define main diagnostic_main
+#include "res-switch-test.c"
+#undef main
+#include <assert.h>
+#include <stdarg.h>
+static unsigned char storage[65536];
+static int syncs,unmaps,closes,destroys;
+int test_ioctl(int file,unsigned long request,...) {
+ va_list ap;va_start(ap,request);void *arg=va_arg(ap,void *);va_end(ap);
+ if(request==DRM_IOCTL_MODE_CREATE_DUMB){struct drm_mode_create_dumb *d=arg;
+  assert(file==33&&d->width==4096&&d->height==16&&d->bpp==8);d->handle=9;d->size=sizeof(storage);return 0;}
+ if(request==DRM_IOCTL_MODE_MAP_DUMB){struct drm_mode_map_dumb *d=arg;assert(file==33&&d->handle==9);d->offset=0x2000;return 0;}
+ if(request==DRM_IOCTL_PRIME_HANDLE_TO_FD){struct drm_prime_handle *d=arg;assert(file==33&&d->handle==9);d->fd=17;return 0;}
+ if(request==DMA_BUF_IOCTL_SYNC){struct dma_buf_sync *d=arg;assert(file==17);
+  assert(d->flags==(unsigned)(syncs?DMA_BUF_SYNC_END|DMA_BUF_SYNC_READ:DMA_BUF_SYNC_START|DMA_BUF_SYNC_READ));syncs++;return 0;}
+ if(request==DRM_IOCTL_MODE_DESTROY_DUMB){struct drm_mode_destroy_dumb *d=arg;assert(file==33&&d->handle==9);destroys++;return 0;}
+ assert(0);return -1;
+}
+void *test_mmap(void *addr,size_t n,int prot,int flags,int file,off_t offset){
+ assert(!addr&&n==sizeof(storage)&&prot==(PROT_READ|PROT_WRITE)&&flags==MAP_SHARED&&file==33&&offset==0x2000);return storage;}
+int test_munmap(void *p,size_t n){assert(p==storage&&n==sizeof(storage));unmaps++;return 0;}
+int test_close(int file){assert(file==17);closes++;return 0;}
+int main(void){
+ assert(capture_memory()==V4L2_MEMORY_MMAP);capture_drm=33;
+ assert(capture_memory()==V4L2_MEMORY_DMABUF);
+ ncap=1;capbufs[0].nplanes=1;capbufs[0].planes[0].length=sizeof(storage);
+ capture_dumb(&capbufs[0].planes[0]);
+ struct v4l2_plane plane={.bytesused=8};struct v4l2_buffer b={.index=0,.length=1,.m.planes=&plane};
+ capture_import_planes(&b);assert(plane.m.fd==17&&plane.length==sizeof(storage));
+ assert(dump_frame(&b)&&pictures==1&&syncs==2);
+ capture_cleanup();assert(!ncap&&unmaps==1&&closes==1&&destroys==1);
+ capture_cleanup();assert(unmaps==1&&closes==1&&destroys==1);return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
     def test_every_nonempty_capture_counts_with_or_without_hashing(self):
         source = (ROOT / 'tests/res-switch-test.c').read_text()
         start = source.index('\tfor (;;) {\n\t\tstruct pollfd pfd = { .fd = fd,\n\t\t\t\t      .events = POLLPRI')
@@ -48,8 +97,8 @@ int main(void) {
  struct v4l2_plane planes[2]={{.bytesused=4},{.bytesused=2}};
  struct v4l2_buffer b={.index=0,.length=2,.m.planes=planes};
  capbufs[0].nplanes=2;
- capbufs[0].planes[0]=(struct plane){y,sizeof(y)};
- capbufs[0].planes[1]=(struct plane){uv,sizeof(uv)};
+ capbufs[0].planes[0]=(struct plane){.start=y,.length=sizeof(y)};
+ capbufs[0].planes[1]=(struct plane){.start=uv,.length=sizeof(uv)};
  assert(dump_frame(&b)==1 && pictures==1);
  hashf=tmpfile();assert(hashf);
  assert(dump_frame(&b)==1 && pictures==2);

@@ -8,6 +8,7 @@
  * line per picture (index, bytes, FNV-1a 64 of the planes); CAPTURE_BUFFERS=N
  * requests N CAPTURE buffers (default 8); STOP_DELAY_MS=N waits N ms after
  * the last input before DEC_CMD_STOP, as a stalled or paused source would.
+ * CAPTURE_DMABUF=/dev/dri/cardN imports DRM dumb buffers into CAPTURE.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -21,6 +22,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <linux/videodev2.h>
+#include <linux/dma-buf.h>
+#include <drm/drm.h>
+#include <drm/drm_mode.h>
 typedef uint8_t u8;
 typedef uint32_t u32;
 #include "../vdec/wmv3-header.h"
@@ -31,6 +35,8 @@ typedef uint32_t u32;
 struct plane {
 	void *start;
 	size_t length;
+	int dma_fd;
+	u32 handle;
 };
 
 struct buffer {
@@ -39,6 +45,7 @@ struct buffer {
 };
 
 static int fd;
+static int capture_drm = -1;
 static struct buffer outbufs[N_OUT], capbufs[MAX_CAP];
 static int ncap;
 /* CAPTURE buffers to request; CAPTURE_BUFFERS overrides */
@@ -58,6 +65,83 @@ static unsigned long pictures;
 static unsigned long streamoff_after;
 static int streamoff_capture_first;
 static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+
+static unsigned int capture_memory(void)
+{
+	return capture_drm >= 0 ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+}
+
+static void capture_sync(struct plane *plane, uint64_t flags)
+{
+	struct dma_buf_sync sync = { .flags = flags };
+
+	if (capture_drm >= 0 && ioctl(plane->dma_fd, DMA_BUF_IOCTL_SYNC, &sync)) {
+		perror("CAPTURE DMA_BUF_SYNC");
+		exit(1);
+	}
+}
+
+static void capture_cleanup(void)
+{
+	for (int i = 0; i < ncap; i++)
+		for (int j = 0; j < capbufs[i].nplanes; j++) {
+			struct plane *plane = &capbufs[i].planes[j];
+
+			if (plane->start && plane->start != MAP_FAILED)
+				munmap(plane->start, plane->length);
+			if (capture_drm >= 0 && plane->handle) {
+				struct drm_mode_destroy_dumb destroy = { .handle = plane->handle };
+
+				if (plane->dma_fd >= 0)
+					close(plane->dma_fd);
+				ioctl(capture_drm, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
+			}
+			memset(plane, 0, sizeof(*plane));
+		}
+	ncap = 0;
+}
+
+static void capture_dumb(struct plane *plane)
+{
+	struct drm_mode_create_dumb create = {
+		.width = 4096, .height = (plane->length + 4095) / 4096, .bpp = 8,
+	};
+	struct drm_mode_map_dumb map = {0};
+	struct drm_prime_handle prime = { .flags = DRM_CLOEXEC | DRM_RDWR };
+
+	plane->dma_fd = -1;
+	if (ioctl(capture_drm, DRM_IOCTL_MODE_CREATE_DUMB, &create)) {
+		perror("CAPTURE dumb create");
+		exit(1);
+	}
+	map.handle = create.handle;
+	prime.handle = create.handle;
+	plane->handle = create.handle;
+	if (create.size < plane->length ||
+	    ioctl(capture_drm, DRM_IOCTL_MODE_MAP_DUMB, &map) ||
+	    ioctl(capture_drm, DRM_IOCTL_PRIME_HANDLE_TO_FD, &prime)) {
+		perror("CAPTURE dumb export");
+		exit(1);
+	}
+	plane->dma_fd = prime.fd;
+	plane->length = create.size;
+	plane->start = mmap(NULL, plane->length, PROT_READ | PROT_WRITE,
+			    MAP_SHARED, capture_drm, map.offset);
+	if (plane->start == MAP_FAILED) {
+		perror("CAPTURE dumb mmap");
+		exit(1);
+	}
+}
+
+static void capture_import_planes(struct v4l2_buffer *b)
+{
+	if (capture_drm < 0)
+		return;
+	for (unsigned int j = 0; j < b->length; j++) {
+		b->m.planes[j].m.fd = capbufs[b->index].planes[j].dma_fd;
+		b->m.planes[j].length = capbufs[b->index].planes[j].length;
+	}
+}
 
 static void packet_timestamp(struct v4l2_buffer *buffer, const unsigned char *packet,
 			     size_t size, size_t index)
@@ -83,12 +167,14 @@ static int dump_frame(struct v4l2_buffer *b)
 		const unsigned char *p = capbufs[b->index].planes[j].start;
 		size_t n = b->m.planes[j].bytesused;
 
+		capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
 		if (dumpf)
 			fwrite(p, 1, n, dumpf);
 		if (hashf)
 			for (size_t i = 0; i < n; i++)
 				hash = (hash ^ p[i]) * 0x100000001b3ULL;
 		bytes += n;
+		capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ);
 	}
 	if (hashf && bytes)
 		fprintf(hashf, "%lu %zu %016llx\n", pictures, bytes, hash);
@@ -174,7 +260,7 @@ static void setup_capture(void)
 
 	rb.count = capture_count;
 	rb.type = fmt.type;
-	rb.memory = V4L2_MEMORY_MMAP;
+	rb.memory = capture_memory();
 	xioctl(VIDIOC_REQBUFS, &rb, "REQBUFS(CAPTURE)");
 	ncap = rb.count;
 	for (int i = 0; i < ncap; i++) {
@@ -182,7 +268,7 @@ static void setup_capture(void)
 		struct v4l2_plane planes[VIDEO_MAX_PLANES] = {0};
 
 		b.type = fmt.type;
-		b.memory = V4L2_MEMORY_MMAP;
+		b.memory = capture_memory();
 		b.index = i;
 		b.length = VIDEO_MAX_PLANES;
 		b.m.planes = planes;
@@ -190,6 +276,10 @@ static void setup_capture(void)
 		capbufs[i].nplanes = b.length;
 		for (unsigned j = 0; j < b.length; j++) {
 			capbufs[i].planes[j].length = planes[j].length;
+			if (capture_drm >= 0) {
+				capture_dumb(&capbufs[i].planes[j]);
+				continue;
+			}
 			capbufs[i].planes[j].start =
 				mmap(NULL, planes[j].length,
 				     PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -206,10 +296,11 @@ static void setup_capture(void)
 		struct v4l2_plane planes[VIDEO_MAX_PLANES] = {0};
 
 		b.type = fmt.type;
-		b.memory = V4L2_MEMORY_MMAP;
+		b.memory = capture_memory();
 		b.index = i;
 		b.length = capbufs[i].nplanes;
 		b.m.planes = planes;
+		capture_import_planes(&b);
 		xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 	}
 }
@@ -227,7 +318,7 @@ static void drain_capture(enum v4l2_buf_type type)
 			return;
 		}
 		b.type = type;
-		b.memory = V4L2_MEMORY_MMAP;
+		b.memory = capture_memory();
 		b.length = VIDEO_MAX_PLANES;
 		b.m.planes = planes;
 		/* POLLIN also reports a finished OUTPUT buffer, which makes
@@ -241,6 +332,7 @@ static void drain_capture(enum v4l2_buf_type type)
 		dump_frame(&b);
 		if (b.flags & V4L2_BUF_FLAG_LAST)
 			return;
+		capture_import_planes(&b);
 		xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 	}
 }
@@ -254,15 +346,12 @@ static void reinit_capture(void)
 		drain_capture(type);
 		xioctl(VIDIOC_STREAMOFF, &type, "STREAMOFF(CAPTURE)");
 	}
-	for (int i = 0; i < ncap; i++)
-		for (int j = 0; j < capbufs[i].nplanes; j++)
-			munmap(capbufs[i].planes[j].start,
-			       capbufs[i].planes[j].length);
+	capture_cleanup();
 	{
 		struct v4l2_requestbuffers rb = {0};
 
 		rb.type = type;
-		rb.memory = V4L2_MEMORY_MMAP;
+		rb.memory = capture_memory();
 		xioctl(VIDIOC_REQBUFS, &rb, "REQBUFS(0,CAPTURE)");
 	}
 	setup_capture();
@@ -318,6 +407,15 @@ int main(int argc, char **argv)
 	 * ESPARSER search padding after every chunk. */
 	size_t *chunks;
 	size_t nchunks = 0, chunk_idx = 0, espos = 0;
+
+	if (getenv("CAPTURE_DMABUF")) {
+		capture_drm = open(getenv("CAPTURE_DMABUF"), O_RDWR | O_CLOEXEC);
+		if (capture_drm < 0) {
+			perror("open CAPTURE DRM");
+			return 1;
+		}
+	}
+	atexit(capture_cleanup);
 
 	if (getenv("STREAMOFF_AFTER"))
 		streamoff_after = strtoul(getenv("STREAMOFF_AFTER"), NULL, 10);
@@ -588,7 +686,7 @@ int main(int argc, char **argv)
 
 		if (pfd.revents & POLLIN) {
 			b.type = cap_type;
-			b.memory = V4L2_MEMORY_MMAP;
+			b.memory = capture_memory();
 			b.length = VIDEO_MAX_PLANES;
 			b.m.planes = planes;
 			if (ioctl(fd, VIDIOC_DQBUF, &b) == 0) {
@@ -604,6 +702,7 @@ int main(int argc, char **argv)
 					       pictures, resolutions);
 					return 0;
 				}
+				capture_import_planes(&b);
 				xioctl(VIDIOC_QBUF, &b, "QBUF(CAPTURE)");
 			} else if (errno != EAGAIN) {
 				perror("DQBUF(CAPTURE)");
