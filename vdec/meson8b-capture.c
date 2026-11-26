@@ -577,12 +577,12 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 				 pic->geo.width, pic->geo.height, ret);
 			vb2_set_plane_payload(&vbuf->vb2_buf, 0, 0);
 			vb2_set_plane_payload(&vbuf->vb2_buf, 1, 0);
-			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-			continue;
+		} else {
+			vb2_set_plane_payload(&vbuf->vb2_buf, 0, luma);
+			vb2_set_plane_payload(&vbuf->vb2_buf, 1, luma / 2);
 		}
 
-		vb2_set_plane_payload(&vbuf->vb2_buf, 0, luma);
-		vb2_set_plane_payload(&vbuf->vb2_buf, 1, luma / 2);
+		/* Even a failed picture can be the source-change or final boundary. */
 		vbuf->vb2_buf.timestamp = pic->timestamp;
 		vbuf->sequence = sess->sequence_cap++;
 		vbuf->flags = pic->flags;
@@ -591,7 +591,7 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 		if (pic->restart)
 			sess->sequence_cap = 0;
 		container_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;
-		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
+		v4l2_m2m_buf_done(vbuf, ret ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
 	}
 
 	amvdec_pool_end_locked(sess);

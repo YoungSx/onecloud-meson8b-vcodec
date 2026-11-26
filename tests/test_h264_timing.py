@@ -109,12 +109,10 @@ class H264TimingTests(unittest.TestCase):
              "\tWRITE_ONCE(sess->last_irq_jiffies, get_jiffies_64());",
              "", "wait"),
             ("no-pts-sort", "&& sess->should_stop) {", "&& false) {", "stream"),
-            ("early-eos", "\t\tcontainer_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;\n"
-             "\t\tv4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);",
+            ("early-eos", "\t\tcontainer_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;",
              "\t\tcontainer_of(vbuf, struct amvdec_vb2_buffer, vb)->eos = pic->eos;\n"
              "if (pic->eos) { struct v4l2_event e = { .type = V4L2_EVENT_EOS }; "
-             "v4l2_event_queue_fh(&sess->fh, &e); }\n"
-             "v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);", "stream"),
+             "v4l2_event_queue_fh(&sess->fh, &e); }", "stream"),
         ]
         for name, old, new, scenario in faults:
             with self.subTest(fault=name):
