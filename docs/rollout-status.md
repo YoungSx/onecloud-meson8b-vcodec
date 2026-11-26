@@ -1,6 +1,6 @@
 # 生产部署快照 / Deployment snapshot
 
-2026-11-25 UTC最后核对的精确来源。用户重启后验证恢复；后续Tailnet故障期间
+2026-11-26 UTC最后核对的精确来源。用户重启后验证恢复；后续Tailnet故障期间
 本地网页正常，远程现已恢复，链路根因仍未闭环。本文是部署记录；新设备按
 [安装指南](installation.md)，历史版本按[验证记录](validation-records.md)复核。
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`39703c70bc50be183e6f7c9d74fb4adf46468016`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
+| 已部署开发驱动 | 完整运行包源码`ffddcf0c6b3653ce3c148d4a5ba807decacd6e07`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | 官方底座8.1.3，FFmpeg/ffprobe逐字节未改；宿主原7.0.2是另一套工具。 |
@@ -17,7 +17,7 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `6bcc728e07cecd29e9de4937536b54ed3e169f1863d8d736534064e0df1b2c9a` |
+| meson-vdec.ko | `5dec820fa46d20bdafbbe0ddae911ea1192482243e6fbf3abbaa784a72397b45` |
 | meson-venc.ko | `48bfa619e3a392418ed5f1f358cdbed20a85a172b9fdf16f8d484c7cac748aa4` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
@@ -41,7 +41,16 @@ bilinear的质量比较已完成；完整标准转码链仍未验收。GE2D只�
 候选GE2D的HEVC1080p→720p曾30/30精确，但正式重复验收进程SIGSEGV，
 恢复服务先遇工具包校验失败，随后重复哈希又一致、差异原件未取得。已按
 原清单恢复工具字节和NEON服务，保留GE2D失败与未知根因，不继承候选通过。
-当前包Host与ARM/package CI通过，详见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
+此前包Host与ARM/package CI通过，详见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
+
+11-26当前包修正显式GE2D帧池的缓存别名，CPU回退读取coherent映射；默认
+NEON路径保留。候选GE2D原生16组600/600精确、MJPEG回退9幅内容通过；官方
+FFmpeg三条缩放链90幅及重加载后的两次HEVC共60幅逐帧精确，未再遇工具
+校验异常，但历史崩溃根因仍不认定闭环。正式安装默认NEON16组600/600
+精确、三组MJPEG9幅全平面及两种提前关闭通过；恢复后H.26450/HEVC10精确。
+包校验、unit enabled/active、五容器、四项HTTP200、帧池归零及26个启动文件
+哈希不变。当前源码130项主机/干净源码包测试与ARM双构建通过，GE2D继续
+只作临时验收，不代表完整转码或实时收益。见[coherent帧池记录](validation-records.md#11-26-ge2d-coherent-帧池)。
 
 编码复验覆盖11种支持的输入布局、1080p、GOP/强制IDR、多slice、同fd重开、
 VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒绝。两路
@@ -64,7 +73,7 @@ VBR、峰值/CPB及SAR，独立完整软解/YUV通过；BGR24按既有接口拒�
 pstore为空，不据此排除或确认旧内核故障；本次局域网正常的链路故障独立记录。
 没有由代理重启、更换内核/boot DT或调整64 MiB CMA。
 
-当前与升级前`41773bb`、`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
+当前与升级前`39703c7`、`41773bb`、`f581f98`、`de20e87`、`042573f`、`b33e48e`、`30989c8`、`1cf0e71`完整包/固件state已有设备与外部
 构建机的SHA256备份，更早资料保留。新state位于持久系统分区；未演练整包
 降级。`remove-autoload.sh`不自动切回旧驱动。原始材料仅本地校验归档，无永久
 公开附件；恢复入口见[安装指南](installation.md)和私有[迁移清单](workspace-migration.md)。

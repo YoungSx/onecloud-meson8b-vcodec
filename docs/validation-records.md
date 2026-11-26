@@ -908,3 +908,50 @@ probe自检通过，六组三幅共18/18内容与时间戳通过，覆盖GREY复
 原分配器，coherent分配与cached别名的替换仍未解决；未采用缺乏内核CPU
 映射保证的`DMA_ATTR_NO_KERNEL_MAPPING`变通。原始失败及本次报告均仅在
 忽略目录和经校验的工作区外归档保留，无永久公开附件。
+
+## 11-26 GE2D coherent 帧池
+
+源码`ffddcf0c6b3653ce3c148d4a5ba807decacd6e07`让显式`capture_ge2d=1`
+帧池在coherent分配后直接返回，不再建立cached别名；CPU回退及裁剪统一
+使用coherent地址，不对该地址调用streaming同步。默认NEON的cached读取
+保留，不能据此宣称所有帧池缓存映射已替换。目标原5.15.79未导出CMA分配
+接口、未开启DMA heap，noncoherent仍拒绝HighMem，不采用私有内核符号。
+
+实际分配/释放函数的Host回归覆盖直接/重映射coherent地址、两种输出模式及
+分配/页数组/vmap失败释放；旧代码因GE2D仍创建cached映射而失败，修正后
+通过。真实转换函数覆盖cached/coherent普通NV12、裁剪、畸形窗口与MJPEG
+色度，coherent回退不执行streaming同步。130项主机、C sanitizer、严格
+checkpatch、原ARM外部/additive构建和补丁源码一致性通过。
+
+候选decoder SHA256为
+`5dec820fa46d20bdafbbe0ddae911ea1192482243e6fbf3abbaa784a72397b45`，
+GE2D仍为`510d5cc33f77a62f97add811eadc8b9f3422742e35788abcac7080723495c1af`。
+WanOS原5.15.79-meson、64 MiB CMA下，显式GE2D/CAPTURE1的16组共600/600
+可见NV12逐帧哈希精确：H.26450/300、HEVC small/crop/1080p10/10/30、
+DPB16 32、CRA24、开放GOP36、裁剪切换33、自然EOS20、tiles4/3、全I/低参考/
+两槽DPB1各6，以及慢消费1080p30幅。两种提前STREAMOFF顺序通过。
+
+三组MJPEG 4:2:0 small/crop和4:4:4共9幅触发CPU回退，GE2D计数不增加；
+完整顺序及Y/U/V质量对照通过。首轮在完成600幅后因设备端旧素材metadata
+缺失中止，已恢复服务；补传三份校验过的最小素材后完成该回退检查，不把
+脚本素材错误误记为驱动失败。
+
+原版未改FFmpeg7.0.2、OUTPUT2下，H.264小流CAPTURE12→160×120为50/50，
+1080p短流CAPTURE12→720p为10/10，HEVC1080p CAPTURE10→720p为30/30；
+全部与独立软件scale逐帧哈希精确，命令约0.93/5.98/17.29 s。重新加载候选
+后，同一HEVC命令两次各30/30精确，GE2D计数各增加30，约17.09/16.95 s。
+不据此宣称实时吞吐、硬件缩放全链或任意缓冲配置；本命令scale仍由CPU执行。
+
+上述临时检查均恢复`39703c7`默认NEON，安装包和工具哈希一致、五容器及
+帧池归零；恢复后H.26450/HEVC10逐帧精确，四项HTTP200。未复现11-25崩溃
+及瞬时校验异常，但没有捕获其故障时状态，仍不认定根因已闭环。无生产
+GE2D默认启用、内核/boot DT/CMA变更、重启或持续压力实验。
+
+随后以同一源码完整运行包保留正式部署，生产继续默认NEON。升级前完整
+`39703c7`运行包、固件、systemd和安装state已在设备外逐文件核对，使用新state
+标准安装。正式decoder哈希与候选一致，encoder/runtime及默认Overlay字节不变。
+正式16组600/600可见像素哈希精确、三组MJPEG9幅全平面质量及两种提前关闭
+顺序通过，GE2D计数为0；原版FFmpeg的H.26450/HEVC10再次逐帧精确。
+完整63项包校验、unit enabled/active、五容器运行、四项HTTP200、帧池归零及
+26个启动文件哈希不变；未演练整包降级。130项主机及干净源码包检查通过。
+完整报告和安装/回退资料仅经校验归档在构建机，无永久公开附件。

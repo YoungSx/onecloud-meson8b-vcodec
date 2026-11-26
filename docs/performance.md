@@ -104,6 +104,9 @@ vmalloc 内存。帧池保留固件字节序，逐帧通过 GE2D 写可见 NV12M
 自己的 reference/crop 几何转换；只清零行尾和对齐 padding。`ge2d_frames`
 统计成功硬件转换，`convert_ns` 是墙钟耗时。MJPEG 和错误路径继续 CPU
 转换；DMA-BUF CPU 访问成对同步，GE2D 超时后先复位停机再回退。
+显式GE2D的内部帧池只使用coherent映射，不建立cached别名；MJPEG及错误
+回退直接读取coherent地址，裁剪路径也相同。默认NEON仍保留cached读取，
+替代它需要目标内核支持HighMem连续缓存分配，不能复用已失败的noncoherent候选。
 
 连续 CAPTURE 会消耗 CMA。默认20个 FFmpeg缓冲不保证能和固件帧池一起
 容纳在64 MiB中；原版FFmpeg的`num_capture_buffers`最小值为2，直接客户端可用
@@ -122,6 +125,12 @@ DPB16不减为更小容量，交付未完成的槽保持占用。生产默认NEO
 曾30/30与软件哈希精确，约16.82 s；直接NV12仍12/30。正式重复GE2D验收中工具
 崩溃、恢复服务先遇短暂包校验失败，后续哈希又一致；默认NEON已恢复，根因未定。
 不能声明完整官方工具链或实时收益。细节见[帧池记录](validation-records.md#11-25-hevc-sps-帧池预算)。
+
+11-26移除显式GE2D帧池缓存别名后，候选原生16组600幅精确，三组MJPEG
+回退9幅全平面通过。三条相同官方FFmpeg缩放命令累计90幅逐帧哈希精确；
+重加载后HEVC1080p→720p再测两次共60幅精确，GE2D计数各增加30。
+这是有界候选重复通过，仍不证明历史崩溃根因或全部工具链/实时吞吐，生产
+继续默认NEON。精确源码与模块见[coherent帧池记录](validation-records.md#11-26-ge2d-coherent-帧池)。
 
 最近相同1080p首60图，默认NEON下decode/null约1.827 s，加入CPU软件scale
 约7.119 s，硬解→4 Mbps硬编约2.821 s；后者完整60/60及YUV质量通过，约
