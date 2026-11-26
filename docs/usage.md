@@ -192,6 +192,9 @@ CAPTURE_SIZE=1280x720 CAPTURE_BUFFERS=3 CAPTURE_DMABUF=/dev/dri/card1 \
 stride或容量不匹配；等待编码器两队列返回后才重新排入decoder。未选择
 FRAME_DUMP/FRAME_HASH时，用户态不读取或同步采集像素；尺寸切换先排空编码器
 再释放旧采集面。这是标准V4L2交接诊断入口，尚非官方FFmpeg或OpenList集成。
+`CAPTURE_DELAY_MS=0..1000`可让客户端在每幅非空图片出队后暂缓归还，配合
+较少CAPTURE缓冲检查慢消费和回压；默认0，不改变正常交接。当前新增入口
+只有主机/ARM构建验证，实机回压矩阵仍待验收。
 854×480→320×192曾暴露滤波起点偏移，`2fea36e`补齐厂商首样本重复计数后
 已通过原失败用例和完整矩阵；其他比例仍按实际验收范围理解，详见
 [修复记录](validation-records.md#11-26-ge2d-滤波首样本重复修复)。
@@ -246,10 +249,15 @@ PSNR、CPU 与延迟。
 ```
 
 容量、尺寸或非 simple/main 输入失败，不截断图片。官方 FFmpeg 没有
-WMV3/Annex L 的 M2M 映射，不使用 WVC1 包装器冒充它。H.263 的开发入口
-接收原始 baseline I/P 单 AU，驱动有界转换为 h263_mc 中间流；支持 128×96、
-176×144、352×288、704×576，拒绝 PLUS/custom/可选工具和不匹配尺寸。
-候选内容、EOS、取消/重开必须实机验收。
+WMV3/Annex L 的 M2M 映射，不使用 WVC1 包装器冒充它。H.263入口接收原始
+baseline或已实现的PLUS/custom I/P单AU，驱动有界转换为h263_mc中间流并
+继承会话内UFEP状态；已验尺寸与工具边界见[能力表](validation.md)。PB/B、
+UMV、AIC和Slice Structured等未实现工具继续拒绝，不能把小流通过推广为HD。
+
+`b97a0b3`起的独立官方FFmpeg构建启用已有H.263 demuxer、parser、软件解码器
+和`h263_v4l2m2m`包装器，无FFmpeg源码修改。ARM工具在主机仿真软解baseline/
+PLUS/720p共36幅，全部NV12像素与主机原生参考一致；这不是实机HD或固件错误
+恢复验收。当前在役旧独立工具尚未更新，使用前须检查实际`-decoders`输出。
 
 MPEG/VC-1/MJPEG 的输出及帧尾边界见[验证指南](validation.md)。MPEG-2
 输入到 H.264 编码可按以下方式调用，当前并发验收集中在 H.264 输入：
