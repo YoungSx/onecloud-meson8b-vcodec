@@ -32,7 +32,7 @@ fi
   --disable-doc --disable-debug --disable-autodetect --disable-everything \
   --enable-ffmpeg --enable-ffprobe --enable-avformat --enable-avcodec --enable-avfilter \
   --enable-swscale --enable-swresample --enable-protocol=file,pipe,http,tcp \
-  --enable-demuxer=mov,hevc,h264,rawvideo,mjpeg,mpegts,aac \
+  --enable-demuxer=mov,hevc,h264,rawvideo,mjpeg,mpegts,aac,hls \
   --enable-muxer=framehash,framemd5,null,rawvideo,hevc,h264,mjpeg,mpegts,hls \
   --enable-parser=hevc,h264,mjpeg,aac \
   --enable-decoder=hevc,hevc_v4l2m2m,h264,h264_v4l2m2m,mjpeg,rawvideo,aac \
