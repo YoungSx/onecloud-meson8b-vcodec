@@ -225,6 +225,10 @@ static void setup_output(int w, int h)
 	rb.type = fmt.type;
 	rb.memory = V4L2_MEMORY_MMAP;
 	xioctl(VIDIOC_REQBUFS, &rb, "REQBUFS(OUTPUT)");
+	if (!ioctl(fd, VIDIOC_S_FMT, &fmt) || errno != EBUSY) {
+		fprintf(stderr, "OUTPUT S_FMT must reject allocated buffers\n");
+		exit(1);
+	}
 	for (unsigned i = 0; i < rb.count; i++) {
 		struct v4l2_buffer b = {0};
 		struct v4l2_plane planes[1] = {0};
@@ -251,17 +255,46 @@ static void setup_capture(void)
 {
 	struct v4l2_format fmt = {0};
 	struct v4l2_requestbuffers rb = {0};
+	u32 width, height;
 
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	xioctl(VIDIOC_G_FMT, &fmt, "G_FMT(CAPTURE)");
+	width = fmt.fmt.pix_mp.width;
+	height = fmt.fmt.pix_mp.height;
 
-	/* Wider than current sizeimage is fine, narrower is not */
+	/* Until scaling is negotiated, CAPTURE cannot alter source geometry. */
+	fmt.fmt.pix_mp.width = width + 32;
+	fmt.fmt.pix_mp.height = height + 32;
+	xioctl(VIDIOC_TRY_FMT, &fmt, "TRY_FMT(CAPTURE geometry)");
+	if (fmt.fmt.pix_mp.width != width || fmt.fmt.pix_mp.height != height) {
+		fprintf(stderr, "CAPTURE TRY_FMT changed the source geometry\n");
+		exit(1);
+	}
+	fmt.fmt.pix_mp.width = width + 32;
+	fmt.fmt.pix_mp.height = height + 32;
 	xioctl(VIDIOC_S_FMT, &fmt, "S_FMT(CAPTURE)");
+	if (fmt.fmt.pix_mp.width != width || fmt.fmt.pix_mp.height != height) {
+		fprintf(stderr, "CAPTURE S_FMT changed the source geometry\n");
+		exit(1);
+	}
 
 	rb.count = capture_count;
 	rb.type = fmt.type;
 	rb.memory = capture_memory();
 	xioctl(VIDIOC_REQBUFS, &rb, "REQBUFS(CAPTURE)");
+	if (!ioctl(fd, VIDIOC_S_FMT, &fmt) || errno != EBUSY) {
+		fprintf(stderr, "CAPTURE S_FMT must reject allocated buffers\n");
+		exit(1);
+	}
+	{
+		struct v4l2_format out = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
+
+		xioctl(VIDIOC_G_FMT, &out, "G_FMT(OUTPUT busy)");
+		if (!ioctl(fd, VIDIOC_S_FMT, &out) || errno != EBUSY) {
+			fprintf(stderr, "OUTPUT S_FMT must preserve allocated CAPTURE\n");
+			exit(1);
+		}
+	}
 	ncap = rb.count;
 	for (int i = 0; i < ncap; i++) {
 		struct v4l2_buffer b = {0};
