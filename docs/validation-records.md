@@ -1185,3 +1185,25 @@ RESTART；检查旧几何交付、零payload、元数据、一次EOS及新片段
 299/300、MPEG-4/WMV3尾帧及containerd/SFTP/FFmpeg异常。硬件缩放、音频/HLS
 与1.3×实时仍未完成。记录标识`capture-boundary-errors-dcbc890`；源码包、
 模块和报告仅在构建机工作区外SHA256校验归档，无永久公开附件。
+
+## 11-26 decoder CAPTURE 同步错误传播
+
+驱动源码`e4d73b1`收紧显式GE2D的回退边界：DMA-BUF的begin/end CPU访问、
+映射及缓冲校验错误直接返回，不再触发一次CPU重试并把同步失败计为成功。
+映射在begin成功后取得，映射失败仍配对end；GE2D只在两平面的CPU访问都
+结束后启动。MJPEG、暂存面分配失败和引擎故障仍允许原尺寸CPU回退；缩放
+输出继续禁止该回退。GE2D成功计数只在实际硬件转换调用成功后增加。
+
+旧实现遇一次性end错误后错误返回成功，新增断言可复现。实际函数Host回归
+覆盖原尺寸/缩放、两平面各自的短暂begin/end错误与空映射共12种组合，检查
+配对、原样错误、无转换/成功计数；另保留MMAP暂存复用、MJPEG/超时回退和
+CPU失败后的全部访问清理。恢复通用回退、提前映射、漏掉映射失败的end三项
+故障注入均被检出。139项Host与独立提交源码包测试、ASan/UBSan、严格
+checkpatch、原5.15.79 ARM外部/additive构建和补丁零fuzz/源码一致性通过。
+候选decoder SHA256：
+`cb3fc681c359b26fa1c048d887db0a367a9e73a67e391396e54e48150de0eb59`。
+
+仅工作机验证，未连接/安装实机；在役`7991ba4`健康未重查，新硬件实验继续
+暂停。Host exporter/引擎替身不证明真实cache/fence、像素或吞吐，也不关闭
+历史运行时异常及尾帧问题。记录标识`decoder-capture-sync-e4d73b1`；源码包、
+模块/运行包和报告仅在构建机工作区外SHA256校验归档，无永久公开附件。
