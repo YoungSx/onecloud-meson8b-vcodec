@@ -874,3 +874,37 @@ SIGSEGV、零输出；清理后的service因`tools/ffmpeg`校验不符拒绝启�
 GE2D继续关闭，本次正式GE2D复验保留失败，不把之前候选30/30扩大为正式全链
 通过。最后包校验、unit enabled/active、五容器、四项HTTP200、帧池归零及
 启动文件哈希不变均通过；没有重启或调整boot DT/CMA。
+
+## 11-26 GE2D 命令排空
+
+源码`f321f6d`补齐`STATUS0`的缓冲命令有效位bit2和流水线命令有效位bit4，
+与原有busy、当前命令和目的写响应计数一起等待归零，避免仅命令尚在队列
+时提前归还DMA缓冲；初始化复位也使用相同空闲条件。依据为固定
+[Linux 5.15.79寄存器定义](https://github.com/gregkh/linux/blob/v5.15.79/drivers/media/platform/meson/ge2d/ge2d-regs.h#L134)。
+实际命令函数的主机回归依次注入队列、流水线、运行、写响应与空闲ready状态；
+旧代码提前成功而失败，修正后通过。两种有效位各自卡住时都超时复位、拒绝
+后续命令；ready位不阻塞空闲。129项主机测试、C sanitizer、严格checkpatch、
+原5.15.79 ARM外部/additive构建及补丁源码一致性通过。
+
+独立候选模块SHA256为
+`510d5cc33f77a62f97add811eadc8b9f3422742e35788abcac7080723495c1af`。
+WanOS原5.15.79-meson/64 MiB CMA下临时加载，仅运行GE2D、不加载decoder：
+probe自检通过，六组三幅共18/18内容与时间戳通过，覆盖GREY复制/缩小、
+1080p NV12M复制、NV12缩小、NV12M裁剪及DMA-BUF NV12M缩小。复制/裁剪
+核对全部可见像素；缩小使用常量Y/UV平面，不扩大为纹理滤波或解码转码验收。
+首轮客户端因宿主glibc版本过新未执行，恢复服务后改用同源静态客户端重跑，
+不把该兼容性失败计为GE2D内容结果。
+
+临时模块已卸载并恢复`39703c7`默认NEON；恢复后H.26450/50、HEVC10/10
+逐帧哈希精确，完整安装包校验、unit enabled/active、五容器运行、四项HTTP200
+及帧池归零通过。未改变内核/boot DT/CMA或启用生产GE2D；完整
+官方FFmpeg解码缩放链未重跑，11-25的SIGSEGV及瞬时校验异常根因仍未知。
+本次只证明完成状态保护和上述独立有界检查，不能据此关闭历史崩溃问题。
+
+此前被撤销的`dma_alloc_noncoherent()`帧池候选已核对失败路径：Linux 5.15.79
+的`dma_direct_alloc_pages()`不允许HighMem，拒绝该CMA页后退到高阶普通页
+分配；原始日志中的1080p/部分裁剪与tiles启动分配失败与此一致。目标配置
+启用HIGHMEM，不能用小流通过或Host allocator桩证明大帧可用。当前保留
+原分配器，coherent分配与cached别名的替换仍未解决；未采用缺乏内核CPU
+映射保证的`DMA_ATTR_NO_KERNEL_MAPPING`变通。原始失败及本次报告均仅在
+忽略目录和经校验的工作区外归档保留，无永久公开附件。
