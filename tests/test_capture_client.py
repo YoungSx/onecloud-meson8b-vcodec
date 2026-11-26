@@ -8,6 +8,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CaptureClientTests(unittest.TestCase):
+    def test_scaled_size_argument(self):
+        code = r'''
+#define main diagnostic_main
+#include "res-switch-test.c"
+#undef main
+#include <assert.h>
+int main(void){
+ assert(!parse_capture_size(NULL)&&!capture_width&&!capture_height);
+ assert(!parse_capture_size("1280x720")&&capture_width==1280&&capture_height==720);
+ const char *invalid[]={"0x720","1279x720","1280x721","1922x1080","2x1090","1280x720junk","1280","-2x720","99999999x2","4294967298x2","2x-18446744073709551614","184467440737095516162x2"};
+ for(unsigned i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++){
+  assert(parse_capture_size(invalid[i])==-1&&capture_width==1280&&capture_height==720);
+ }
+ assert(!parse_capture_size("2x2")&&capture_width==2&&capture_height==2);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
     def test_drm_capture_planes_sync_and_release(self):
         code = r'''
 #define ioctl test_ioctl

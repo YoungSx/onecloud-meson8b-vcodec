@@ -9,6 +9,7 @@
  * requests N CAPTURE buffers (default 8); STOP_DELAY_MS=N waits N ms after
  * the last input before DEC_CMD_STOP, as a stalled or paused source would.
  * CAPTURE_DMABUF=/dev/dri/cardN imports DRM dumb buffers into CAPTURE.
+ * CAPTURE_SIZE=WxH requests an exact scaled output after SOURCE_CHANGE.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -50,6 +51,7 @@ static struct buffer outbufs[N_OUT], capbufs[MAX_CAP];
 static int ncap;
 /* CAPTURE buffers to request; CAPTURE_BUFFERS overrides */
 static unsigned int capture_count = 8;
+static unsigned int capture_width, capture_height;
 /* pause between the last input and DEC_CMD_STOP; STOP_DELAY_MS overrides */
 static unsigned int stop_delay_ms;
 /* OUTPUT buffers queued and not yet dequeued */
@@ -65,6 +67,33 @@ static unsigned long pictures;
 static unsigned long streamoff_after;
 static int streamoff_capture_first;
 static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+
+static int parse_capture_size(const char *text)
+{
+	const char *height_text;
+	char *end;
+	unsigned long width, height;
+
+	if (!text)
+		return 0;
+	if (*text < '0' || *text > '9')
+		return -1;
+	errno = 0;
+	width = strtoul(text, &end, 10);
+	if (errno || *end != 'x')
+		return -1;
+	height_text = end + 1;
+	if (*height_text < '0' || *height_text > '9')
+		return -1;
+	height = strtoul(height_text, &end, 10);
+	if (errno || *end ||
+	    !width || !height || width > 1920 || height > 1088 ||
+	    ((width | height) & 1))
+		return -1;
+	capture_width = width;
+	capture_height = height;
+	return 0;
+}
 
 static unsigned int capture_memory(void)
 {
@@ -261,6 +290,15 @@ static void setup_capture(void)
 	xioctl(VIDIOC_G_FMT, &fmt, "G_FMT(CAPTURE)");
 	width = fmt.fmt.pix_mp.width;
 	height = fmt.fmt.pix_mp.height;
+	if (capture_width) {
+		struct v4l2_selection crop = {
+			.type = fmt.type, .target = V4L2_SEL_TGT_CROP,
+		};
+
+		xioctl(VIDIOC_G_SELECTION, &crop, "G_SELECTION(source crop)");
+		width = crop.r.width;
+		height = crop.r.height;
+	}
 
 	/* Until scaling is negotiated, CAPTURE cannot alter source geometry. */
 	fmt.fmt.pix_mp.width = width + 32;
@@ -276,6 +314,22 @@ static void setup_capture(void)
 	if (fmt.fmt.pix_mp.width != width || fmt.fmt.pix_mp.height != height) {
 		fprintf(stderr, "CAPTURE S_FMT changed the source geometry\n");
 		exit(1);
+	}
+	if (capture_width) {
+		struct v4l2_format current = { .type = fmt.type };
+
+		fmt.fmt.pix_mp.width = capture_width;
+		fmt.fmt.pix_mp.height = capture_height;
+		xioctl(VIDIOC_S_FMT, &fmt, "S_FMT(CAPTURE scaled)");
+		xioctl(VIDIOC_G_FMT, &current, "G_FMT(CAPTURE scaled)");
+		if (fmt.fmt.pix_mp.width != capture_width ||
+		    fmt.fmt.pix_mp.height != capture_height ||
+		    current.fmt.pix_mp.width != capture_width ||
+		    current.fmt.pix_mp.height != capture_height) {
+			fprintf(stderr, "requested CAPTURE_SIZE is not supported\n");
+			exit(1);
+		}
+		printf("CAPTURE_SIZE %ux%u\n", capture_width, capture_height);
 	}
 
 	rb.count = capture_count;
@@ -449,6 +503,10 @@ int main(int argc, char **argv)
 		}
 	}
 	atexit(capture_cleanup);
+	if (parse_capture_size(getenv("CAPTURE_SIZE"))) {
+		fprintf(stderr, "CAPTURE_SIZE must be an even WxH up to 1920x1088\n");
+		return 2;
+	}
 
 	if (getenv("STREAMOFF_AFTER"))
 		streamoff_after = strtoul(getenv("STREAMOFF_AFTER"), NULL, 10);
