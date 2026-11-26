@@ -179,6 +179,22 @@ DMA-BUF，等GE2D的CAPTURE/OUTPUT出队后才排给encoder，等编码器归还
 示例不包含解码器，也不自动加载设备。原有
 `NV12`客户端名仍为NV12M，不能用来代替此单平面协议；测试后恢复默认NEON。
 
+解码验证客户端也可将实际解码/GE2D缩放后的NV12M采集面直接交给编码器。
+先枚举codec节点及`meson-drm`的card编号，再在已临时启用decoder GE2D的环境：
+
+```sh
+CAPTURE_SIZE=1280x720 CAPTURE_BUFFERS=3 CAPTURE_DMABUF=/dev/dri/card1 \
+  ENCODE_DEVICE=/dev/video2 ENCODE_STREAM=scaled.h264 \
+  ./res-switch-test /dev/video1 input.hevc HEVC
+```
+
+编号仅为示例，不能选用不支持dumb分配的lima节点。客户端拒绝双方格式、
+stride或容量不匹配；等待编码器两队列返回后才重新排入decoder。未选择
+FRAME_DUMP/FRAME_HASH时，用户态不读取或同步采集像素；尺寸切换先排空编码器
+再释放旧采集面。这是标准V4L2交接诊断入口，尚非官方FFmpeg或OpenList集成。
+854×480→320×192仍有滤波质量/对齐缺口，不能据短流通过宣称任意比例或切换
+质量通过，详见[真实链记录](validation-records.md#11-26-真实解码缩放与共享编码交接)。
+
 ## HEVC Main 8-bit
 
 宿主原 7.0.2 未编入 `hevc_v4l2m2m`；当前 OpenList 镜像的官方8.1.3是另一构建。

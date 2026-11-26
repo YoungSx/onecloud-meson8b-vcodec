@@ -191,7 +191,7 @@ CAPTURE20、encoder OUTPUT16下，官方7.0.2直接转码和CPU缩至720p再编�
 decoder缩放需要独立维护源与采集几何；上述格式保护版本将CAPTURE固定到
 源尺寸，没有把改写源尺寸当成硬件缩放支持。
 
-## decoder 缩放候选（未实机）
+## decoder 独立 CAPTURE 缩放
 
 新源码`06504f3`在显式`capture_ge2d=1`且H.264/HEVC已解析源尺寸后，允许
 标准CAPTURE S_FMT协商独立输出大小，每轴为源尺寸的1–1/4、偶数NV12尺寸；
@@ -199,8 +199,8 @@ TRY_FMT返回实际可用值。码流/参考面宽高和源crop保持，G_FMT的
 COMPOSE、交付payload及中转面使用输出大小；非等比例缩放调整像素宽高比。
 分配后仍拒绝S_FMT，source-change后重新协商。MJPEG和默认NEON不开放缩放。
 
-该候选只完成工作机回归/构建，未加载或部署，不能继承独立GE2D缩放检查的
-像素结论。缩放失败返回ERROR和零payload，不用原尺寸CPU回退写小缓冲。
+上述初版只完成工作机回归/构建；后续独立实机范围见下文。缩放失败返回
+ERROR和零payload，不用原尺寸CPU回退写小缓冲。
 官方FFmpeg的`-vf scale`仍走CPU；本接口供使用标准V4L2协商的客户端显式
 选择，不自动改写FFmpeg命令。恢复硬件验收后可用验证客户端：
 
@@ -211,7 +211,7 @@ CAPTURE_SIZE=1280x720 CAPTURE_BUFFERS=4 FRAME_DUMP=scaled.nv12 \
 
 示例要求已加载本候选、启用GE2D且输入为兼容1080p；实际设备号须枚举。
 客户端核对精确协商尺寸，不支持时失败，dump为32字节stride/64 KiB容量
-平面。实机验收前仍不宣称正确画面、实时吞吐或完整转码通过；见[离线记录](validation-records.md#11-26-decoder-ge2d-缩放候选)。
+平面。初版离线边界见[记录](validation-records.md#11-26-decoder-ge2d-缩放候选)。
 
 ## 单平面 NV12 的编码交接增量
 
@@ -244,3 +244,11 @@ JPEG；完整软解、顺序与相对独立bilinear参考的全YUV质量通过�
 PSNR30.36 dB。41幅编码直接读取、6幅复制；此步仅改客户端，内核字节未改。
 运行包和客户端已部署，正式GE2D仍关闭。尚未加入decoder，不将短任务
 耗时换算为完整链吞吐，见[缩放交接记录](validation-records.md#11-26-ge2d-缩放后共享编码输入)。
+
+`a6f3fc8`进一步接入实际H264/HEVC decoder输出：独立缩放24组272幅的
+MMAP/连续DMA-BUF内容、顺序与全YUV质量通过，两条路径原始字节一致。
+共享NV12M直接编码18组172幅（含两种提前取消顺序）通过，copied/copy_ns=0。
+另两组尺寸切换共48幅虽完整出队，854→320段未通过独立滤波参考的内容/顺序
+检查；相同源的静态/切换后decoder原始像素相等，仍需定位该比例的采样对齐。
+中心相位候选未改善并已撤回，正式GE2D保留原字节。没有完整官方工具/音频/
+应用收益结论，详见[真实链记录](validation-records.md#11-26-真实解码缩放与共享编码交接)。
