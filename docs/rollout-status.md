@@ -8,19 +8,29 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`7991ba41c35f088348cc86eaf416ad7499a7ca0a`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署。 |
+| 已部署开发驱动 | 完整运行包源码`20220a824de9eb501befabeed6f5957074d67584`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
-| FFmpeg | 官方底座8.1.3，FFmpeg/ffprobe逐字节未改；宿主原7.0.2是另一套工具。 |
+| FFmpeg | OpenList镜像保持官方底座8.1.3、字节未改；新运行包附官方原版7.0.2独立工具，启用HLS输入，不替换宿主或容器FFmpeg。 |
 
 ## 已安装模块 SHA256
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `6d499aa75f39959186401d9fd97afc398fd962632d98ad9b63f64498c8adf058` |
-| meson-venc.ko | `219da47d296e71525b2c816f7f85c5c2f8663c38d0585586c89e78983716a32c` |
+| meson-vdec.ko | `cb3fc681c359b26fa1c048d887db0a367a9e73a67e391396e54e48150de0eb59` |
+| meson-venc.ko | `2a55b4105162fb2a61f785bc07877fc573c6353c08402eeb8ef9127c2459f625` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
+
+13:19 UTC本轮升级并保留上述`20220a8`完整包，原`7991ba4`包/state/固件87项
+先设备外校验备份。默认NEON16组600/600精确、MJPEG9幅全平面及两种提前
+关闭通过；编码22组185幅顺序/全YUV质量通过，含四种DMA-BUF导入。官方
+7.0.2直接/CPU缩放转码各60/60，另小尺寸视频50/50加AAC/HLS完整时间线
+通过。完整包/固件、unit enabled/active、五容器、四项HTTP200、帧池归零、
+GE2D关闭和26个启动文件哈希通过，containerd累计重启数未变。新state已
+另存设备外，回退timer已取消；无重启或GE2D验收。完整范围见
+[本次部署](validation-records.md#11-26-main-20220a8-部署验收)。下文是此前版本的历史快照，
+其中“当前包”按对应日期/源码理解。
 
 [11-25重启后验收](validation-records.md#11-25-重启后格式修正与-ge2d-验收)记录此前修复及各自二进制范围；
 最新包的独立复验见下文及[MJPEG修正记录](validation-records.md#11-25-mjpeg-滤波与输入边界)。
