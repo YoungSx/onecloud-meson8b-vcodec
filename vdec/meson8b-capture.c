@@ -216,6 +216,9 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
 {
 	struct amvdec_core *core = sess->core;
+	struct amvdec_shadow *stage = &sess->pool.capture_stage;
+	bool imported = vb->memory == V4L2_MEMORY_DMABUF;
+	u32 luma = amvdec_get_output_size_wh(geo->width, geo->height);
 	u32 width = geo->reference_width ? geo->reference_width : geo->width;
 	u32 stride = ALIGN(width, 32);
 	u32 height = geo->reference_height ? geo->reference_height : geo->height;
@@ -232,6 +235,7 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		.width = geo->width, .height = geo->height,
 	};
 	unsigned int i;
+	int ret;
 
 	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
 		return -EOPNOTSUPP;
@@ -241,14 +245,30 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		return -EINVAL;
 	for (i = 0; i < 2; i++) {
 		u32 rows = i ? output.height / 2 : output.height;
-		u32 payload = amvdec_get_output_size_wh(geo->width, geo->height) / (i ? 2 : 1);
-		void *address = vb2_plane_vaddr(vb, i);
-		u32 row;
-		int ret;
+		u32 payload = luma / (i ? 2 : 1);
 
-		if (vb->planes[i].data_offset || !address || vb2_plane_size(vb, i) < payload ||
-		    payload < output.stride * rows)
+		if (vb->planes[i].data_offset || !vb2_plane_vaddr(vb, i) ||
+		    vb2_plane_size(vb, i) < payload || payload < output.stride * rows)
 			return -EINVAL;
+	}
+	/* Delivery holds delivery_lock, so one DMA destination serves every MMAP. */
+	if (!imported && stage->luma != luma) {
+		if (stage->vaddr) {
+			core->pool_bytes -= stage->size;
+			amvdec_shadow_free(sess, stage);
+		}
+		ret = amvdec_shadow_alloc(sess, stage, luma);
+		if (ret)
+			return ret;
+		core->pool_bytes += stage->size;
+	}
+	for (i = 0; i < 2; i++) {
+		u32 rows = i ? output.height / 2 : output.height;
+		u32 payload = luma / (i ? 2 : 1);
+		void *address = imported ? vb2_plane_vaddr(vb, i) :
+			stage->vaddr + (i ? luma : 0);
+		u32 row;
+
 		if (vb->planes[i].dbuf) {
 			ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
 			if (ret)
@@ -264,9 +284,15 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			if (ret)
 				return ret;
 		}
-		output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+		output.address[i] = imported ? vb2_dma_contig_plane_dma_addr(vb, i) :
+			stage->paddr + (i ? luma : 0);
 	}
-	return core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
+	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
+	if (!ret && !imported) {
+		memcpy(vb2_plane_vaddr(vb, 0), stage->vaddr, luma);
+		memcpy(vb2_plane_vaddr(vb, 1), stage->vaddr + luma, luma / 2);
+	}
+	return ret;
 }
 
 static int amvdec_cpu_capture(struct amvdec_session *sess,
@@ -347,6 +373,8 @@ static void amvdec_pool_free_slots(struct amvdec_session *sess)
 	for (i = 0; i < ARRAY_SIZE(pool->slot); i++)
 		if (pool->slot[i].vaddr)
 			amvdec_shadow_free(sess, &pool->slot[i]);
+	if (pool->capture_stage.vaddr)
+		amvdec_shadow_free(sess, &pool->capture_stage);
 	meson8b_pool_reset(&pool->state, 0);
 	sess->core->pool_slots = 0;
 	sess->core->pool_bytes = 0;

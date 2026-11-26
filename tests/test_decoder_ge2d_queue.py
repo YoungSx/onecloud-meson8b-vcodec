@@ -20,7 +20,7 @@ class DecoderGe2dQueueTests(unittest.TestCase):
 #define VDEC_REVISION_MESON8B 1
 #define VB2_MMAP 1
 #define VB2_DMABUF 2
-struct memops {int unused;};static const struct memops vb2_dma_contig_memops={0},vb2_vmalloc_memops={0};
+struct memops {int unused;};static const struct memops vb2_dma_contig_memops={0},vb2_vmalloc_memops={0},amvdec_capture_memops={0};
 static const int vdec_vb2_ops;
 struct amvdec_vb2_buffer {int unused;};
 struct platform {int revision;};
@@ -36,7 +36,7 @@ int main(void){struct platform p={1};struct core c={.platform=&p};struct amvdec_
  assert(src.mem_ops==&vb2_dma_contig_memops&&src.io_modes==(VB2_MMAP|VB2_DMABUF));
  assert(dst.mem_ops==&vb2_vmalloc_memops&&dst.io_modes==VB2_MMAP);
  c.ge2d_dev=&c;assert(!m2m_queue_init(&s,&src,&dst));
- assert(dst.mem_ops==&vb2_dma_contig_memops&&dst.io_modes==(VB2_MMAP|VB2_DMABUF));
+ assert(dst.mem_ops==&amvdec_capture_memops&&dst.io_modes==(VB2_MMAP|VB2_DMABUF));
  assert(dst.drv_priv==&s&&dst.lock==&s.lock&&initialized==4);return 0;}
 '''
         with tempfile.TemporaryDirectory() as directory:

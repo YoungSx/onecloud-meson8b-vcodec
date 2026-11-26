@@ -17,6 +17,8 @@ class DecoderGe2dTests(unittest.TestCase):
 #include <stdint.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
+#define V4L2_MEMORY_DMABUF 4
 typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;typedef int64_t ktime_t;
 #define U32_MAX UINT32_MAX
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
@@ -25,32 +27,39 @@ typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;typedef in
 #define amvdec_core core
 #include "ge2d-layout.h"
 struct meson8b_ge2d_api {int (*convert)(void *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_crop *);};
-struct core {void *ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2d_frames,converted_frames,convert_ns;};
+struct core {void *ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2d_frames,converted_frames,convert_ns,pool_bytes;};
 struct format {u32 pixfmt;};
-struct amvdec_session {struct core *core;struct format *fmt_out;};
 struct amvdec_geometry {u32 width,height,reference_width,reference_height,crop_left,crop_top;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma,size;void *vaddr;};
-struct vb2_buffer {u32 num_planes;struct {u32 data_offset,size;void *dbuf,*vaddr;dma_addr_t dma;} planes[2];};
+struct amvdec_session {struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;} pool;};
+struct vb2_buffer {u32 num_planes,memory;struct {u32 data_offset,size;void *dbuf,*vaddr;dma_addr_t dma;} planes[2];};
 static int gpu_calls,cpu_calls,begin_calls,end_calls,conversion_error,begin_error;
 static void *begin_failure;
-static unsigned char y[1024],uv[512];
-static u32 amvdec_get_output_size_wh(u32 w,u32 h){(void)w;(void)h;return 1024;}
+static unsigned allocations,releases;static int allocation_error;static bool staged;static u32 output_luma=1024;
+static unsigned char y[2048],uv[1024];static unsigned char *stage_address;
+static u32 amvdec_get_output_size_wh(u32 w,u32 h){(void)w;(void)h;return output_luma;}
 static void *vb2_plane_vaddr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].vaddr;}
 static u32 vb2_plane_size(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].size;}
-static dma_addr_t vb2_dma_contig_plane_dma_addr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].dma;}
+static dma_addr_t vb2_dma_contig_plane_dma_addr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);assert(b->memory==V4L2_MEMORY_DMABUF);return b->planes[i].dma;}
 static int dma_buf_begin_cpu_access(void *d,int direction){assert(!direction);begin_calls++;return begin_error&&(!begin_failure||begin_failure==d)?begin_error:0;}
 static int dma_buf_end_cpu_access(void *d,int direction){(void)d;assert(!direction);end_calls++;return 0;}
 static ktime_t ktime_get(void){return 100;}
 static ktime_t ktime_sub(ktime_t a,ktime_t b){return a-b;}
 static u64 ktime_to_ns(ktime_t t){return t;}
 static int amvdec_meson8b_convert(struct amvdec_session *s,const struct amvdec_geometry *g,const struct amvdec_shadow *sh,struct vb2_buffer *b){(void)s;(void)g;(void)sh;(void)b;cpu_calls++;return 0;}
+static void amvdec_shadow_free(struct amvdec_session *s,struct amvdec_shadow *sh){(void)s;free(sh->vaddr);memset(sh,0,sizeof(*sh));releases++;}
+static int amvdec_shadow_alloc(struct amvdec_session *s,struct amvdec_shadow *sh,u32 luma){(void)s;allocations++;if(allocation_error)return allocation_error;sh->vaddr=malloc(luma*3/2);assert(sh->vaddr);stage_address=sh->vaddr;memset(sh->vaddr,0xcc,luma*3/2);sh->paddr=0x400000;sh->luma=luma;sh->size=luma*3/2;return 0;}
 static int convert(void *d,const struct meson8b_ge2d_image *in,const struct meson8b_ge2d_image *out,const struct meson8b_ge2d_crop *crop){
  assert(d&&in->width==64&&in->height==32&&in->stride==64&&in->nv12&&!in->little_endian);
  assert(out->width==34&&out->height==16&&out->stride==64&&out->little_endian&&out->nv12);
  assert(in->address[1]==in->address[0]+2048&&crop->left==2&&crop->top==4);
- for(unsigned p=0;p<2;p++){unsigned rows=p?8:16;unsigned char *plane=p?uv:y;
+ for(unsigned p=0;p<2;p++){unsigned rows=p?8:16;unsigned char *plane=staged?stage_address+(p?output_luma:0):(p?uv:y);
   for(unsigned row=0;row<rows;row++)for(unsigned x=34;x<64;x++)assert(!plane[row*64+x]);
   for(unsigned i=rows*64;i<(p?512:1024);i++)assert(!plane[i]);
+ }
+ if(staged){assert(out->address[0]==0x400000&&out->address[1]==0x400000+output_luma);
+  if(!conversion_error)for(unsigned p=0;p<2;p++)for(unsigned row=0;row<(p?8u:16u);row++)
+   memset(stage_address+(p?output_luma:0)+row*64,0x37+p,34);
  }
  gpu_calls++;return conversion_error;
 }
@@ -60,9 +69,9 @@ static int convert(void *d,const struct meson8b_ge2d_image *in,const struct meso
         code += r'''
 int main(void){
  struct meson8b_ge2d_api api={convert};struct core c={.ge2d_dev=&api,.ge2d_api=&api};
- struct format f={2};struct amvdec_session s={&c,&f};
+ struct format f={2};struct amvdec_session s={.core=&c,.fmt_out=&f};
  struct amvdec_geometry g={34,16,64,32,2,4};struct amvdec_shadow sh={0x100000,2048,3072,&api};
- struct vb2_buffer b={.num_planes=2,.planes={{.size=1024,.vaddr=y,.dma=0x200000},
+ struct vb2_buffer b={.num_planes=2,.memory=V4L2_MEMORY_DMABUF,.planes={{.size=1024,.vaddr=y,.dma=0x200000},
  {.size=512,.vaddr=uv,.dma=0x300000}}};
  memset(y,0xa5,sizeof(y));memset(uv,0xa5,sizeof(uv));
  assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&gpu_calls==1&&!cpu_calls&&c.ge2d_frames==1);
@@ -75,6 +84,23 @@ int main(void){
  assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-EIO&&cpu_calls==2&&end_calls==ends+1);
  c.ge2d_dev=NULL;assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==3);
  assert(c.converted_frames==4&&c.ge2d_frames==1);
+ /* Cached MMAP pictures reuse one coherent destination, including padding. */
+ c.ge2d_dev=&api;f.pixfmt=2;b.memory=1;b.planes[0].dbuf=b.planes[1].dbuf=NULL;
+ begin_error=0;conversion_error=0;staged=true;
+ for(unsigned frame=0;frame<3;frame++){
+  memset(y,0xa5,sizeof(y));memset(uv,0xa5,sizeof(uv));
+  assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b));
+  assert(allocations==1&&!releases&&c.pool_bytes==1536);
+  for(unsigned p=0;p<2;p++)for(unsigned row=0;row<(p?8u:16u);row++)for(unsigned x=0;x<64;x++)
+   assert((p?uv:y)[row*64+x]==(x<34?0x37+p:0));
+ }
+ conversion_error=-ETIMEDOUT;int calls=cpu_calls;
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==calls+1);
+ assert(allocations==1&&!releases);
+ /* A smaller display reallocates staging; a failed allocation keeps fallback. */
+ output_luma=2048;b.planes[0].size=2048;b.planes[1].size=1024;allocation_error=-ENOMEM;calls=cpu_calls;
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==calls+1);
+ assert(allocations==2&&releases==1&&!s.pool.capture_stage.vaddr&&!c.pool_bytes);
  return 0;
 }
 '''

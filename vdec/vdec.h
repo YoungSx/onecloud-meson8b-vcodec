@@ -104,6 +104,7 @@ enum amvdec_pool_end {
  * @lock: protects the members below
  * @state: slot ownership and delivery order
  * @slot: one firmware-order picture block per slot
+ * @capture_stage: coherent GE2D destination reused for cached MMAP pictures
  * @picture: metadata of the picture waiting in each slot
  * @end: what to do with the CAPTURE queue once no picture waits
  * @work: delivers waiting pictures after userspace queued a buffer
@@ -113,6 +114,7 @@ struct amvdec_frame_pool {
 	struct mutex delivery_lock;
 	struct meson8b_pool state;
 	struct amvdec_shadow slot[MESON8B_POOL_MAX];
+	struct amvdec_shadow capture_stage;
 	struct amvdec_picture picture[MESON8B_POOL_MAX];
 	enum amvdec_pool_end end;
 	struct work_struct work;

@@ -205,12 +205,13 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/Makefile
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# Makefile for Amlogic meson video decoder driver
 +
 +meson-vdec-objs = esparser.o vdec.o vdec_helpers.o vdec_platform.o
 +meson-vdec-objs += meson8b-capture.o meson8b-swap-neon.o
++meson-vdec-objs += meson8b-capture-mem.o
 +meson-vdec-objs += vdec_1.o vdec_hevc.o
 +meson-vdec-objs += codec_mpeg12.o codec_mpeg4.o codec_vc1.o codec_mjpeg.o codec_h264.o codec_hevc_common.o codec_hevc.o codec_vp9.o
 +
@@ -8577,8 +8578,157 @@
 +
 +#endif
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture-mem.c
+@@ -0,0 +1,146 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Cached MMAP pictures; imported DMA-BUFs retain contiguous DMA mappings. */
++#include <linux/slab.h>
++#include <media/videobuf2-dma-contig.h>
++#include <media/videobuf2-vmalloc.h>
++
++#include "vdec_helpers.h"
++
++struct amvdec_capture_mem {
++	const struct vb2_mem_ops *ops;
++	void *priv;
++};
++
++static void *capture_alloc(struct vb2_buffer *vb, struct device *dev,
++			   unsigned long size)
++{
++	struct amvdec_capture_mem *mem = kmalloc(sizeof(*mem), GFP_KERNEL);
++
++	if (!mem)
++		return ERR_PTR(-ENOMEM);
++	mem->ops = &vb2_vmalloc_memops;
++	mem->priv = mem->ops->alloc(vb, dev, size);
++	if (IS_ERR(mem->priv)) {
++		void *error = mem->priv;
++
++		kfree(mem);
++		return error;
++	}
++	return mem;
++}
++
++static void capture_put(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	mem->ops->put(mem->priv);
++	kfree(mem);
++}
++
++static void *capture_attach(struct vb2_buffer *vb, struct device *dev,
++			    struct dma_buf *dbuf, unsigned long size)
++{
++	struct amvdec_capture_mem *mem = kmalloc(sizeof(*mem), GFP_KERNEL);
++
++	if (!mem)
++		return ERR_PTR(-ENOMEM);
++	mem->ops = &vb2_dma_contig_memops;
++	mem->priv = mem->ops->attach_dmabuf(vb, dev, dbuf, size);
++	if (IS_ERR(mem->priv)) {
++		void *error = mem->priv;
++
++		kfree(mem);
++		return error;
++	}
++	return mem;
++}
++
++static void capture_detach(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	mem->ops->detach_dmabuf(mem->priv);
++	kfree(mem);
++}
++
++static int capture_map(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->map_dmabuf(mem->priv);
++}
++
++static void capture_unmap(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	mem->ops->unmap_dmabuf(mem->priv);
++}
++
++static void capture_prepare(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	if (mem->ops->prepare)
++		mem->ops->prepare(mem->priv);
++}
++
++static void capture_finish(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	if (mem->ops->finish)
++		mem->ops->finish(mem->priv);
++}
++
++static void *capture_vaddr(struct vb2_buffer *vb, void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->vaddr(vb, mem->priv);
++}
++
++static void *capture_cookie(struct vb2_buffer *vb, void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->cookie ? mem->ops->cookie(vb, mem->priv) : NULL;
++}
++
++static unsigned int capture_num_users(void *priv)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->num_users(mem->priv);
++}
++
++static int capture_mmap(void *priv, struct vm_area_struct *vma)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->mmap(mem->priv, vma);
++}
++
++static struct dma_buf *capture_get_dmabuf(struct vb2_buffer *vb, void *priv,
++					  unsigned long flags)
++{
++	struct amvdec_capture_mem *mem = priv;
++
++	return mem->ops->get_dmabuf(vb, mem->priv, flags);
++}
++
++const struct vb2_mem_ops amvdec_capture_memops = {
++	.alloc = capture_alloc,
++	.put = capture_put,
++	.attach_dmabuf = capture_attach,
++	.detach_dmabuf = capture_detach,
++	.map_dmabuf = capture_map,
++	.unmap_dmabuf = capture_unmap,
++	.prepare = capture_prepare,
++	.finish = capture_finish,
++	.vaddr = capture_vaddr,
++	.cookie = capture_cookie,
++	.num_users = capture_num_users,
++	.mmap = capture_mmap,
++	.get_dmabuf = capture_get_dmabuf,
++};
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,647 @@
+@@ -0,0 +1,675 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/dma-buf.h>
@@ -8797,6 +8947,9 @@
 +			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
 +{
 +	struct amvdec_core *core = sess->core;
++	struct amvdec_shadow *stage = &sess->pool.capture_stage;
++	bool imported = vb->memory == V4L2_MEMORY_DMABUF;
++	u32 luma = amvdec_get_output_size_wh(geo->width, geo->height);
 +	u32 width = geo->reference_width ? geo->reference_width : geo->width;
 +	u32 stride = ALIGN(width, 32);
 +	u32 height = geo->reference_height ? geo->reference_height : geo->height;
@@ -8813,6 +8966,7 @@
 +		.width = geo->width, .height = geo->height,
 +	};
 +	unsigned int i;
++	int ret;
 +
 +	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
 +		return -EOPNOTSUPP;
@@ -8822,14 +8976,30 @@
 +		return -EINVAL;
 +	for (i = 0; i < 2; i++) {
 +		u32 rows = i ? output.height / 2 : output.height;
-+		u32 payload = amvdec_get_output_size_wh(geo->width, geo->height) / (i ? 2 : 1);
-+		void *address = vb2_plane_vaddr(vb, i);
-+		u32 row;
-+		int ret;
++		u32 payload = luma / (i ? 2 : 1);
 +
-+		if (vb->planes[i].data_offset || !address || vb2_plane_size(vb, i) < payload ||
-+		    payload < output.stride * rows)
++		if (vb->planes[i].data_offset || !vb2_plane_vaddr(vb, i) ||
++		    vb2_plane_size(vb, i) < payload || payload < output.stride * rows)
 +			return -EINVAL;
++	}
++	/* Delivery holds delivery_lock, so one DMA destination serves every MMAP. */
++	if (!imported && stage->luma != luma) {
++		if (stage->vaddr) {
++			core->pool_bytes -= stage->size;
++			amvdec_shadow_free(sess, stage);
++		}
++		ret = amvdec_shadow_alloc(sess, stage, luma);
++		if (ret)
++			return ret;
++		core->pool_bytes += stage->size;
++	}
++	for (i = 0; i < 2; i++) {
++		u32 rows = i ? output.height / 2 : output.height;
++		u32 payload = luma / (i ? 2 : 1);
++		void *address = imported ? vb2_plane_vaddr(vb, i) :
++			stage->vaddr + (i ? luma : 0);
++		u32 row;
++
 +		if (vb->planes[i].dbuf) {
 +			ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
 +			if (ret)
@@ -8845,9 +9015,15 @@
 +			if (ret)
 +				return ret;
 +		}
-+		output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
++		output.address[i] = imported ? vb2_dma_contig_plane_dma_addr(vb, i) :
++			stage->paddr + (i ? luma : 0);
 +	}
-+	return core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
++	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
++	if (!ret && !imported) {
++		memcpy(vb2_plane_vaddr(vb, 0), stage->vaddr, luma);
++		memcpy(vb2_plane_vaddr(vb, 1), stage->vaddr + luma, luma / 2);
++	}
++	return ret;
 +}
 +
 +static int amvdec_cpu_capture(struct amvdec_session *sess,
@@ -8928,6 +9104,8 @@
 +	for (i = 0; i < ARRAY_SIZE(pool->slot); i++)
 +		if (pool->slot[i].vaddr)
 +			amvdec_shadow_free(sess, &pool->slot[i]);
++	if (pool->capture_stage.vaddr)
++		amvdec_shadow_free(sess, &pool->capture_stage);
 +	meson8b_pool_reset(&pool->state, 0);
 +	sess->core->pool_slots = 0;
 +	sess->core->pool_bytes = 0;
@@ -9572,7 +9750,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1589 @@
+@@ -0,0 +1,1590 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10779,10 +10957,11 @@
 +	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 +	dst_vq->ops = &vdec_vb2_ops;
 +	dst_vq->mem_ops = &vb2_dma_contig_memops;
-+	if (sess->core->platform->revision == VDEC_REVISION_MESON8B &&
-+	    !sess->core->ge2d_dev) {
-+		dst_vq->mem_ops = &vb2_vmalloc_memops;
-+		dst_vq->io_modes = VB2_MMAP;
++	if (sess->core->platform->revision == VDEC_REVISION_MESON8B) {
++		dst_vq->mem_ops = sess->core->ge2d_dev ?
++			&amvdec_capture_memops : &vb2_vmalloc_memops;
++		if (!sess->core->ge2d_dev)
++			dst_vq->io_modes = VB2_MMAP;
 +	}
 +	dst_vq->drv_priv = sess;
 +	dst_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
@@ -11164,7 +11343,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,394 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -11271,6 +11450,7 @@
 + * @lock: protects the members below
 + * @state: slot ownership and delivery order
 + * @slot: one firmware-order picture block per slot
++ * @capture_stage: coherent GE2D destination reused for cached MMAP pictures
 + * @picture: metadata of the picture waiting in each slot
 + * @end: what to do with the CAPTURE queue once no picture waits
 + * @work: delivers waiting pictures after userspace queued a buffer
@@ -11280,6 +11460,7 @@
 +	struct mutex delivery_lock;
 +	struct meson8b_pool state;
 +	struct amvdec_shadow slot[MESON8B_POOL_MAX];
++	struct amvdec_shadow capture_stage;
 +	struct amvdec_picture picture[MESON8B_POOL_MAX];
 +	enum amvdec_pool_end end;
 +	struct work_struct work;
@@ -12673,7 +12854,7 @@
 +EXPORT_SYMBOL_GPL(amvdec_abort);
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec_helpers.h
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,132 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -12778,6 +12959,7 @@
 + * userspace queues them. See struct amvdec_frame_pool.
 + */
 +bool amvdec_has_pool(const struct amvdec_session *sess);
++extern const struct vb2_mem_ops amvdec_capture_memops;
 +void amvdec_pool_init(struct amvdec_session *sess);
 +int amvdec_pool_prepare(struct amvdec_session *sess, u32 count);
 +void amvdec_pool_give_all(struct amvdec_session *sess);

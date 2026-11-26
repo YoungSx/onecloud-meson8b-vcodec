@@ -29,9 +29,13 @@ typedef uint32_t u32;typedef uintptr_t dma_addr_t;
 #define dev_err(...) ((void)0)
 struct page {int index;};
 struct device {int unused;};
-struct amvdec_core {struct device *dev;void *ge2d_dev;};
-struct amvdec_session {struct amvdec_core *core;};
+struct amvdec_core {struct device *dev;void *ge2d_dev;u32 pool_slots,pool_bytes;};
+
 struct amvdec_shadow {void *vaddr,*cached;dma_addr_t paddr;u32 size,luma;};
+struct amvdec_frame_pool {struct amvdec_shadow slot[2],capture_stage;int state;};
+struct amvdec_session {struct amvdec_core *core;struct amvdec_frame_pool pool;};
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+static void meson8b_pool_reset(int *state,int n){*state=n;}
 static unsigned allocations,frees,arrays,maps,unmaps,pages_seen;
 static int fail_at;
 static bool highmem;
@@ -54,7 +58,7 @@ static void *vmap(struct page **p,unsigned n,int flags,int prot){
  assert(n==768&&flags==VM_MAP&&prot==PAGE_KERNEL);for(unsigned i=0;i<n;i++)assert(p[i]==&pages[i]);maps++;return fail_at==3?NULL:cached;
 }
 static void vunmap(void *p){assert(p==cached);unmaps++;}
-''' + body + r'''
+''' + body + source[source.index('static void amvdec_pool_free_slots('):source.index('static void amvdec_pool_work(')] + r'''
 int main(void){
  struct device d={0};struct amvdec_core c={.dev=&d};struct amvdec_session s={.core=&c};
  for(unsigned mode=0;mode<2;mode++)for(unsigned high=0;high<2;high++){
@@ -72,7 +76,14 @@ int main(void){
   assert(amvdec_shadow_alloc(&s,&sh,2097152)==-ENOMEM);
   assert(!sh.vaddr&&!sh.cached&&frees==f+(fail_at!=1)&&unmaps==u);
  }
- assert(allocations==7);return 0;
+ assert(allocations==7);
+ c.ge2d_dev=&c;fail_at=0;
+ assert(!amvdec_shadow_alloc(&s,&s.pool.slot[0],2097152));
+ assert(!amvdec_shadow_alloc(&s,&s.pool.capture_stage,2097152));
+ c.pool_slots=1;c.pool_bytes=sizeof(canvas)*2;s.pool.state=1;unsigned before=frees;
+ amvdec_pool_free_slots(&s);
+ assert(frees==before+2&&!c.pool_bytes&&!c.pool_slots&&!s.pool.state);
+ assert(!s.pool.slot[0].vaddr&&!s.pool.capture_stage.vaddr);return 0;
 }
 '''
         with tempfile.TemporaryDirectory() as directory:

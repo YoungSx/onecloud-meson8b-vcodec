@@ -102,6 +102,7 @@ void amvdec_recycle(struct amvdec_session *sess, u32 fw_idx);
  * userspace queues them. See struct amvdec_frame_pool.
  */
 bool amvdec_has_pool(const struct amvdec_session *sess);
+extern const struct vb2_mem_ops amvdec_capture_memops;
 void amvdec_pool_init(struct amvdec_session *sess);
 int amvdec_pool_prepare(struct amvdec_session *sess, u32 count);
 void amvdec_pool_give_all(struct amvdec_session *sess);

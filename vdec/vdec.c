@@ -1204,10 +1204,11 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	dst_vq->ops = &vdec_vb2_ops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
-	if (sess->core->platform->revision == VDEC_REVISION_MESON8B &&
-	    !sess->core->ge2d_dev) {
-		dst_vq->mem_ops = &vb2_vmalloc_memops;
-		dst_vq->io_modes = VB2_MMAP;
+	if (sess->core->platform->revision == VDEC_REVISION_MESON8B) {
+		dst_vq->mem_ops = sess->core->ge2d_dev ?
+			&amvdec_capture_memops : &vb2_vmalloc_memops;
+		if (!sess->core->ge2d_dev)
+			dst_vq->io_modes = VB2_MMAP;
 	}
 	dst_vq->drv_priv = sess;
 	dst_vq->buf_struct_size = sizeof(struct amvdec_vb2_buffer);
