@@ -17,6 +17,7 @@
  * meson-drm dumb buffers (contiguous) or lima GEM objects (scattered).
  * FORMAT NV12-1 uses one contiguous memory plane; NV12 uses two (NV12M).
  * -G GE2D_DEVICE produces NV12-1 directly into the encoder's dumb DMA-BUF.
+ * -S WxH selects a larger GE2D source; REF then records that unscaled input.
  * Each frame prints "frame N bytes B flags F latency_us L" (OUTPUT QBUF to
  * CAPTURE DQBUF).
  * -s restarts both queues on the same fd before FRAME; -f requests an IDR
@@ -107,6 +108,24 @@ static int producer_fd = -1;
 static struct mapped producer_input;
 static struct v4l2_pix_format_mplane producer_format;
 static unsigned int producer_output_size;
+static unsigned int producer_width, producer_height;
+
+static int producer_size(const char *text)
+{
+	char *end;
+	unsigned long width, height;
+
+	errno = 0;
+	width = strtoul(text, &end, 10);
+	if (errno || end == text || *end != 'x' || width < 32 || width > 1920 || (width & 1)) return -1;
+	text = end + 1;
+	errno = 0;
+	height = strtoul(text, &end, 10);
+	if (errno || end == text || *end || height < 2 || height > 1088 || (height & 1)) return -1;
+	producer_width = width;
+	producer_height = height;
+	return 0;
+}
 
 static int fd = -1;
 static struct mapped in[VIDEO_MAX_PLANES], out;
@@ -578,15 +597,24 @@ static void producer_setup(void)
 	producer_fd = open(producer_device, O_RDWR | O_NONBLOCK);
 	if (producer_fd < 0) die("GE2D open");
 	f.fmt.pix_mp = pix;
+	if (producer_width) {
+		f.fmt.pix_mp.width = producer_width;
+		f.fmt.pix_mp.height = producer_height;
+		f.fmt.pix_mp.plane_fmt[0].bytesperline = (producer_width + 31) & ~31u;
+		f.fmt.pix_mp.plane_fmt[0].sizeimage =
+			f.fmt.pix_mp.plane_fmt[0].bytesperline * producer_height * 3 / 2;
+	}
 	producer_ioctl(VIDIOC_S_FMT, &f, "GE2D OUTPUT S_FMT");
 	producer_format = f.fmt.pix_mp;
 	f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	f.fmt.pix_mp = pix;
 	producer_ioctl(VIDIOC_S_FMT, &f, "GE2D CAPTURE S_FMT");
-	if (producer_format.width != w || producer_format.height != h ||
+	if (producer_format.width != (producer_width ? producer_width : w) ||
+	    producer_format.height != (producer_height ? producer_height : h) ||
 	    producer_format.pixelformat != V4L2_PIX_FMT_NV12 || producer_format.num_planes != 1 ||
-	    producer_format.plane_fmt[0].bytesperline < w ||
-	    producer_format.plane_fmt[0].sizeimage < producer_format.plane_fmt[0].bytesperline * h * 3 / 2 ||
+	    producer_format.plane_fmt[0].bytesperline < producer_format.width ||
+	    producer_format.plane_fmt[0].sizeimage <
+		producer_format.plane_fmt[0].bytesperline * producer_format.height * 3 / 2 ||
 	    f.fmt.pix_mp.width != w || f.fmt.pix_mp.height != h ||
 	    f.fmt.pix_mp.pixelformat != V4L2_PIX_FMT_NV12 || f.fmt.pix_mp.num_planes != 1 ||
 	    f.fmt.pix_mp.plane_fmt[0].bytesperline != pix.plane_fmt[0].bytesperline ||
@@ -652,8 +680,13 @@ static void producer_frame(unsigned int frame)
 	struct v4l2_plane plane = { .m.fd = in[0].fd, .length = in[0].size };
 	struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
 		.memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &plane };
+	unsigned int output_width = w, output_height = h;
 
+	w = producer_format.width;
+	h = producer_format.height;
 	put_frame(frame, planes, strides);
+	w = output_width;
+	h = output_height;
 	producer_ioctl(VIDIOC_QBUF, &b, "GE2D CAPTURE QBUF");
 	b.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	b.memory = V4L2_MEMORY_MMAP;
@@ -684,7 +717,7 @@ static void usage(const char *name)
 {
 	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene|palette] [-r FPS[/DIVISOR]]\n"
 		"  [-m 601|709] [-a FORMAT] [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]...\n"
-		"  [-x ...]... [-d dumb|lima] [-G GE2D_DEVICE] [-g] [-e]\n"
+		"  [-x ...]... [-d dumb|lima] [-G GE2D_DEVICE [-S WxH]] [-g] [-e]\n"
 		"  [-s RESTART_FRAME] [-f FORCE_DURING_FRAME]\n"
 		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
 		"FORMAT: NV12 NV12-1 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
@@ -711,7 +744,7 @@ int main(int argc, char **argv)
 	char *end;
 	int option, jpeg;
 
-	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:s:f:G:ge")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:s:f:G:S:ge")) != -1) {
 		switch (option) {
 		case 'p':
 			for (pattern = 0; pattern < PATTERNS && strcmp(optarg, patterns[pattern]); pattern++)
@@ -729,6 +762,7 @@ int main(int argc, char **argv)
 			break;
 		case 'a': negotiate = optarg; break;
 		case 'G': producer_device = optarg; break;
+		case 'S': if (producer_size(optarg)) usage(program); break;
 		case 'd':
 			if (strcmp(optarg, "dumb") && strcmp(optarg, "lima")) usage(program);
 			dmabuf = optarg;
@@ -764,6 +798,12 @@ int main(int argc, char **argv)
 	if (as->planes != format->planes) usage(program);
 	if (producer_device && (generate_only || !dmabuf || strcmp(dmabuf, "dumb") ||
 				format->fourcc != V4L2_PIX_FMT_NV12 || as != format)) usage(program);
+	if (producer_width && (!producer_device || w < 32 || h < 2 ||
+			       w > producer_width || h > producer_height ||
+			       producer_width > 4 * w || producer_height > 4 * h)) usage(program);
+	unsigned int output_width = w, output_height = h;
+
+	if (producer_width) { w = producer_width; h = producer_height; }
 	for (unsigned int i = 0; i < 3; i++)
 		if (!(gradient[i] = malloc(i ? w * h / 4 : w * h))) die("gradient");
 	for (unsigned int y = 0; y < h / 2; y++)
@@ -777,6 +817,8 @@ int main(int argc, char **argv)
 		for (unsigned int i = 0; i < 3; i++) make_texture(&tex[i], i == 2 ? 3 : i, 0);
 	else if (pattern != GRADIENT)
 		make_texture(&tex[0], 0, 0);
+	w = output_width;
+	h = output_height;
 	FILE *ref = !strcmp(argv[3], "/dev/null") ? NULL : !strcmp(argv[3], "-") ? stdout : fopen(argv[3], "wb");
 	if (generate_only) {
 		if (!ref) usage(program);
@@ -840,7 +882,8 @@ int main(int argc, char **argv)
 	struct v4l2_event_subscription sub = { .type = V4L2_EVENT_EOS }; ctl(VIDIOC_SUBSCRIBE_EVENT, &sub);
 	unsigned int type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; ctl(VIDIOC_STREAMON, &type);
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE; ctl(VIDIOC_STREAMON, &type);
-	unsigned char *plane[3] = { in[0].data, in[1].data, in[2].data }, *uv = malloc(w);
+	unsigned char *plane[3] = { in[0].data, in[1].data, in[2].data };
+	unsigned char *uv = malloc(producer_width ? producer_width : w);
 	unsigned int stride[3];
 	for (unsigned int i = 0; i < 3; i++) stride[i] = pix.plane_fmt[i].bytesperline;
 	if (!uv) die("malloc");
@@ -865,7 +908,12 @@ int main(int argc, char **argv)
 			for (unsigned int i = 0; i < pix.num_planes; i++)
 				sync_plane(&in[i], DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
 		}
-		if (ref) write_reference(ref, frame, uv);
+		if (ref) {
+			if (producer_width) { w = producer_width; h = producer_height; }
+			write_reference(ref, frame, uv);
+			w = output_width;
+			h = output_height;
+		}
 		queue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, frame);
 		uint64_t queued = now_us();
 		queue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, pix.num_planes, frame);

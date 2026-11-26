@@ -22,7 +22,8 @@ class Ge2dEncoderClientTests(unittest.TestCase):
 #include <assert.h>
 #include <stdarg.h>
 #include <sys/wait.h>
-static unsigned char source_memory[4096],shared_memory[4096];
+#include <stdbool.h>
+static unsigned char source_memory[16384],shared_memory[4096];
 static unsigned queued,finished,stopped,unmapped,closed;
 static int fault;static unsigned current_frame;
 int mock_open(const char *path,int flags,...){assert(!strcmp(path,"/dev/ge2d-test")&&flags==(O_RDWR|O_NONBLOCK));return 33;}
@@ -51,7 +52,7 @@ int mock_ioctl(int file,unsigned long request,...){
  struct v4l2_buffer *b=arg;
  if(request==VIDIOC_QBUF){
   if(V4L2_TYPE_IS_CAPTURE(b->type)){assert(!queued&&b->memory==V4L2_MEMORY_DMABUF&&b->m.planes[0].m.fd==17);queued=1;}
-  else{assert(queued==1&&b->memory==V4L2_MEMORY_MMAP&&b->m.planes[0].bytesused==3072);queued=2;current_frame=b->timestamp.tv_sec;}
+  else{assert(queued==1&&b->memory==V4L2_MEMORY_MMAP&&b->m.planes[0].bytesused==producer_format.width*producer_format.height*3/2);queued=2;current_frame=b->timestamp.tv_sec;}
   return 0;
  }
  assert(request==VIDIOC_DQBUF&&queued==2);
@@ -62,16 +63,21 @@ int mock_ioctl(int file,unsigned long request,...){
  if(fault==4)b->timestamp.tv_sec++;
  finished++;return 0;
 }
-static void scenario(void){
+static void scenario(bool scaled){
  w=64;h=32;pattern=GRADIENT;format=&formats[1];assert(format->fourcc==V4L2_PIX_FMT_NV12);
+ producer_width=scaled?128:0;producer_height=scaled?64:0;
  producer_device="/dev/ge2d-test";fd=44;dmabuf="dumb";
  pix=(struct v4l2_pix_format_mplane){.width=w,.height=h,.pixelformat=V4L2_PIX_FMT_NV12,.num_planes=1,
   .plane_fmt={{.bytesperline=64,.sizeimage=3072}}};
  in[0]=(struct mapped){shared_memory,sizeof(shared_memory),17};
- for(unsigned p=0;p<3;p++){gradient[p]=malloc(p?w*h/4:w*h);assert(gradient[p]);memset(gradient[p],100,p?w*h/4:w*h);}
+ unsigned source_width=scaled?128:w,source_height=scaled?64:h;
+ for(unsigned p=0;p<3;p++){gradient[p]=malloc(p?source_width*source_height/4:source_width*source_height);assert(gradient[p]);memset(gradient[p],100,p?source_width*source_height/4:source_width*source_height);}
  memset(shared_memory,0xa5,sizeof(shared_memory));producer_setup();
  for(unsigned frame=0;frame<3;frame++){
   queued=finished=0;producer_frame(frame);assert(finished==2);
+  assert(w==64&&h==32&&producer_format.width==source_width&&producer_format.height==source_height);
+  assert(source_memory[(source_height-1)*source_width+source_width-1]==
+   ((source_width-1)*173/source_width+(source_height-1)*47/source_height+frame*11)%224+16);
   for(unsigned i=0;i<sizeof(shared_memory);i++)assert(shared_memory[i]==0xa5);
   queue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,1,frame);
  }
@@ -81,10 +87,10 @@ static void scenario(void){
 int main(void){
  for(int f=1;f<=6;f++){
   pid_t child=fork();assert(child>=0);
-  if(!child){fault=f;scenario();_exit(99);}
+  if(!child){fault=f;scenario(false);_exit(99);}
   int status;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==1);
  }
- scenario();return 0;
+ scenario(false);queued=finished=stopped=unmapped=closed=0;scenario(true);return 0;
 }
 '''
         with tempfile.TemporaryDirectory() as directory:
@@ -102,8 +108,37 @@ int main(void){
             subprocess.run(['cc', '-O2', '-Wall', '-Wextra', '-Werror',
                             str(ROOT / 'tests/encode-test.c'), '-o', str(binary)], check=True)
             for extra, fmt in [([], 'NV12-1'), (['-d', 'lima'], 'NV12-1'),
-                               (['-d', 'dumb'], 'NV12'), (['-d', 'dumb', '-g'], 'NV12-1')]:
+                               (['-d', 'dumb'], 'NV12'), (['-d', 'dumb', '-g'], 'NV12-1'),
+                               (['-d', 'dumb', '-S', '32x16'], 'NV12-1'),
+                               (['-d', 'dumb', '-S', '320x160'], 'NV12-1'),
+                               (['-d', 'dumb', '-S', '128x63'], 'NV12-1'),
+                               (['-d', 'dumb', '-S', '128x64junk'], 'NV12-1')]:
                 result = subprocess.run([str(binary), '-G', '/dev/absent', *extra,
                                          '/dev/absent', '-', '/dev/null', '64', '32', '1',
                                          fmt, '85', 'H264'], capture_output=True)
                 self.assertEqual(result.returncode, 2, (extra, fmt))
+
+    def test_source_size_parser_preserves_geometry_on_invalid_input(self):
+        code = r'''
+#define main diagnostic_main
+#include "encode-test.c"
+#undef main
+#include <assert.h>
+int main(void){
+ assert(!producer_size("1920x1080")&&producer_width==1920&&producer_height==1080);
+ const char *bad[]={"0x32","31x32","33x32","32x0","32x33","1922x1080","1920x1090",
+  "1920x1080junk","1920","-32x32","32x-2","4294967328x32","32x4294967328"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){
+  assert(producer_size(bad[i])==-1&&producer_width==1920&&producer_height==1080);
+ }
+ assert(!producer_size("32x2")&&producer_width==32&&producer_height==2);return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
