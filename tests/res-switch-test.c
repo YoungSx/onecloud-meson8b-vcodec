@@ -10,6 +10,8 @@
  * the last input before DEC_CMD_STOP, as a stalled or paused source would.
  * CAPTURE_DMABUF=/dev/dri/cardN imports DRM dumb buffers into CAPTURE.
  * CAPTURE_SIZE=WxH requests an exact scaled output after SOURCE_CHANGE.
+ * ENCODE_DEVICE=PATH ENCODE_STREAM=FILE encodes each imported NV12M picture
+ * before returning it to the decoder; requires CAPTURE_DMABUF.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -67,6 +69,204 @@ static unsigned long pictures;
 static unsigned long streamoff_after;
 static int streamoff_capture_first;
 static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+static const char *encode_device;
+static FILE *encode_stream;
+static int encode_fd = -1;
+static void *encode_data;
+static unsigned int encode_size;
+static unsigned int encode_streaming;
+static struct v4l2_pix_format_mplane encode_format;
+
+static void encode_ioctl(unsigned long request, void *argument, const char *what)
+{
+	if (ioctl(encode_fd, request, argument)) {
+		perror(what);
+		exit(1);
+	}
+}
+
+static struct v4l2_buffer encode_dequeue(unsigned int type, unsigned int count,
+				       struct v4l2_plane *planes)
+{
+	struct v4l2_buffer b = { .type = type, .length = count, .m.planes = planes,
+		.memory = V4L2_TYPE_IS_OUTPUT(type) ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP };
+
+	for (unsigned int tries = 0; tries < 50; tries++) {
+		if (!ioctl(encode_fd, VIDIOC_DQBUF, &b))
+			return b;
+		if (errno != EAGAIN)
+			break;
+		struct pollfd pfd = { .fd = encode_fd, .events = POLLIN | POLLOUT };
+
+		if (poll(&pfd, 1, 100) < 0 || (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)))
+			break;
+		usleep(1000);
+	}
+	fprintf(stderr, "encoder DQBUF failed or timed out\n");
+	exit(1);
+}
+
+static void encode_capture_queue(void)
+{
+	struct v4l2_plane plane = { .length = encode_size };
+	struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+		.memory = V4L2_MEMORY_MMAP, .length = 1, .m.planes = &plane };
+
+	encode_ioctl(VIDIOC_QBUF, &b, "encoder CAPTURE QBUF");
+}
+
+/* Stop the consumer before releasing any imported producer buffers. */
+static void encode_stop(bool drain)
+{
+	unsigned int type;
+
+	if (encode_fd < 0)
+		return;
+	if (drain) {
+		struct v4l2_encoder_cmd command = { .cmd = V4L2_ENC_CMD_STOP };
+		struct v4l2_plane plane = {0};
+		struct v4l2_buffer b;
+
+		encode_capture_queue();
+		encode_ioctl(VIDIOC_ENCODER_CMD, &command, "encoder STOP");
+		b = encode_dequeue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, &plane);
+		if (!(b.flags & V4L2_BUF_FLAG_LAST) || (b.flags & V4L2_BUF_FLAG_ERROR) || plane.bytesused) {
+			fprintf(stderr, "encoder drain did not return an empty LAST\n");
+			exit(1);
+		}
+	}
+	if (encode_streaming & 1) {
+		type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+		encode_ioctl(VIDIOC_STREAMOFF, &type, "encoder OUTPUT STREAMOFF");
+	}
+	if (encode_streaming & 2) {
+		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+		encode_ioctl(VIDIOC_STREAMOFF, &type, "encoder CAPTURE STREAMOFF");
+	}
+	if (encode_data && encode_data != MAP_FAILED)
+		munmap(encode_data, encode_size);
+	close(encode_fd);
+	encode_fd = -1;
+	encode_streaming = 0;
+	encode_data = NULL;
+}
+
+static void encode_setup(const struct v4l2_pix_format_mplane *source)
+{
+	struct v4l2_format f = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
+	struct v4l2_requestbuffers r = { .type = f.type, .memory = V4L2_MEMORY_DMABUF, .count = 1 };
+	struct v4l2_plane plane = {0};
+	struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+		.memory = V4L2_MEMORY_MMAP, .length = 1, .m.planes = &plane };
+	unsigned int type;
+
+	if (!encode_device)
+		return;
+	if (capture_drm < 0 || source->pixelformat != V4L2_PIX_FMT_NV12M || source->num_planes != 2) {
+		fprintf(stderr, "shared encoding requires imported NV12M CAPTURE\n");
+		exit(1);
+	}
+	encode_fd = open(encode_device, O_RDWR | O_NONBLOCK);
+	if (encode_fd < 0) {
+		perror("encoder open");
+		exit(1);
+	}
+	f.fmt.pix_mp = *source;
+	encode_ioctl(VIDIOC_S_FMT, &f, "encoder OUTPUT S_FMT");
+	encode_format = f.fmt.pix_mp;
+	if (encode_format.pixelformat != source->pixelformat || encode_format.num_planes != 2 ||
+	    encode_format.width != source->width || encode_format.height != source->height) {
+		fprintf(stderr, "decoder and encoder formats differ\n");
+		exit(1);
+	}
+	for (unsigned int i = 0; i < 2; i++)
+		if (encode_format.plane_fmt[i].bytesperline != source->plane_fmt[i].bytesperline ||
+		    encode_format.plane_fmt[i].sizeimage > source->plane_fmt[i].sizeimage) {
+			fprintf(stderr, "decoder and encoder plane layouts differ\n");
+			exit(1);
+		}
+	f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	memset(&f.fmt.pix_mp, 0, sizeof(f.fmt.pix_mp));
+	f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_H264;
+	encode_ioctl(VIDIOC_S_FMT, &f, "encoder CAPTURE S_FMT");
+	if (f.fmt.pix_mp.pixelformat != V4L2_PIX_FMT_H264 || f.fmt.pix_mp.num_planes != 1) {
+		fprintf(stderr, "encoder did not accept H264\n");
+		exit(1);
+	}
+	encode_ioctl(VIDIOC_REQBUFS, &r, "encoder OUTPUT REQBUFS");
+	r.type = b.type;
+	r.memory = b.memory;
+	r.count = 1;
+	encode_ioctl(VIDIOC_REQBUFS, &r, "encoder CAPTURE REQBUFS");
+	encode_ioctl(VIDIOC_QUERYBUF, &b, "encoder CAPTURE QUERYBUF");
+	encode_size = plane.length;
+	encode_data = mmap(NULL, encode_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+			   encode_fd, plane.m.mem_offset);
+	if (encode_data == MAP_FAILED) {
+		perror("encoder capture mmap");
+		exit(1);
+	}
+	type = b.type;
+	encode_ioctl(VIDIOC_STREAMON, &type, "encoder CAPTURE STREAMON");
+	encode_streaming |= 2;
+	type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	encode_ioctl(VIDIOC_STREAMON, &type, "encoder OUTPUT STREAMON");
+	encode_streaming |= 1;
+}
+
+/* The decoder's DQBUF grants ownership until both encoder queues return. */
+static void encode_frame(const struct v4l2_buffer *source)
+{
+	struct v4l2_plane planes[2] = {0};
+	struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
+		.memory = V4L2_MEMORY_DMABUF, .length = 2, .m.planes = planes,
+		.timestamp = source->timestamp };
+	const struct buffer *buffer;
+
+	if (!encode_device || !source->m.planes[0].bytesused)
+		return;
+	if (encode_fd < 0 || source->index >= (unsigned int)ncap || source->length != 2 ||
+	    (source->flags & V4L2_BUF_FLAG_ERROR)) {
+		fprintf(stderr, "invalid decoder picture for encoder\n");
+		exit(1);
+	}
+	buffer = &capbufs[source->index];
+	if (buffer->nplanes != 2) {
+		fprintf(stderr, "invalid shared encoder plane count\n");
+		exit(1);
+	}
+	for (unsigned int i = 0; i < 2; i++) {
+		if (source->m.planes[i].data_offset ||
+		    source->m.planes[i].bytesused < encode_format.plane_fmt[i].sizeimage ||
+		    source->m.planes[i].bytesused > buffer->planes[i].length) {
+			fprintf(stderr, "invalid shared encoder payload\n");
+			exit(1);
+		}
+		planes[i].m.fd = buffer->planes[i].dma_fd;
+		planes[i].length = buffer->planes[i].length;
+		planes[i].bytesused = source->m.planes[i].bytesused;
+	}
+	encode_capture_queue();
+	encode_ioctl(VIDIOC_QBUF, &b, "encoder OUTPUT QBUF");
+	memset(planes, 0, sizeof(planes));
+	b = encode_dequeue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, planes);
+	if (b.index || (b.flags & V4L2_BUF_FLAG_ERROR) || !planes[0].bytesused ||
+	    planes[0].bytesused > encode_size ||
+	    b.timestamp.tv_sec != source->timestamp.tv_sec ||
+	    b.timestamp.tv_usec != source->timestamp.tv_usec) {
+		fprintf(stderr, "invalid encoder completion\n");
+		exit(1);
+	}
+	if (fwrite(encode_data, 1, planes[0].bytesused, encode_stream) != planes[0].bytesused) {
+		perror("encoded stream write");
+		exit(1);
+	}
+	b = encode_dequeue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, 2, planes);
+	if (b.index || (b.flags & V4L2_BUF_FLAG_ERROR)) {
+		fprintf(stderr, "encoder did not return shared input\n");
+		exit(1);
+	}
+}
 
 static int parse_capture_size(const char *text)
 {
@@ -112,6 +312,7 @@ static void capture_sync(struct plane *plane, uint64_t flags)
 
 static void capture_cleanup(void)
 {
+	encode_stop(false);
 	for (int i = 0; i < ncap; i++)
 		for (int j = 0; j < capbufs[i].nplanes; j++) {
 			struct plane *plane = &capbufs[i].planes[j];
@@ -196,19 +397,23 @@ static int dump_frame(struct v4l2_buffer *b)
 		const unsigned char *p = capbufs[b->index].planes[j].start;
 		size_t n = b->m.planes[j].bytesused;
 
-		capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
+		if (dumpf || hashf)
+			capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
 		if (dumpf)
 			fwrite(p, 1, n, dumpf);
 		if (hashf)
 			for (size_t i = 0; i < n; i++)
 				hash = (hash ^ p[i]) * 0x100000001b3ULL;
 		bytes += n;
-		capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ);
+		if (dumpf || hashf)
+			capture_sync(&capbufs[b->index].planes[j], DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ);
 	}
 	if (hashf && bytes)
 		fprintf(hashf, "%lu %zu %016llx\n", pictures, bytes, hash);
 	if (bytes)
 		pictures++;
+	if (bytes)
+		encode_frame(b);
 	return bytes != 0;
 }
 
@@ -331,6 +536,7 @@ static void setup_capture(void)
 		}
 		printf("CAPTURE_SIZE %ux%u\n", capture_width, capture_height);
 	}
+	encode_setup(&fmt.fmt.pix_mp);
 
 	rb.count = capture_count;
 	rb.type = fmt.type;
@@ -431,6 +637,7 @@ static void reinit_capture(void)
 	/* Initial source change has no running CAPTURE queue to drain. */
 	if (ncap) {
 		drain_capture(type);
+		encode_stop(true);
 		xioctl(VIDIOC_STREAMOFF, &type, "STREAMOFF(CAPTURE)");
 	}
 	capture_cleanup();
@@ -506,6 +713,20 @@ int main(int argc, char **argv)
 	if (parse_capture_size(getenv("CAPTURE_SIZE"))) {
 		fprintf(stderr, "CAPTURE_SIZE must be an even WxH up to 1920x1088\n");
 		return 2;
+	}
+	encode_device = getenv("ENCODE_DEVICE");
+	if (encode_device) {
+		const char *path = getenv("ENCODE_STREAM");
+
+		if (capture_drm < 0 || !path) {
+			fprintf(stderr, "ENCODE_DEVICE requires CAPTURE_DMABUF and ENCODE_STREAM\n");
+			return 2;
+		}
+		encode_stream = fopen(path, "wb");
+		if (!encode_stream) {
+			perror("open encoded stream");
+			return 1;
+		}
 	}
 
 	if (getenv("STREAMOFF_AFTER"))
@@ -789,6 +1010,11 @@ int main(int argc, char **argv)
 				if (stop_early(pictures))
 					return 0;
 				if (b.flags & V4L2_BUF_FLAG_LAST) {
+					encode_stop(true);
+					if (encode_stream && fclose(encode_stream)) {
+						perror("encoded stream close");
+						return 1;
+					}
 					printf("EOS frames=%lu resolutions=%lu\n",
 					       pictures, resolutions);
 					return 0;

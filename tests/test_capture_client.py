@@ -69,7 +69,8 @@ int main(void){
  capture_dumb(&capbufs[0].planes[0]);
  struct v4l2_plane plane={.bytesused=8};struct v4l2_buffer b={.index=0,.length=1,.m.planes=&plane};
  capture_import_planes(&b);assert(plane.m.fd==17&&plane.length==sizeof(storage));
- assert(dump_frame(&b)&&pictures==1&&syncs==2);
+ hashf=tmpfile();assert(hashf);
+ assert(dump_frame(&b)&&pictures==1&&syncs==2);fclose(hashf);hashf=NULL;
  capture_cleanup();assert(!ncap&&unmaps==1&&closes==1&&destroys==1);
  capture_cleanup();assert(unmaps==1&&closes==1&&destroys==1);return 0;
 }
