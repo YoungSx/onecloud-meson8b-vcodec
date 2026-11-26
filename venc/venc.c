@@ -1268,7 +1268,8 @@ static void venc_copy_rows(u8 *dst, u32 dst_stride, u8 *src, u32 src_stride,
 /*
  * Point ctx->input at this frame's planes. A DMA-BUF NV12/NV21 frame whose
  * planes each map to one contiguous range with the canvas line width feeds
- * MFDIN in place. Anything else is copied into the staging buffer as the
+ * MFDIN in place. Single-plane NV12 also requires complete macroblock rows.
+ * Anything else is copied into the staging buffer as the
  * canvases of venc_set_input_format() expect it; rows and columns outside
  * the visible size stay as zeroed at allocation, so edge macroblocks encode
  * deterministic data. Source strides are the negotiated ones.
@@ -1295,14 +1296,24 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		u32 stride = pix.plane_fmt[0].bytesperline;
 		u32 offset = stride * ctx->height;
 		u32 bytes = vb2_get_plane_payload(b, 0);
+		dma_addr_t address;
 
 		if (bytes < offset + stride * ctx->height / 2)
 			return -EINVAL;
+		width = venc_canvas_bytes(fmt, ctx->coded_width, 0);
+		address = venc_input_dma(b, 0);
+		/* A partial macroblock row would read chroma beyond the NV12 plane. */
+		if (address && !(address & 7) && stride == width && rows == ctx->height &&
+		    (u64)address + offset + offset / 2 <= (u64)U32_MAX + 1) {
+			ctx->input[0] = address;
+			ctx->input[1] = address + offset;
+			ctx->core->direct_frames++;
+			return 0;
+		}
 		src = venc_input_begin_cpu(b, 0);
 		if (!src)
 			return -EFAULT;
 		start = ktime_get();
-		width = venc_canvas_bytes(fmt, ctx->coded_width, 0);
 		venc_copy_rows(dst, width, src, stride, ctx->width, ctx->height, bytes);
 		venc_copy_rows(dst + width * rows, width, src + offset, stride,
 			       ctx->width, ctx->height / 2, bytes - offset);

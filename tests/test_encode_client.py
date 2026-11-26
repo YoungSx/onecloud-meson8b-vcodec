@@ -100,6 +100,41 @@ int main(void){
                             '-o', str(root / 'test')], check=True)
             subprocess.run([str(root / 'test')], check=True)
 
+    def test_single_memory_plane_nv12_matches_multiplanar_pixels(self):
+        code = r'''
+#define main diagnostic_main
+#include "encode-test.c"
+#undef main
+#include <assert.h>
+int main(void){
+ w=66;h=18;pattern=GRADIENT;
+ for(unsigned i=0;i<3;i++){gradient[i]=malloc(i?w*h/4:w*h);assert(gradient[i]);memset(gradient[i],80+i*50,i?w*h/4:w*h);}
+ unsigned stride[3]={96,96,0},luma=stride[0]*h,total=luma*3/2;
+ unsigned char *single=malloc(total+16),*y=calloc(1,luma),*uv=calloc(1,luma/2);assert(single&&y&&uv);
+ memset(single,0,total);memset(single+total,0xa5,16);
+ unsigned char *one[3]={single,NULL,NULL},*two[3]={y,uv,NULL};
+ for(unsigned frame=0;frame<3;frame++){
+  for(format=formats;format->fourcc!=V4L2_PIX_FMT_NV12;format++){}
+  assert(format->planes==1);
+  put_frame(frame,one,stride);
+  format=&formats[0];assert(format->fourcc==V4L2_PIX_FMT_NV12M&&format->planes==2);
+  put_frame(frame,two,stride);
+  assert(!memcmp(single,y,luma)&&!memcmp(single+luma,uv,luma/2));
+  for(unsigned i=0;i<16;i++)assert(single[total+i]==0xa5);
+ }
+ for(unsigned i=0;i<3;i++)free(gradient[i]);
+ free(single);free(y);free(uv);return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
 
 class BaselineReportTests(unittest.TestCase):
     def test_frame_statistics(self):

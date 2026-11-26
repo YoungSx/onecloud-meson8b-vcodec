@@ -15,6 +15,7 @@
  * continues. -m picks the RGB conversion for RGB formats, -a sends FORMAT's
  * bytes under another fourcc and -d queues OUTPUT planes as DMA-BUFs from
  * meson-drm dumb buffers (contiguous) or lima GEM objects (scattered).
+ * FORMAT NV12-1 uses one contiguous memory plane; NV12 uses two (NV12M).
  * Each frame prints "frame N bytes B flags F latency_us L" (OUTPUT QBUF to
  * CAPTURE DQBUF).
  * -s restarts both queues on the same fd before FRAME; -f requests an IDR
@@ -85,6 +86,7 @@ static const struct format {
 	const char *order;		/* PACKED_RGB bytes in memory */
 } formats[] = {
 	{ "NV12", V4L2_PIX_FMT_NV12M, 2, SEMI_UV, NULL },
+	{ "NV12-1", V4L2_PIX_FMT_NV12, 1, SEMI_UV, NULL },
 	{ "NV21", V4L2_PIX_FMT_NV21M, 2, SEMI_VU, NULL },
 	{ "YU12", V4L2_PIX_FMT_YUV420M, 3, PLANAR_420, NULL },
 	{ "YUYV", V4L2_PIX_FMT_YUYV, 1, PACKED_YUYV, NULL },
@@ -296,7 +298,8 @@ static void put_frame(unsigned int frame, unsigned char *const plane[3],
 			memcpy(row, luma, w);
 			if (y & 1)
 				break;
-			row = plane[1] + y / 2 * stride[1];
+			row = format->fourcc == V4L2_PIX_FMT_NV12 ?
+				plane[0] + (h + y / 2) * stride[0] : plane[1] + y / 2 * stride[1];
 			if (layout == PLANAR_420) {
 				memcpy(row, u, w / 2);
 				memcpy(plane[2] + y / 2 * stride[2], v, w / 2);
@@ -557,7 +560,7 @@ static void usage(const char *name)
 		"  [-x ...]... [-d dumb|lima] [-g] [-e]\n"
 		"  [-s RESTART_FRAME] [-f FORCE_DURING_FRAME]\n"
 		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
-		"FORMAT: NV12 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
+		"FORMAT: NV12 NV12-1 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
 	exit(2);
 }
 

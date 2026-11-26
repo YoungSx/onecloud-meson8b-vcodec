@@ -29,6 +29,7 @@ class EncoderInputTransactionTests(unittest.TestCase):
 typedef uint8_t u8;typedef uint32_t u32;typedef uint64_t u64;
 typedef uintptr_t dma_addr_t;typedef int64_t ktime_t;
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
+#define U32_MAX UINT32_MAX
 #define min(a,b) ((a)<(b)?(a):(b))
 #define VENC_INPUT 0
 #define VENC_STREAM 1
@@ -55,6 +56,7 @@ struct venc_ctx {struct venc_core *core;const struct venc_format *src;u32 src_fo
 struct vb2_buffer {unsigned num_planes;u8 *data[3];u32 size[3],payload[3];bool imported;};
 static unsigned waits,begins,ends,kicks,done,barriers,active;
 static int wait_error,begin_fail=-1,end_fail=-1;static bool direct;
+static dma_addr_t imported_address=0x200000;
 static inline int venc_input_wait(struct vb2_buffer *b){(void)b;assert(!active);waits++;return wait_error;}
 static void *venc_input_begin_cpu(struct vb2_buffer *b,unsigned i){
  assert(!active&&i<b->num_planes);begins++;if((int)i==begin_fail)return NULL;active=1u<<i;return b->data[i];
@@ -63,7 +65,7 @@ static int venc_input_end_cpu(struct vb2_buffer *b,unsigned i){
  (void)b;assert(active==(1u<<i));active=0;ends++;return (int)i==end_fail?-EIO:0;
 }
 static dma_addr_t venc_input_dma(struct vb2_buffer *b,unsigned i){
- assert(!active&&i<b->num_planes);return direct?0x200000+i*0x10000:0;
+ assert(!active&&i<b->num_planes);return direct?imported_address+i*0x10000:0;
 }
 static u32 vb2_get_plane_payload(struct vb2_buffer *b,unsigned i){return b->payload[i];}
 static u32 vb2_plane_size(struct vb2_buffer *b,unsigned i){return b->size[i];}
@@ -110,12 +112,50 @@ int main(void){
   }
   reset();core=(struct venc_core){0};assert(!(jpeg?venc_encode_jpeg(&c,&src,&dst):venc_encode_frame(&c,&src,&dst,true)));
   assert(waits==1&&begins==planes&&ends==planes&&kicks==1&&core.copied_frames==1&&!active);
-  if(layout==1){
+  if(layout<2){
    reset();core=(struct venc_core){0};direct=true;
    assert(!(jpeg?venc_encode_jpeg(&c,&src,&dst):venc_encode_frame(&c,&src,&dst,false)));
    assert(waits==1&&!begins&&!ends&&kicks==1&&core.direct_frames==1&&!core.copied_frames);
+   assert(c.input[0]==0x200000&&c.input[1]==0x200000+(layout?0x10000:32*16));
   }
  }
+ /* Exercise the single-plane fast path at real canvas sizes and DMA limits. */
+ u8 *input=malloc(4*1024*1024),*stage_buffer=malloc(4*1024*1024);assert(input&&stage_buffer);
+ memset(input,0x65,4*1024*1024);
+ struct {u32 width,height,coded;dma_addr_t address;bool mapped,expected;} cases[]={
+  {1280,720,1280,0x200000,true,true},{854,480,864,0x200000,true,true},
+  {1920,1088,1920,0x200000,true,true},{1920,1080,1920,0x200000,true,false},
+  {66,18,80,0x200000,true,false},{32,16,64,0x200000,true,false},
+  {1280,720,1280,0x200001,true,false},{1280,720,1280,0,true,false},
+  {1280,720,1280,0x200000,false,false},
+  {32,16,32,(dma_addr_t)U32_MAX+1-768,true,true},
+  {32,16,32,(dma_addr_t)U32_MAX+1-760,true,false},
+  {32,16,32,(dma_addr_t)U32_MAX+1,true,false}
+ };
+ for(unsigned k=0;k<sizeof(cases)/sizeof(cases[0]);k++){
+  struct venc_core core={0};
+  struct venc_ctx c={.core=&core,.src=&formats[0],.src_fourcc=V4L2_PIX_FMT_NV12,
+   .width=cases[k].width,.height=cases[k].height,.coded_width=cases[k].coded,.buffers={{0x100000,stage_buffer}}};
+  u32 stride=ALIGN(c.width,32),offset=stride*c.height,bytes=offset*3/2;
+  struct vb2_buffer b={.num_planes=1,.data={input},.size={bytes},.payload={bytes}};
+  reset();direct=cases[k].mapped;imported_address=cases[k].address;memset(stage_buffer,0xa5,4*1024*1024);
+  assert(!venc_stage_input(&c,&b)&&waits==1&&!active);
+  assert(core.direct_frames==cases[k].expected&&core.copied_frames==!cases[k].expected);
+  if(cases[k].expected){
+   assert(!begins&&!ends&&!barriers&&c.input[0]==cases[k].address&&c.input[1]==cases[k].address+offset);
+   for(unsigned i=0;i<4*1024*1024;i++)assert(stage_buffer[i]==0xa5);
+  }else{
+   u32 width=venc_canvas_bytes(c.src,c.coded_width,0),rows=ALIGN(c.height,16);
+   assert(begins==1&&ends==1&&barriers==1&&c.input[0]==0x100000&&c.input[1]==0x100000+width*rows);
+   assert(stage_buffer[0]==0x65&&stage_buffer[width*rows]==0x65);
+  }
+  /* A short payload must fail even when its allocation/address could fit. */
+  reset();direct=true;core=(struct venc_core){0};b.payload[0]=bytes-1;
+  assert(venc_stage_input(&c,&b)==-EINVAL&&!begins&&!ends&&!core.direct_frames&&!core.copied_frames);
+  b.payload[0]=bytes;wait_error=-EINTR;
+  assert(venc_stage_input(&c,&b)==-EINTR&&!begins&&!ends&&!core.direct_frames&&!core.copied_frames);
+ }
+ free(input);free(stage_buffer);
  return 0;
 }
 '''
