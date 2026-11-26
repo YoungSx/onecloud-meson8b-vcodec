@@ -12,7 +12,7 @@ class MjpegCaptureTests(unittest.TestCase):
         source = (ROOT / 'vdec/meson8b-capture.c').read_text()
         helpers = (ROOT / 'vdec/vdec_helpers.c').read_text()
         convert = source[source.index('static int amvdec_copy_window('):
-                         source.index('/* Convert one decoded picture', source.index('static int amvdec_meson8b_convert('))]
+                         source.index('static int amvdec_cpu_capture(')]
         pool = source[source.index('static u32 amvdec_pool_luma('):
                       source.index('static void amvdec_pool_free_slots(')]
         canvas = helpers[helpers.index('static int set_canvas_mjpeg('):

@@ -8835,7 +8835,7 @@
 +};
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,687 @@
+@@ -0,0 +1,699 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/dma-buf.h>
@@ -9048,7 +9048,35 @@
 +	return 0;
 +}
 +
-+/* Convert one decoded picture into @vb, accounting the CPU time. */
++static int amvdec_cpu_capture(struct amvdec_session *sess,
++			      const struct amvdec_geometry *geo,
++			      const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
++{
++	unsigned int i, acquired = 0;
++	int ret;
++
++	/* A DMA-BUF fallback writes through its CPU mapping after GE2D has stopped. */
++	for (i = 0; i < vb->num_planes; i++) {
++		if (!vb->planes[i].dbuf)
++			continue;
++		ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++		if (ret)
++			goto finish;
++		acquired = i + 1;
++	}
++	ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
++finish:
++	for (i = 0; i < acquired; i++)
++		if (vb->planes[i].dbuf) {
++			int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
++
++			if (!ret)
++				ret = end_ret;
++		}
++	return ret;
++}
++
++/* Convert one decoded picture through GE2D or an unscaled CPU fallback. */
 +static int amvdec_ge2d_capture(struct amvdec_session *sess,
 +			     const struct amvdec_geometry *geo,
 +			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
@@ -9075,11 +9103,12 @@
 +		.left = geo->crop_left, .top = geo->crop_top,
 +		.width = geo->width, .height = geo->height,
 +	};
++	void *dst[2];
 +	unsigned int i;
-+	int ret;
++	int ret = -EOPNOTSUPP;
 +
 +	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
-+		return -EOPNOTSUPP;
++		goto fallback;
 +	if (vb->num_planes != 2 || !shadow->vaddr || shadow->luma < stride * height ||
 +	    shadow->size < shadow->luma + stride * height / 2 ||
 +	    (u64)shadow->paddr + shadow->size > (u64)U32_MAX + 1)
@@ -9088,7 +9117,7 @@
 +		u32 rows = i ? output.height / 2 : output.height;
 +		u32 payload = luma / (i ? 2 : 1);
 +
-+		if (vb->planes[i].data_offset || !vb2_plane_vaddr(vb, i) ||
++		if (vb->planes[i].data_offset ||
 +		    vb2_plane_size(vb, i) < payload || payload < output.stride * rows)
 +			return -EINVAL;
 +	}
@@ -9100,14 +9129,13 @@
 +		}
 +		ret = amvdec_shadow_alloc(sess, stage, luma);
 +		if (ret)
-+			return ret;
++			goto fallback;
 +		core->pool_bytes += stage->size;
 +	}
 +	for (i = 0; i < 2; i++) {
 +		u32 rows = i ? output.height / 2 : output.height;
 +		u32 payload = luma / (i ? 2 : 1);
-+		void *address = imported ? vb2_plane_vaddr(vb, i) :
-+			stage->vaddr + (i ? luma : 0);
++		void *address;
 +		u32 row;
 +
 +		if (vb->planes[i].dbuf) {
@@ -9115,53 +9143,41 @@
 +			if (ret)
 +				return ret;
 +		}
-+		/* GE2D writes visible pixels; do not expose a previous image in padding. */
-+		for (row = 0; row < rows; row++)
-+			memset(address + row * output.stride + output.width, 0,
-+			       output.stride - output.width);
-+		memset(address + output.stride * rows, 0, payload - output.stride * rows);
-+		if (vb->planes[i].dbuf) {
-+			ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
-+			if (ret)
-+				return ret;
++		dst[i] = vb2_plane_vaddr(vb, i);
++		ret = dst[i] ? 0 : -EINVAL;
++		if (!ret) {
++			address = imported ? dst[i] : stage->vaddr + (i ? luma : 0);
++			/* GE2D only writes visible pixels; clear the remaining padding. */
++			for (row = 0; row < rows; row++)
++				memset(address + row * output.stride + output.width, 0,
++				       output.stride - output.width);
++			memset(address + output.stride * rows, 0, payload - output.stride * rows);
 +		}
-+		output.address[i] = imported ? vb2_dma_contig_plane_dma_addr(vb, i) :
-+			stage->paddr + (i ? luma : 0);
-+	}
-+	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
-+	if (!ret && !imported) {
-+		memcpy(vb2_plane_vaddr(vb, 0), stage->vaddr, luma);
-+		memcpy(vb2_plane_vaddr(vb, 1), stage->vaddr + luma, luma / 2);
-+	}
-+	return ret;
-+}
-+
-+static int amvdec_cpu_capture(struct amvdec_session *sess,
-+			     const struct amvdec_geometry *geo,
-+			     const struct amvdec_shadow *shadow, struct vb2_buffer *vb)
-+{
-+	unsigned int i, acquired = 0;
-+	int ret;
-+
-+	/* A DMA-BUF fallback writes through its CPU mapping after GE2D has stopped. */
-+	for (i = 0; i < vb->num_planes; i++) {
-+		if (!vb->planes[i].dbuf)
-+			continue;
-+		ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
-+		if (ret)
-+			goto finish;
-+		acquired = i + 1;
-+	}
-+	ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
-+finish:
-+	for (i = 0; i < acquired; i++)
 +		if (vb->planes[i].dbuf) {
 +			int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
 +
 +			if (!ret)
 +				ret = end_ret;
 +		}
-+	return ret;
++		if (ret)
++			return ret;
++		output.address[i] = imported ? vb2_dma_contig_plane_dma_addr(vb, i) :
++			stage->paddr + (i ? luma : 0);
++	}
++	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
++	if (ret)
++		goto fallback;
++	core->ge2d_frames++;
++	if (!imported) {
++		memcpy(dst[0], stage->vaddr, luma);
++		memcpy(dst[1], stage->vaddr + luma, luma / 2);
++	}
++	return 0;
++
++fallback:
++	if (capture.width != geo->width || capture.height != geo->height)
++		return ret;
++	return amvdec_cpu_capture(sess, geo, shadow, vb);
 +}
 +
 +static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
@@ -9177,10 +9193,6 @@
 +
 +	if (sess->core->ge2d_dev) {
 +		ret = amvdec_ge2d_capture(sess, geo, shadow, vb);
-+		if (!ret)
-+			sess->core->ge2d_frames++;
-+		else if (!scaled)
-+			ret = amvdec_cpu_capture(sess, geo, shadow, vb);
 +	} else {
 +		if (scaled)
 +			return -EOPNOTSUPP;
