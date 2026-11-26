@@ -16,6 +16,7 @@
  * bytes under another fourcc and -d queues OUTPUT planes as DMA-BUFs from
  * meson-drm dumb buffers (contiguous) or lima GEM objects (scattered).
  * FORMAT NV12-1 uses one contiguous memory plane; NV12 uses two (NV12M).
+ * -G GE2D_DEVICE produces NV12-1 directly into the encoder's dumb DMA-BUF.
  * Each frame prints "frame N bytes B flags F latency_us L" (OUTPUT QBUF to
  * CAPTURE DQBUF).
  * -s restarts both queues on the same fd before FRAME; -f requests an IDR
@@ -100,6 +101,12 @@ static const struct format {
 	{ "RX24", V4L2_PIX_FMT_BGRX32, 1, PACKED_RGB, "XBGR" },
 };
 static const struct format *format = &formats[0];
+
+static const char *producer_device;
+static int producer_fd = -1;
+static struct mapped producer_input;
+static struct v4l2_pix_format_mplane producer_format;
+static unsigned int producer_output_size;
 
 static int fd = -1;
 static struct mapped in[VIDEO_MAX_PLANES], out;
@@ -553,11 +560,131 @@ static struct v4l2_buffer dequeue(unsigned int type, unsigned int n, struct v4l2
 	errno = ETIMEDOUT; die("DQBUF"); return b;
 }
 
+static void producer_ioctl(unsigned long request, void *argument, const char *name)
+{
+	if (ioctl(producer_fd, request, argument)) die(name);
+}
+
+/* GE2D CAPTURE and encoder OUTPUT import the same memory plane. */
+static void producer_setup(void)
+{
+	struct v4l2_format f = { .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE };
+	struct v4l2_requestbuffers r = { .type = f.type, .memory = V4L2_MEMORY_MMAP, .count = 1 };
+	struct v4l2_plane plane = {0};
+	struct v4l2_buffer b = { .type = f.type, .memory = r.memory, .length = 1, .m.planes = &plane };
+	unsigned int type;
+
+	if (!producer_device) return;
+	producer_fd = open(producer_device, O_RDWR | O_NONBLOCK);
+	if (producer_fd < 0) die("GE2D open");
+	f.fmt.pix_mp = pix;
+	producer_ioctl(VIDIOC_S_FMT, &f, "GE2D OUTPUT S_FMT");
+	producer_format = f.fmt.pix_mp;
+	f.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	f.fmt.pix_mp = pix;
+	producer_ioctl(VIDIOC_S_FMT, &f, "GE2D CAPTURE S_FMT");
+	if (producer_format.width != w || producer_format.height != h ||
+	    producer_format.pixelformat != V4L2_PIX_FMT_NV12 || producer_format.num_planes != 1 ||
+	    producer_format.plane_fmt[0].bytesperline < w ||
+	    producer_format.plane_fmt[0].sizeimage < producer_format.plane_fmt[0].bytesperline * h * 3 / 2 ||
+	    f.fmt.pix_mp.width != w || f.fmt.pix_mp.height != h ||
+	    f.fmt.pix_mp.pixelformat != V4L2_PIX_FMT_NV12 || f.fmt.pix_mp.num_planes != 1 ||
+	    f.fmt.pix_mp.plane_fmt[0].bytesperline != pix.plane_fmt[0].bytesperline ||
+	    f.fmt.pix_mp.plane_fmt[0].sizeimage > in[0].size) {
+		fprintf(stderr, "GE2D and encoder NV12 layouts differ\n");
+		exit(1);
+	}
+	producer_output_size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
+	producer_ioctl(VIDIOC_REQBUFS, &r, "GE2D OUTPUT REQBUFS");
+	producer_ioctl(VIDIOC_QUERYBUF, &b, "GE2D OUTPUT QUERYBUF");
+	if (plane.length < producer_format.plane_fmt[0].sizeimage) {
+		fprintf(stderr, "GE2D source allocation is too small\n");
+		exit(1);
+	}
+	producer_input.size = plane.length;
+	producer_input.data = mmap(NULL, plane.length, PROT_READ | PROT_WRITE,
+				   MAP_SHARED, producer_fd, plane.m.mem_offset);
+	if (producer_input.data == MAP_FAILED) die("GE2D input mmap");
+	memset(producer_input.data, 0, producer_input.size);
+	r.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	r.memory = V4L2_MEMORY_DMABUF;
+	r.count = 1;
+	producer_ioctl(VIDIOC_REQBUFS, &r, "GE2D CAPTURE REQBUFS");
+	type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	producer_ioctl(VIDIOC_STREAMON, &type, "GE2D CAPTURE STREAMON");
+	type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	producer_ioctl(VIDIOC_STREAMON, &type, "GE2D OUTPUT STREAMON");
+}
+
+static void producer_dequeue(unsigned int type, unsigned int frame)
+{
+	struct v4l2_plane plane = {0};
+	struct v4l2_buffer b = { .type = type, .length = 1, .m.planes = &plane,
+		.memory = V4L2_TYPE_IS_CAPTURE(type) ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP };
+
+	for (int tries = 0; tries < 100; tries++) {
+		if (!ioctl(producer_fd, VIDIOC_DQBUF, &b)) {
+			if (b.index || (b.flags & V4L2_BUF_FLAG_ERROR) ||
+			    (V4L2_TYPE_IS_CAPTURE(type) &&
+			     (b.timestamp.tv_sec != frame || plane.bytesused != producer_output_size))) {
+				fprintf(stderr, "invalid GE2D frame %u flags %#x\n", frame, b.flags);
+				exit(1);
+			}
+			return;
+		}
+		if (errno != EAGAIN) die("GE2D DQBUF");
+		struct pollfd p = { .fd = producer_fd, .events = POLLIN | POLLOUT };
+
+		if (poll(&p, 1, 1000) <= 0) die("GE2D poll timeout");
+		if (p.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+			fprintf(stderr, "GE2D poll failure %#x\n", p.revents);
+			exit(1);
+		}
+		usleep(1000);
+	}
+	errno = ETIMEDOUT; die("GE2D DQBUF");
+}
+
+static void producer_frame(unsigned int frame)
+{
+	unsigned char *planes[3] = { producer_input.data, NULL, NULL };
+	unsigned int strides[3] = { producer_format.plane_fmt[0].bytesperline, 0, 0 };
+	struct v4l2_plane plane = { .m.fd = in[0].fd, .length = in[0].size };
+	struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+		.memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &plane };
+
+	put_frame(frame, planes, strides);
+	producer_ioctl(VIDIOC_QBUF, &b, "GE2D CAPTURE QBUF");
+	b.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	b.memory = V4L2_MEMORY_MMAP;
+	b.timestamp.tv_sec = frame;
+	plane.m.mem_offset = 0;
+	plane.length = producer_input.size;
+	plane.bytesused = producer_format.plane_fmt[0].sizeimage;
+	producer_ioctl(VIDIOC_QBUF, &b, "GE2D OUTPUT QBUF");
+	producer_dequeue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, frame);
+	producer_dequeue(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, frame);
+}
+
+static void producer_cleanup(void)
+{
+	unsigned int type;
+
+	if (producer_fd < 0) return;
+	type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	producer_ioctl(VIDIOC_STREAMOFF, &type, "GE2D OUTPUT STREAMOFF");
+	type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	producer_ioctl(VIDIOC_STREAMOFF, &type, "GE2D CAPTURE STREAMOFF");
+	if (munmap(producer_input.data, producer_input.size)) die("GE2D input munmap");
+	close(producer_fd);
+	producer_fd = -1;
+}
+
 static void usage(const char *name)
 {
 	fprintf(stderr, "usage: %s [-p gradient|static|motion|noise|scene|palette] [-r FPS[/DIVISOR]]\n"
 		"  [-m 601|709] [-a FORMAT] [-c NAME=VALUE[,NAME=VALUE...][@FRAME]]...\n"
-		"  [-x ...]... [-d dumb|lima] [-g] [-e]\n"
+		"  [-x ...]... [-d dumb|lima] [-G GE2D_DEVICE] [-g] [-e]\n"
 		"  [-s RESTART_FRAME] [-f FORCE_DURING_FRAME]\n"
 		"  DEVICE STREAM REF WIDTH HEIGHT FRAMES FORMAT QUALITY JPEG|H264\n"
 		"FORMAT: NV12 NV12-1 NV21 YU12 YUYV UYVY YM24 RGB3 BGR3 XR24 XB24 BX24 RX24\n", name);
@@ -584,7 +711,7 @@ int main(int argc, char **argv)
 	char *end;
 	int option, jpeg;
 
-	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:s:f:ge")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:m:a:d:c:x:s:f:G:ge")) != -1) {
 		switch (option) {
 		case 'p':
 			for (pattern = 0; pattern < PATTERNS && strcmp(optarg, patterns[pattern]); pattern++)
@@ -601,6 +728,7 @@ int main(int argc, char **argv)
 				if (matrix == &matrices[1]) usage(program);
 			break;
 		case 'a': negotiate = optarg; break;
+		case 'G': producer_device = optarg; break;
 		case 'd':
 			if (strcmp(optarg, "dumb") && strcmp(optarg, "lima")) usage(program);
 			dmabuf = optarg;
@@ -634,6 +762,8 @@ int main(int argc, char **argv)
 		for (as = formats; strcmp(negotiate, as->name); as++)
 			if (as == &formats[sizeof(formats) / sizeof(formats[0]) - 1]) usage(program);
 	if (as->planes != format->planes) usage(program);
+	if (producer_device && (generate_only || !dmabuf || strcmp(dmabuf, "dumb") ||
+				format->fourcc != V4L2_PIX_FMT_NV12 || as != format)) usage(program);
 	for (unsigned int i = 0; i < 3; i++)
 		if (!(gradient[i] = malloc(i ? w * h / 4 : w * h))) die("gradient");
 	for (unsigned int y = 0; y < h / 2; y++)
@@ -705,6 +835,7 @@ int main(int argc, char **argv)
 	apply_controls(UINT_MAX);
 	setup(V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, in, pix.num_planes);
 	setup(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &out, 1);
+	producer_setup();
 	if (ioctl(fd, VIDIOC_S_FMT, &f) != -1 || errno != EBUSY) { fprintf(stderr, "busy S_FMT failed\n"); return 1; }
 	struct v4l2_event_subscription sub = { .type = V4L2_EVENT_EOS }; ctl(VIDIOC_SUBSCRIBE_EVENT, &sub);
 	unsigned int type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; ctl(VIDIOC_STREAMON, &type);
@@ -725,11 +856,15 @@ int main(int argc, char **argv)
 			fprintf(stderr, "same-fd restart before frame %u\n", frame);
 		}
 		apply_controls(frame);
-		for (unsigned int i = 0; i < pix.num_planes; i++)
-			sync_plane(&in[i], DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE);
-		put_frame(frame, plane, stride);
-		for (unsigned int i = 0; i < pix.num_planes; i++)
-			sync_plane(&in[i], DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
+		if (producer_device) {
+			producer_frame(frame);
+		} else {
+			for (unsigned int i = 0; i < pix.num_planes; i++)
+				sync_plane(&in[i], DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE);
+			put_frame(frame, plane, stride);
+			for (unsigned int i = 0; i < pix.num_planes; i++)
+				sync_plane(&in[i], DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
+		}
 		if (ref) write_reference(ref, frame, uv);
 		queue(V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, 1, frame);
 		uint64_t queued = now_us();
@@ -769,6 +904,7 @@ int main(int argc, char **argv)
 	struct v4l2_event event; ctl(VIDIOC_DQEVENT, &event); if (event.type != V4L2_EVENT_EOS) return 1;
 	type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE; ctl(VIDIOC_STREAMOFF, &type);
 	type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE; ctl(VIDIOC_STREAMOFF, &type);
+	producer_cleanup();
 	close(fd);
 	if (fclose(stream) || (ref && fclose(ref))) die("fclose");
 	fprintf(stderr, "PASS: %u frames, ownership, busy format, timestamps, EOS, loop_us %llu\n",
