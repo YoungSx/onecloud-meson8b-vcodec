@@ -9,8 +9,10 @@ WanOS，无备用板/串口。新增硬件路径先完成工作机实现和边�
 
 ## 当前执行顺序
 
-1. 可靠性取证和性能拆分；已有GE2D转换继续补DMA生命周期/少拷贝收益，
-   decoder独立CAPTURE缩放由[#32](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/32)跟踪。
+1. 按用户最新选择，先推进[#14](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/14)
+   减少拷贝/标准缓冲交接与[#32](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/32)
+   已有decoder独立CAPTURE缩放验收，再闭环完整链性能；[#31](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/31)
+   的必要格式/色彩处理随主线，翻转/旋转/混合后续分阶段推进。
 2. MPEG/VC-1/WMV3尾帧与内容完整性；HEVC tiles、H.263已部署实现的剩余
    多slice/回压/取消/切换及支持范围验收。
 3. AVS及尚未接入的RealVideo、MVC、MPEG-4旧变体和独立JPEG图片路径。
@@ -22,6 +24,8 @@ WanOS，无备用板/串口。新增硬件路径先完成工作机实现和边�
 通过不代表其原issue全部组合验收已完成，当前分别保留[#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15)、
 [#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16)；三项具体P0修复批次
 [#23](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/23)已完成关闭，历史故障仍独立开放。
+P0保留故障严重度并继续取证，不要求先关闭所有历史根因才进行主机代码/
+回归/构建；真实DMA候选的实机验收仍须具备相应取证与回退条件。
 
 历史 H.264 #5 调查保持开放，按用户选择暂停主动复现。没有适用于 S805 的
 HEVC 编码、Main10 或可靠高级 H.264 编码路径时，不添加虚假的能力枚举。
