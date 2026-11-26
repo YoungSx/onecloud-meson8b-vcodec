@@ -122,6 +122,12 @@ H.264 profile/level 控件仅声明微码输出的 Baseline / Level 4.0；其他
 
 ## DMA-BUF 输入
 
+新源码在每幅编码前等待导入输入的生产者fence（每平面最多1 s），重复直接
+DMA读取前重新同步缓存；CPU回退的结束同步失败会返回错误缓冲。导出器
+未提供隐式fence时，应用仍须在QBUF前等待生产者完成，并在DQBUF后再复用
+输入。CPU写入导入缓冲需成对使用DMA_BUF_IOCTL_SYNC的WRITE START/END。
+此修正尚未部署或新增实机验收，来源见[同步事务记录](validation-records.md#11-26-编码-dma-buf-同步事务)。
+
 OUTPUT 队列接受 MMAP 和 DMA-BUF。NV12M/NV21M 的两个平面若各自映射为
 一段连续地址、8 字节对齐且行宽等于驱动报告的 bytesperline，硬件直接读取，
 不经过拷贝；例如 meson-drm 的 dumb buffer。其他导入（如 lima GEM 的分散
