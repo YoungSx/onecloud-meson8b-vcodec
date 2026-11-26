@@ -3,8 +3,11 @@
  * A byte-plane self-test proves endian conversion before exposing the device.
  */
 #include <linux/clk.h>
+#include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
+#include <linux/dma-resv.h>
 #include <linux/iopoll.h>
+#include <linux/jiffies.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
@@ -409,6 +412,24 @@ ge2d_buffer_image(struct vb2_buffer *vb, const struct v4l2_pix_format_mplane *fo
 	return image;
 }
 
+/* Read inputs after their writer; overwrite outputs only after all users. */
+static int ge2d_wait_buffer(struct vb2_buffer *buffer)
+{
+	bool write = V4L2_TYPE_IS_CAPTURE(buffer->type);
+	unsigned int i;
+
+	if (buffer->memory != V4L2_MEMORY_DMABUF)
+		return 0;
+	for (i = 0; i < buffer->num_planes; i++) {
+		long ret = dma_resv_wait_timeout(buffer->planes[i].dbuf->resv, write,
+						true, msecs_to_jiffies(1000));
+
+		if (ret <= 0)
+			return ret ? ret : -ETIMEDOUT;
+	}
+	return 0;
+}
+
 static void ge2d_work(struct work_struct *work)
 {
 	struct meson8b_ge2d *core = container_of(work, struct meson8b_ge2d, work);
@@ -422,9 +443,14 @@ static void ge2d_work(struct work_struct *work)
 		struct meson8b_ge2d_image output = ge2d_buffer_image(&dst->vb2_buf, &ctx->output);
 		unsigned int i;
 
-		mutex_lock(&core->hardware_lock);
-		ret = core->ready ? ge2d_blit(core, &input, &output, &ctx->crop) : -ENODEV;
-		mutex_unlock(&core->hardware_lock);
+		ret = ge2d_wait_buffer(&src->vb2_buf);
+		if (!ret)
+			ret = ge2d_wait_buffer(&dst->vb2_buf);
+		if (!ret) {
+			mutex_lock(&core->hardware_lock);
+			ret = core->ready ? ge2d_blit(core, &input, &output, &ctx->crop) : -ENODEV;
+			mutex_unlock(&core->hardware_lock);
+		}
 		v4l2_m2m_buf_copy_metadata(src, dst, true);
 		dst->sequence = ctx->sequence++;
 		for (i = 0; i < ctx->output.num_planes; i++)

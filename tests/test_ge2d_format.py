@@ -11,7 +11,7 @@ class Ge2dFormatTests(unittest.TestCase):
     def test_layout_colour_crop_and_plane_capacity(self):
         source = (ROOT / "ge2d/meson8b-ge2d.c").read_text()
         images = source[source.index("static bool ge2d_is_nv12("):
-                        source.index("static void ge2d_work(")]
+                        source.index("/* Read inputs after their writer;")]
         queues = source[source.index("static int ge2d_queue_setup("):
                         source.index("static void ge2d_queue(")]
         formats = source[source.index("static int ge2d_enum_fmt("):

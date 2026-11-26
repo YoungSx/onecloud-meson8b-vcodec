@@ -26,13 +26,16 @@ class Ge2dQueueTests(unittest.TestCase):
 #include <linux/videodev2.h>
 typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
 #define U32_MAX UINT32_MAX
+#define ERESTARTSYS 512
 #include "ge2d-layout.h"
 struct work_struct {int unused;};
 struct ge2d_ctx;struct meson8b_ge2d {struct work_struct work;struct ge2d_ctx *active;void *m2m;int hardware_lock;bool ready;};
 struct vb2_v4l2_buffer;
 struct queue {u32 type;struct ge2d_ctx *ctx;struct vb2_v4l2_buffer *buffer;};
 struct v4l2_fh {struct m2m *m2m_ctx;};
-struct vb2_buffer {u32 num_planes;struct queue *vb2_queue;u32 payload[2];dma_addr_t address[2];u64 timestamp;};
+struct dma_resv {long writer,readers;unsigned waits;};struct dma_buf {struct dma_resv *resv;};
+struct vb2_buffer {u32 num_planes,type,memory;struct queue *vb2_queue;u32 payload[2];dma_addr_t address[2];u64 timestamp;
+ struct {struct dma_buf *dbuf;} planes[2];};
 struct vb2_v4l2_buffer {struct vb2_buffer vb2_buf;u32 sequence;int state;};
 struct m2m {struct queue src,dst;};
 struct ge2d_ctx {struct v4l2_fh fh;struct meson8b_ge2d *core;struct v4l2_pix_format_mplane input,output;
@@ -42,8 +45,13 @@ struct ge2d_ctx {struct v4l2_fh fh;struct meson8b_ge2d *core;struct v4l2_pix_for
 #define VB2_BUF_STATE_ERROR 2
 static struct meson8b_ge2d core;
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
-static int blit_error,commands,finished,flushed;
+static int blit_error,finished,flushed;static unsigned commands;
 static int locked;
+static unsigned msecs_to_jiffies(unsigned ms){assert(ms==1000);return 100;}
+static long __attribute__((unused)) dma_resv_wait_timeout(struct dma_resv *r,bool all,bool intr,unsigned timeout){
+ assert(!locked&&intr&&timeout==msecs_to_jiffies(1000));r->waits++;
+ return r->writer<=0?r->writer:all?r->readers:r->writer;
+}
 static void mutex_lock(int *l){(void)l;assert(!locked);locked=1;}
 static void mutex_unlock(int *l){(void)l;assert(locked);locked=0;}
 static void *vb2_get_drv_priv(struct queue *q){return q->ctx;}
@@ -81,6 +89,53 @@ int main(void){
  assert(commands==2&&finished==3&&s.state==2&&d.state==2&&!locked);
  m.src.buffer=&s;ge2d_stop(&m.src);assert(s.state==2&&flushed==1&&!m.src.buffer);
  m.dst.buffer=&d;ge2d_stop(&m.dst);assert(d.state==2&&flushed==2&&!m.dst.buffer);
+ /* Imported source waits for writers; destination also waits for readers. */
+ struct dma_resv resv[4]={{1,1,0},{1,1,0},{1,1,0},{1,1,0}};
+ struct dma_buf dbuf[4]={{&resv[0]},{&resv[1]},{&resv[2]},{&resv[3]}};
+ s.vb2_buf.type=m.src.type;d.vb2_buf.type=m.dst.type;
+ s.vb2_buf.memory=d.vb2_buf.memory=V4L2_MEMORY_DMABUF;
+ for(unsigned i=0;i<2;i++){s.vb2_buf.planes[i].dbuf=&dbuf[i];d.vb2_buf.planes[i].dbuf=&dbuf[i+2];}
+ core.ready=true;blit_error=0;
+ for(unsigned plane=0;plane<4;plane++)for(unsigned error=0;error<2;error++){
+  unsigned before=commands;resv[plane].writer=error?-ERESTARTSYS:0;
+  core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+  assert(commands==before&&s.state==2&&d.state==2&&!d.vb2_buf.payload[0]&&!d.vb2_buf.payload[1]);
+  assert(!core.active&&!locked);resv[plane].writer=1;
+ }
+ /* A shared reader must not block reading the source, but blocks writing dst. */
+ resv[0].readers=resv[1].readers=0;unsigned before=commands;
+ core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+ assert(commands==before+1&&s.state==1&&d.state==1);
+ for(unsigned plane=2;plane<4;plane++){
+  before=commands;resv[plane].readers=0;
+  core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+  assert(commands==before&&s.state==2&&d.state==2);resv[plane].readers=1;
+ }
+ /* Requeuing the same imports observes new fences every time. */
+ unsigned old_waits[4];for(unsigned i=0;i<4;i++)old_waits[i]=resv[i].waits;
+ for(unsigned frame=0;frame<3;frame++){
+  core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+  assert(s.state==1&&d.state==1);
+ }
+ for(unsigned i=0;i<4;i++)assert(resv[i].waits==old_waits[i]+3);
+ /* Each side independently supports MMAP or imports. */
+ for(unsigned src_dma=0;src_dma<2;src_dma++)for(unsigned dst_dma=0;dst_dma<2;dst_dma++){
+  s.vb2_buf.memory=src_dma?V4L2_MEMORY_DMABUF:V4L2_MEMORY_MMAP;
+  d.vb2_buf.memory=dst_dma?V4L2_MEMORY_DMABUF:V4L2_MEMORY_MMAP;
+  for(unsigned i=0;i<4;i++)old_waits[i]=resv[i].waits;
+  core.active=&c;m.src.buffer=&s;m.dst.buffer=&d;ge2d_work(&core.work);
+  assert(s.state==1&&d.state==1);
+  for(unsigned i=0;i<4;i++)assert(resv[i].waits==old_waits[i]+(i<2?src_dma:dst_dma));
+ }
+ /* GREY and contiguous NV12 have one import; preserve its exact wait error. */
+ s.vb2_buf.num_planes=d.vb2_buf.num_planes=1;
+ unsigned waits=resv[1].waits+resv[3].waits;
+ assert(!ge2d_wait_buffer(&s.vb2_buf)&&!ge2d_wait_buffer(&d.vb2_buf));
+ assert(resv[1].waits+resv[3].waits==waits);
+ resv[0].writer=0;assert(ge2d_wait_buffer(&s.vb2_buf)==-ETIMEDOUT);
+ resv[0].writer=-ERESTARTSYS;assert(ge2d_wait_buffer(&s.vb2_buf)==-ERESTARTSYS);
+ resv[0].writer=1;resv[2].readers=-ERESTARTSYS;
+ assert(ge2d_wait_buffer(&d.vb2_buf)==-ERESTARTSYS);
  return 0;
 }
 '''
