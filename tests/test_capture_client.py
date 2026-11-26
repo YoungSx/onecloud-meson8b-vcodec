@@ -8,6 +8,41 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CaptureClientTests(unittest.TestCase):
+    def test_input_presentation_timestamps_in_coded_order(self):
+        code = r'''
+#define main diagnostic_main
+#include "res-switch-test.c"
+#undef main
+#include <assert.h>
+static int parse(const char *text,uint64_t *pts,size_t count){
+ FILE *file=tmpfile();assert(file);assert(fputs(text,file)>=0);rewind(file);
+ int result=read_input_pts(file,pts,count);fclose(file);return result;
+}
+int main(void){
+ uint64_t pts[4]={0};
+ assert(!parse("0\n100000\n33333\n66666\n",pts,4));
+ assert(pts[0]==0&&pts[1]==100000&&pts[2]==33333&&pts[3]==66666);
+ input_pts=pts;struct v4l2_buffer b={0};
+ packet_timestamp(&b,NULL,0,1);assert(!b.timestamp.tv_sec&&b.timestamp.tv_usec==100000);
+ pts[0]=123456789;packet_timestamp(&b,NULL,0,0);assert(b.timestamp.tv_sec==123&&b.timestamp.tv_usec==456789);
+ const char *bad[]={"", "-1\n", "+1\n", " 1\n", "3ms\n", "1\n2\n", "2147483648000000\n", "18446744073709551616\n", "99999999999999999999999999999999999999999999999999999999999999999999999999999999999\n"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++)assert(parse(bad[i],pts,1)==-1);
+ assert(parse("1\n",pts,2)==-1);
+ assert(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",pts,2)==-1);
+ assert(!parse("2147483647999999",pts,1)&&pts[0]==2147483647999999ULL);
+ assert(!parse("1\n2\n \t\r\n",pts,2)&&pts[0]==1&&pts[1]==2);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'tests'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
     def test_bounded_capture_delay_parser_and_hold(self):
         code = r'''
 #define usleep mock_usleep

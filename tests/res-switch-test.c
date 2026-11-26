@@ -11,6 +11,8 @@
  * CAPTURE_DMABUF=/dev/dri/cardN imports DRM dumb buffers into CAPTURE.
  * CAPTURE_SIZE=WxH requests an exact scaled output after SOURCE_CHANGE.
  * CAPTURE_DELAY_MS=0..1000 holds each dequeued picture before returning it.
+ * INPUT_PTS=FILE supplies one nonnegative presentation timestamp in microseconds
+ * per input access unit, in coded order (needed to order H.264 EOS B pictures).
  * ENCODE_DEVICE=PATH ENCODE_STREAM=FILE encodes each imported NV12M picture
  * before returning it to the decoder; requires CAPTURE_DMABUF.
  */
@@ -71,6 +73,7 @@ static unsigned long pictures;
 static unsigned long streamoff_after;
 static int streamoff_capture_first;
 static unsigned out_fourcc = V4L2_PIX_FMT_H264;
+static uint64_t *input_pts;
 static const char *encode_device;
 static FILE *encode_stream;
 static int encode_fd = -1;
@@ -392,12 +395,44 @@ static void capture_import_planes(struct v4l2_buffer *b)
 	}
 }
 
+static int read_input_pts(FILE *file, uint64_t *timestamps, size_t count)
+{
+	char line[80], *end;
+
+	for (size_t i = 0; i < count; i++) {
+		unsigned long long value;
+
+		if (!fgets(line, sizeof(line), file) || line[0] < '0' || line[0] > '9')
+			return -1;
+		if (!strchr(line, '\n') && !feof(file))
+			return -1;
+		errno = 0;
+		value = strtoull(line, &end, 10);
+		if (errno || value / 1000000 > INT32_MAX)
+			return -1;
+		while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')
+			end++;
+		if (*end)
+			return -1;
+		timestamps[i] = value;
+	}
+	for (int byte; (byte = fgetc(file)) != EOF;)
+		if (byte != ' ' && byte != '\t' && byte != '\r' && byte != '\n')
+			return -1;
+	return ferror(file) ? -1 : 0;
+}
+
 static void packet_timestamp(struct v4l2_buffer *buffer, const unsigned char *packet,
 			     size_t size, size_t index)
 {
 	size_t offset = index ? 0 : 36;
 	uint32_t milliseconds;
 
+	if (input_pts) {
+		buffer->timestamp.tv_sec = input_pts[index] / 1000000;
+		buffer->timestamp.tv_usec = input_pts[index] % 1000000;
+		return;
+	}
 	if (out_fourcc != V4L2_PIX_FMT_VC1_ANNEX_L || size < offset + 8)
 		return;
 	milliseconds = wmv3_le32(packet + offset + 4);
@@ -919,6 +954,16 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (getenv("INPUT_PTS")) {
+		FILE *timestamps = fopen(getenv("INPUT_PTS"), "r");
+
+		input_pts = calloc(nchunks, sizeof(*input_pts));
+		if (!timestamps || !input_pts || read_input_pts(timestamps, input_pts, nchunks)) {
+			fprintf(stderr, "INPUT_PTS must contain one valid timestamp per access unit\n");
+			return 2;
+		}
+		fclose(timestamps);
+	}
 	if (argc < 6)
 		setup_output(1920, 1080);
 	dynamic = out_fourcc == V4L2_PIX_FMT_H264 || out_fourcc == V4L2_PIX_FMT_HEVC;
