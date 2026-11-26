@@ -17,6 +17,7 @@
 
 #include "vdec_platform.h"
 #include "meson8b-pool.h"
+#include "capture-geometry.h"
 
 /* 32 buffers in 3-plane YUV420 */
 #define MAX_CANVAS (32 * 3)
@@ -339,6 +340,7 @@ struct amvdec_session {
 
 	u32 width;
 	u32 height;
+	struct meson_capture_geometry capture;
 	u32 colorspace;
 	u8 ycbcr_enc;
 	u8 quantization;

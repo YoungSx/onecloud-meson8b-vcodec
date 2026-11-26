@@ -218,7 +218,9 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 	struct amvdec_core *core = sess->core;
 	struct amvdec_shadow *stage = &sess->pool.capture_stage;
 	bool imported = vb->memory == V4L2_MEMORY_DMABUF;
-	u32 luma = amvdec_get_output_size_wh(geo->width, geo->height);
+	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+							 geo->width, geo->height);
+	u32 luma = amvdec_get_output_size_wh(capture.width, capture.height);
 	u32 width = geo->reference_width ? geo->reference_width : geo->width;
 	u32 stride = ALIGN(width, 32);
 	u32 height = geo->reference_height ? geo->reference_height : geo->height;
@@ -227,7 +229,8 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		.address = { shadow->paddr, shadow->paddr + shadow->luma }, .nv12 = true,
 	};
 	struct meson8b_ge2d_image output = {
-		.width = geo->width, .height = geo->height, .stride = ALIGN(geo->width, 32),
+		.width = capture.width, .height = capture.height,
+		.stride = ALIGN(capture.width, 32),
 		.nv12 = true, .little_endian = true,
 	};
 	struct meson8b_ge2d_crop crop = {
@@ -329,15 +332,20 @@ static int amvdec_meson8b_copy_capture(struct amvdec_session *sess,
 				       struct vb2_buffer *vb)
 {
 	ktime_t start = ktime_get();
+	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+							 geo->width, geo->height);
+	bool scaled = capture.width != geo->width || capture.height != geo->height;
 	int ret;
 
 	if (sess->core->ge2d_dev) {
 		ret = amvdec_ge2d_capture(sess, geo, shadow, vb);
 		if (!ret)
 			sess->core->ge2d_frames++;
-		else
+		else if (!scaled)
 			ret = amvdec_cpu_capture(sess, geo, shadow, vb);
 	} else {
+		if (scaled)
+			return -EOPNOTSUPP;
 		ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
 	}
 
@@ -543,7 +551,9 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 	while ((slot = meson8b_pool_peek(&pool->state)) >= 0) {
 		struct amvdec_picture *pic = &pool->picture[slot];
 		struct vb2_v4l2_buffer *vbuf;
-		u32 luma = amvdec_get_output_size_wh(pic->geo.width, pic->geo.height);
+		struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+								 pic->geo.width, pic->geo.height);
+		u32 luma = amvdec_get_output_size_wh(capture.width, capture.height);
 		int ret;
 
 		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
@@ -565,6 +575,8 @@ static void amvdec_pool_deliver_locked(struct amvdec_session *sess)
 			dev_warn(sess->core->dev,
 				 "dropping %ux%u picture: %d\n",
 				 pic->geo.width, pic->geo.height, ret);
+			vb2_set_plane_payload(&vbuf->vb2_buf, 0, 0);
+			vb2_set_plane_payload(&vbuf->vb2_buf, 1, 0);
 			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 			continue;
 		}

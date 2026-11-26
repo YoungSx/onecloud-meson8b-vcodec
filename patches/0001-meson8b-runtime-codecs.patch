@@ -220,6 +220,113 @@
 +# -ffreestanding lets arm_neon.h build in the kernel (as lib/raid6)
 +CFLAGS_meson8b-swap-neon.o += -ffreestanding -march=armv7-a -mfloat-abi=softfp -mfpu=neon
 --- /dev/null
++++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/capture-geometry.h
+@@ -0,0 +1,104 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef MESON_CAPTURE_GEOMETRY_H
++#define MESON_CAPTURE_GEOMETRY_H
++
++/* The decoded source keeps its reference geometry when CAPTURE is scaled. */
++struct meson_capture_geometry {
++	u32 source_width, source_height;
++	u32 width, height;
++};
++
++struct meson_capture_size {
++	u32 width, height;
++};
++
++struct meson_capture_ratio {
++	u32 numerator, denominator;
++};
++
++static inline struct meson_capture_size
++meson_capture_resolve(const struct meson_capture_geometry *capture,
++		      u32 source_width, u32 source_height)
++{
++	struct meson_capture_size size = { source_width, source_height };
++
++	if (capture->source_width == source_width &&
++	    capture->source_height == source_height &&
++	    capture->width && capture->height) {
++		size.width = capture->width;
++		size.height = capture->height;
++	}
++	return size;
++}
++
++/* S_FMT permits independent 1..1/4 downscaling, with even NV12 dimensions. */
++static inline void
++meson_capture_configure(struct meson_capture_geometry *capture,
++			u32 source_width, u32 source_height,
++			u32 width, u32 height, bool scalable)
++{
++	u32 min_width = ((source_width + 3) / 4 + 1) & ~1u;
++	u32 min_height = ((source_height + 3) / 4 + 1) & ~1u;
++
++	capture->source_width = source_width;
++	capture->source_height = source_height;
++	capture->width = source_width;
++	capture->height = source_height;
++	if (!scalable || ((source_width | source_height) & 1) ||
++	    source_width < 2 || source_height < 2)
++		return;
++	width = width ? width : source_width;
++	height = height ? height : source_height;
++	capture->width = width < min_width ? min_width :
++		width > source_width ? source_width : (width + 1) & ~1u;
++	capture->height = height < min_height ? min_height :
++		height > source_height ? source_height : (height + 1) & ~1u;
++}
++
++static inline u32 meson_capture_gcd(u32 a, u32 b)
++{
++	while (b) {
++		u32 remainder = a % b;
++
++		a = b;
++		b = remainder;
++	}
++	return a;
++}
++
++/* CROPCAP reports inverse SAR; resampling changes pixel width and height. */
++static inline struct meson_capture_ratio
++meson_capture_pixelaspect(const struct meson_capture_geometry *capture,
++			  u32 source_width, u32 source_height, u32 num, u32 den)
++{
++	struct meson_capture_size size = meson_capture_resolve(capture,
++							    source_width, source_height);
++	struct meson_capture_ratio ratio = { den, num };
++	u32 n[3] = { den, source_height, size.width };
++	u32 d[3] = { num, source_width, size.height };
++	u64 numerator, denominator;
++	unsigned int i, j;
++
++	if (!num || !den || !source_width || !source_height ||
++	    (size.width == source_width && size.height == source_height))
++		return ratio;
++	for (i = 0; i < 3; i++) {
++		for (j = 0; j < 3; j++) {
++			u32 divisor = meson_capture_gcd(n[i], d[j]);
++
++			n[i] /= divisor;
++			d[j] /= divisor;
++		}
++	}
++	numerator = (u64)n[0] * n[1] * n[2];
++	denominator = (u64)d[0] * d[1] * d[2];
++	while (numerator > (u32)~0u || denominator > (u32)~0u) {
++		numerator = (numerator + 1) / 2;
++		denominator = (denominator + 1) / 2;
++	}
++	ratio.numerator = numerator;
++	ratio.denominator = denominator;
++	return ratio;
++}
++
++#endif
+--- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/codec-par.h
 @@ -0,0 +1,15 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
@@ -8728,7 +8835,7 @@
 +};
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/meson8b-capture.c
-@@ -0,0 +1,675 @@
+@@ -0,0 +1,687 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +#include <linux/dma-mapping.h>
 +#include <linux/dma-buf.h>
@@ -8949,7 +9056,9 @@
 +	struct amvdec_core *core = sess->core;
 +	struct amvdec_shadow *stage = &sess->pool.capture_stage;
 +	bool imported = vb->memory == V4L2_MEMORY_DMABUF;
-+	u32 luma = amvdec_get_output_size_wh(geo->width, geo->height);
++	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++							 geo->width, geo->height);
++	u32 luma = amvdec_get_output_size_wh(capture.width, capture.height);
 +	u32 width = geo->reference_width ? geo->reference_width : geo->width;
 +	u32 stride = ALIGN(width, 32);
 +	u32 height = geo->reference_height ? geo->reference_height : geo->height;
@@ -8958,7 +9067,8 @@
 +		.address = { shadow->paddr, shadow->paddr + shadow->luma }, .nv12 = true,
 +	};
 +	struct meson8b_ge2d_image output = {
-+		.width = geo->width, .height = geo->height, .stride = ALIGN(geo->width, 32),
++		.width = capture.width, .height = capture.height,
++		.stride = ALIGN(capture.width, 32),
 +		.nv12 = true, .little_endian = true,
 +	};
 +	struct meson8b_ge2d_crop crop = {
@@ -9060,15 +9170,20 @@
 +				       struct vb2_buffer *vb)
 +{
 +	ktime_t start = ktime_get();
++	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++							 geo->width, geo->height);
++	bool scaled = capture.width != geo->width || capture.height != geo->height;
 +	int ret;
 +
 +	if (sess->core->ge2d_dev) {
 +		ret = amvdec_ge2d_capture(sess, geo, shadow, vb);
 +		if (!ret)
 +			sess->core->ge2d_frames++;
-+		else
++		else if (!scaled)
 +			ret = amvdec_cpu_capture(sess, geo, shadow, vb);
 +	} else {
++		if (scaled)
++			return -EOPNOTSUPP;
 +		ret = amvdec_meson8b_convert(sess, geo, shadow, vb);
 +	}
 +
@@ -9274,7 +9389,9 @@
 +	while ((slot = meson8b_pool_peek(&pool->state)) >= 0) {
 +		struct amvdec_picture *pic = &pool->picture[slot];
 +		struct vb2_v4l2_buffer *vbuf;
-+		u32 luma = amvdec_get_output_size_wh(pic->geo.width, pic->geo.height);
++		struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++								 pic->geo.width, pic->geo.height);
++		u32 luma = amvdec_get_output_size_wh(capture.width, capture.height);
 +		int ret;
 +
 +		vbuf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx);
@@ -9296,6 +9413,8 @@
 +			dev_warn(sess->core->dev,
 +				 "dropping %ux%u picture: %d\n",
 +				 pic->geo.width, pic->geo.height, ret);
++			vb2_set_plane_payload(&vbuf->vb2_buf, 0, 0);
++			vb2_set_plane_payload(&vbuf->vb2_buf, 1, 0);
 +			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 +			continue;
 +		}
@@ -9750,7 +9869,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1610 @@
+@@ -0,0 +1,1646 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10033,7 +10152,9 @@
 +			    struct device *alloc_devs[])
 +{
 +	struct amvdec_session *sess = vb2_get_drv_priv(q);
-+	u32 output_size = amvdec_get_output_size(sess);
++	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++							 sess->width, sess->height);
++	u32 output_size = amvdec_get_output_size_wh(capture.width, capture.height);
 +
 +	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
 +	    sess->core->platform->revision == VDEC_REVISION_MESON8B) {
@@ -10154,7 +10275,9 @@
 +static bool vdec_capture_queue_fits(struct amvdec_session *sess,
 +				    struct vb2_queue *q)
 +{
-+	u32 output_size = amvdec_get_output_size(sess);
++	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++							 sess->width, sess->height);
++	u32 output_size = amvdec_get_output_size_wh(capture.width, capture.height);
 +	u32 min_bufs = max_t(u32, v4l2_ctrl_g_ctrl(sess->ctrl_min_buf_capture),
 +			     sess->fmt_out->min_buffers);
 +	unsigned int num_planes =
@@ -10516,6 +10639,13 @@
 +	return 0;
 +}
 +
++static bool vdec_capture_scalable(const struct amvdec_session *sess)
++{
++	return sess->core->ge2d_dev && sess->dpb_size &&
++		(sess->fmt_out->pixfmt == V4L2_PIX_FMT_H264 ||
++		 sess->fmt_out->pixfmt == V4L2_PIX_FMT_HEVC);
++}
++
 +static const struct amvdec_format *
 +vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 +		    struct v4l2_format *f)
@@ -10539,23 +10669,31 @@
 +		break;
 +	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 +		fmt_out = sess->fmt_out;
-+		/* No decoder scaling is negotiated: CAPTURE follows the source. */
-+		pixmp->width = sess->width;
-+		pixmp->height = sess->height;
++		{
++			struct meson_capture_geometry capture;
++
++			meson_capture_configure(&capture, sess->width, sess->height,
++						pixmp->width, pixmp->height,
++						vdec_capture_scalable(sess));
++			pixmp->width = capture.width;
++			pixmp->height = capture.height;
++		}
 +		break;
 +	default:
 +		return NULL;
 +	}
 +
-+	pixmp->width = clamp(pixmp->width,
-+			      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 256u,
-+			      fmt_out->max_width);
-+	pixmp->height = clamp(pixmp->height,
-+			       fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 144u,
-+			       fmt_out->max_height);
-+	if (fmt_out->pixfmt == V4L2_PIX_FMT_H263) {
-+		pixmp->width = ALIGN(pixmp->width, 4);
-+		pixmp->height = ALIGN(pixmp->height, 4);
++	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
++		pixmp->width = clamp(pixmp->width,
++				     fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 256u,
++				     fmt_out->max_width);
++		pixmp->height = clamp(pixmp->height,
++				      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 144u,
++				      fmt_out->max_height);
++		if (fmt_out->pixfmt == V4L2_PIX_FMT_H263) {
++			pixmp->width = ALIGN(pixmp->width, 4);
++			pixmp->height = ALIGN(pixmp->height, 4);
++		}
 +	}
 +	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 +
@@ -10617,8 +10755,11 @@
 +		pixmp->pixelformat = sess->fmt_out->pixfmt;
 +
 +	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-+		pixmp->width = sess->width;
-+		pixmp->height = sess->height;
++		struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++								 sess->width, sess->height);
++
++		pixmp->width = capture.width;
++		pixmp->height = capture.height;
 +		pixmp->colorspace = sess->colorspace;
 +		pixmp->ycbcr_enc = sess->ycbcr_enc;
 +		pixmp->quantization = sess->quantization;
@@ -10665,14 +10806,18 @@
 +		ret = -EINVAL;
 +		goto unlock;
 +	}
++	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
++		meson_capture_configure(&sess->capture, sess->width, sess->height,
++					pixmp->width, pixmp->height,
++					vdec_capture_scalable(sess));
++		sess->pixfmt_cap = pixmp->pixelformat;
++		goto unlock;
++	}
 +
 +	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 +		pixfmt_out = pixmp->pixelformat;
 +		pixfmt_cap = sess->pixfmt_cap;
 +		sess->fmt_out = fmt_out;
-+	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-+		pixfmt_cap = pixmp->pixelformat;
-+		pixfmt_out = sess->fmt_out->pixfmt;
 +	}
 +
 +	memset(&format, 0, sizeof(format));
@@ -10686,6 +10831,8 @@
 +	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 +		sess->width = format.fmt.pix_mp.width;
 +		sess->height = format.fmt.pix_mp.height;
++		memset(&sess->capture, 0, sizeof(sess->capture));
++		sess->dpb_size = 0;
 +		sess->colorspace = pixmp->colorspace;
 +		sess->ycbcr_enc = pixmp->ycbcr_enc;
 +		sess->quantization = pixmp->quantization;
@@ -10710,9 +10857,6 @@
 +
 +	sess->width = format.fmt.pix_mp.width;
 +	sess->height = format.fmt.pix_mp.height;
-+
-+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-+		sess->pixfmt_cap = format.fmt.pix_mp.pixelformat;
 +
 +unlock:
 +	mutex_unlock(&sess->lock);
@@ -10898,9 +11042,16 @@
 +		rect.top = sess->crop_top;
 +		break;
 +	case V4L2_SEL_TGT_COMPOSE:
++	case V4L2_SEL_TGT_COMPOSE_PADDED:
 +	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 +	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
-+		/* Frame-pool delivery has already applied the source crop. */
++		{
++			struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
++									 sess->width, sess->height);
++
++			rect.width = capture.width;
++			rect.height = capture.height;
++		}
 +		break;
 +	default:
 +		return -EINVAL;
@@ -10914,13 +11065,17 @@
 +{
 +	struct amvdec_session *sess =
 +		container_of(file->private_data, struct amvdec_session, fh);
++	struct meson_capture_ratio ratio;
 +
 +	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 +		return -EINVAL;
 +
 +	/* CROPCAP uses y/x, while the codec's sample aspect ratio is x/y. */
-+	f->numerator = sess->pixelaspect.denominator;
-+	f->denominator = sess->pixelaspect.numerator;
++	ratio = meson_capture_pixelaspect(&sess->capture, sess->width, sess->height,
++					  sess->pixelaspect.numerator,
++					  sess->pixelaspect.denominator);
++	f->numerator = ratio.numerator;
++	f->denominator = ratio.denominator;
 +	return 0;
 +}
 +
@@ -11363,7 +11518,7 @@
 +MODULE_LICENSE("GPL");
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.h
-@@ -0,0 +1,394 @@
+@@ -0,0 +1,396 @@
 +/* SPDX-License-Identifier: GPL-2.0+ */
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -11383,6 +11538,7 @@
 +
 +#include "vdec_platform.h"
 +#include "meson8b-pool.h"
++#include "capture-geometry.h"
 +
 +/* 32 buffers in 3-plane YUV420 */
 +#define MAX_CANVAS (32 * 3)
@@ -11705,6 +11861,7 @@
 +
 +	u32 width;
 +	u32 height;
++	struct meson_capture_geometry capture;
 +	u32 colorspace;
 +	u8 ycbcr_enc;
 +	u8 quantization;

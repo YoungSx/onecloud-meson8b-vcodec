@@ -10,10 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 class H263FormatTests(unittest.TestCase):
     def test_custom_sizes_and_negotiated_picture_geometry(self):
         source = (ROOT / "vdec/vdec.c").read_text()
-        negotiate = source[source.index("static const struct amvdec_format *\nvdec_try_fmt_common("):
+        negotiate = source[source.index("static bool vdec_capture_scalable("):
                            source.index("static int vdec_try_fmt(")]
         enum = source[source.index("static int vdec_enum_framesizes("):
                       source.index("static int\nvdec_decoder_cmd(")]
+        getter = source[source.index("static int vdec_try_fmt("):source.index("static int vdec_s_fmt(")]
         setter = source[source.index("static int vdec_s_fmt("):
                         source.index("static int vdec_enum_fmt(")]
         source = (ROOT / "vdec/codec_mpeg4.c").read_text()
@@ -31,7 +32,10 @@ class H263FormatTests(unittest.TestCase):
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;
+typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef uint64_t u64;
+#include "capture-geometry.h"
+#define V4L2_PIX_FMT_H264 5
+#define V4L2_PIX_FMT_HEVC 6
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define V4L2_PIX_FMT_H263 1
 #define min(a,b) ((a)<(b)?(a):(b))
@@ -56,9 +60,9 @@ struct v4l2_fract {u32 numerator,denominator;};
 struct codec_mpeg4 {u8 *h263_output;struct h263_context h263;};
 struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
-struct core {struct platform *platform;};
+struct core {struct platform *platform;void *ge2d_dev;};
 struct vb2_queue {bool busy;};struct m2m {struct vb2_queue src,dst;};
-struct amvdec_session {int fh,lock;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;struct m2m *m2m_ctx;};
+struct amvdec_session {int fh,lock;struct meson_capture_geometry capture;u32 dpb_size;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;struct m2m *m2m_ctx;};
 static inline struct vb2_queue *v4l2_m2m_get_src_vq(struct m2m *m){return &m->src;}
 static inline struct vb2_queue *v4l2_m2m_get_dst_vq(struct m2m *m){return &m->dst;}
 static int locked;
@@ -81,11 +85,11 @@ static u32 vb2_get_plane_payload(struct vb2_buffer *b,int plane){assert(!plane);
 static u32 vb2_plane_size(struct vb2_buffer *b,int plane){assert(!plane);return b->capacity;}
 static void vb2_set_plane_payload(struct vb2_buffer *b,int plane,u32 n){assert(!plane);b->size=n;}
 #include "vdec-input.h"
-''' + ratio + negotiate + setter + enum + inspect + r'''
+''' + ratio + negotiate + getter + setter + enum + inspect + r'''
 int main(int argc,char **argv){
  assert(argc==3);
- struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}}};struct platform p={formats,2};
- struct m2m m={0};struct core c={&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=128,.height=96,.m2m_ctx=&m};
+ struct amvdec_format formats[]={{1,1920,1080,{3,0}},{2,1920,1080,{3,0}},{5,1920,1080,{3,0}},{6,1920,1088,{3,0}}};struct platform p={formats,4};
+ struct m2m m={0};struct core c={.platform=&p};struct amvdec_session s={.core=&c,.fmt_out=&formats[0],.width=128,.height=96,.m2m_ctx=&m};
  s.src_buffer_size=SZ_1M;
  struct v4l2_format format={.type=1};
  const u32 requested[][2]={{1,1},{163,99},{1930,1090}};
@@ -140,9 +144,33 @@ int main(int argc,char **argv){
   else{assert(!rc);if(!out)assert(s.width==saved.width&&s.height==saved.height);}
  }
  m.src.busy=m.dst.busy=false;s=saved;
+ /* Scaled CAPTURE never changes decoder/reference dimensions. */
+ c.ge2d_dev=&c;s.fmt_out=&formats[2];s.width=1920;s.height=1080;s.dpb_size=5;
+ format=(struct v4l2_format){.type=2};format.fmt.pix_mp.pixelformat=3;
+ format.fmt.pix_mp.width=1280;format.fmt.pix_mp.height=720;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&s.width==1920&&s.height==1080);
+ assert(s.capture.width==1280&&s.capture.height==720);
+ assert(format.fmt.pix_mp.width==1280&&format.fmt.pix_mp.height==720&&format.fmt.pix_mp.plane_fmt[0].bytesperline==1280);
+ format=(struct v4l2_format){.type=2};assert(!vdec_g_fmt(&f,NULL,&format));
+ assert(format.fmt.pix_mp.width==1280&&format.fmt.pix_mp.height==720);
+ struct meson_capture_geometry previous=s.capture;
+ m.dst.busy=true;format.fmt.pix_mp.width=640;format.fmt.pix_mp.height=360;
+ assert(vdec_s_fmt(&f,NULL,&format)==-EBUSY&&!memcmp(&s.capture,&previous,sizeof(previous)));
+ m.dst.busy=false;format.fmt.pix_mp.width=1;format.fmt.pix_mp.height=1;
+ assert(!vdec_try_fmt(&f,NULL,&format)&&format.fmt.pix_mp.width==480&&format.fmt.pix_mp.height==270);
+ assert(!memcmp(&s.capture,&previous,sizeof(previous)));
+ s.width=854;s.height=480;format=(struct v4l2_format){.type=2};assert(!vdec_g_fmt(&f,NULL,&format));
+ assert(format.fmt.pix_mp.width==854&&format.fmt.pix_mp.height==480);
+ s.width=1920;s.height=1080;
+ s.dpb_size=0;format.fmt.pix_mp.width=640;format.fmt.pix_mp.height=360;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&format.fmt.pix_mp.width==1920&&format.fmt.pix_mp.height==1080);
+ s.dpb_size=5;c.ge2d_dev=NULL;format.fmt.pix_mp.width=640;format.fmt.pix_mp.height=360;
+ assert(!vdec_s_fmt(&f,NULL,&format)&&format.fmt.pix_mp.width==1920);
+ c.ge2d_dev=&c;s=saved;
  format=(struct v4l2_format){.type=99};
+ assert(vdec_try_fmt(&f,NULL,&format)==-EINVAL&&vdec_g_fmt(&f,NULL,&format)==-EINVAL);
  assert(vdec_s_fmt(&f,NULL,&format)==-EINVAL&&!memcmp(&s,&saved,sizeof(s)));
- s.width=128;s.height=96;
+ c.ge2d_dev=NULL;s=saved;s.width=128;s.height=96;
  u8 input[20000],original[10000],translated[20000];
  FILE *stream=fopen(argv[1],"rb");assert(stream);
  assert(fread(original,1,sizeof(original),stream)==8271&&feof(stream));fclose(stream);

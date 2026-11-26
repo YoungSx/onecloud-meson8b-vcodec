@@ -34,7 +34,8 @@ class DecoderAspectTests(unittest.TestCase):
 #include <stdbool.h>
 #include <time.h>
 #include <linux/videodev2.h>
-typedef uint32_t u32;typedef int irqreturn_t;
+typedef uint32_t u32;typedef uint64_t u64;typedef int irqreturn_t;
+#include "capture-geometry.h"
 #define BIT(n) (1u<<(n))
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define EXPORT_SYMBOL_GPL(x)
@@ -42,7 +43,7 @@ typedef uint32_t u32;typedef int irqreturn_t;
 #include "dos_regs.h"
 struct amvdec_core {void *dev;};
 struct format {u32 pixfmt;};
-struct amvdec_session {int fh;struct amvdec_core *core;struct format *fmt_out;struct v4l2_fract pixelaspect;u32 width,height,reference_width,reference_height,crop_left,crop_top;};
+struct amvdec_session {int fh;struct meson_capture_geometry capture;struct amvdec_core *core;struct format *fmt_out;struct v4l2_fract pixelaspect;u32 width,height,reference_width,reference_height,crop_left,crop_top;};
 struct file {void *private_data;};
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
 static u32 registers[65536];static int delivered,aborted;
@@ -93,6 +94,12 @@ int main(void){struct amvdec_core core={0};struct format fmt={2};
  struct v4l2_cropcap cap={.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE};
  assert(!v4l_cropcap(&ops,&f,NULL,&cap));
  assert(cap.bounds.width==1920&&cap.bounds.height==1088&&cap.defrect.left==4&&cap.defrect.top==2);
+ meson_capture_configure(&s.capture,1912,1080,956,1080,true);
+ sel.target=V4L2_SEL_TGT_COMPOSE;
+ assert(!v4l_g_selection(&ops,&f,NULL,&sel)&&sel.r.width==956&&sel.r.height==1080);
+ cap=(struct v4l2_cropcap){.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE};s.pixelaspect=(struct v4l2_fract){1,1};
+ assert(!v4l_cropcap(&ops,&f,NULL,&cap));
+ assert(cap.bounds.width==1920&&cap.defrect.width==1912&&cap.pixelaspect.numerator==1&&cap.pixelaspect.denominator==2);
  sel.target=0xffffffff;assert(v4l_g_selection(&ops,&f,NULL,&sel)==-EINVAL);
  sel.type=V4L2_BUF_TYPE_VIDEO_OUTPUT;sel.target=V4L2_SEL_TGT_COMPOSE;assert(v4l_g_selection(&ops,&f,NULL,&sel)==-EINVAL);
  return 0;}

@@ -19,6 +19,7 @@ typedef uint64_t u64;
 typedef int irqreturn_t;
 #include "dos_regs.h"
 #include "meson8b-pool.h"
+#include "capture-geometry.h"
 
 #define BIT(n) (1u << (n))
 #define GENMASK(h, l) ((~0u >> (31 - (h))) & (~0u << (l)))
@@ -116,6 +117,7 @@ struct amvdec_core {
 	u32 pool_waiting_peak;
 };
 struct amvdec_session {
+ struct meson_capture_geometry capture;
 	struct amvdec_core *core;
 	struct amvdec_format *fmt_out;
 	struct amvdec_frame_pool pool;

@@ -280,7 +280,9 @@ static int vdec_queue_setup(struct vb2_queue *q, unsigned int *num_buffers,
 			    struct device *alloc_devs[])
 {
 	struct amvdec_session *sess = vb2_get_drv_priv(q);
-	u32 output_size = amvdec_get_output_size(sess);
+	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+							 sess->width, sess->height);
+	u32 output_size = amvdec_get_output_size_wh(capture.width, capture.height);
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
 	    sess->core->platform->revision == VDEC_REVISION_MESON8B) {
@@ -401,7 +403,9 @@ static void vdec_vb2_buf_queue(struct vb2_buffer *vb)
 static bool vdec_capture_queue_fits(struct amvdec_session *sess,
 				    struct vb2_queue *q)
 {
-	u32 output_size = amvdec_get_output_size(sess);
+	struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+							 sess->width, sess->height);
+	u32 output_size = amvdec_get_output_size_wh(capture.width, capture.height);
 	u32 min_bufs = max_t(u32, v4l2_ctrl_g_ctrl(sess->ctrl_min_buf_capture),
 			     sess->fmt_out->min_buffers);
 	unsigned int num_planes =
@@ -763,6 +767,13 @@ vdec_supports_pixfmt_cap(const struct amvdec_format *fmt_out, u32 pixfmt_cap)
 	return 0;
 }
 
+static bool vdec_capture_scalable(const struct amvdec_session *sess)
+{
+	return sess->core->ge2d_dev && sess->dpb_size &&
+		(sess->fmt_out->pixfmt == V4L2_PIX_FMT_H264 ||
+		 sess->fmt_out->pixfmt == V4L2_PIX_FMT_HEVC);
+}
+
 static const struct amvdec_format *
 vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 		    struct v4l2_format *f)
@@ -786,23 +797,31 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		fmt_out = sess->fmt_out;
-		/* No decoder scaling is negotiated: CAPTURE follows the source. */
-		pixmp->width = sess->width;
-		pixmp->height = sess->height;
+		{
+			struct meson_capture_geometry capture;
+
+			meson_capture_configure(&capture, sess->width, sess->height,
+						pixmp->width, pixmp->height,
+						vdec_capture_scalable(sess));
+			pixmp->width = capture.width;
+			pixmp->height = capture.height;
+		}
 		break;
 	default:
 		return NULL;
 	}
 
-	pixmp->width = clamp(pixmp->width,
-			      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 256u,
-			      fmt_out->max_width);
-	pixmp->height = clamp(pixmp->height,
-			       fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 144u,
-			       fmt_out->max_height);
-	if (fmt_out->pixfmt == V4L2_PIX_FMT_H263) {
-		pixmp->width = ALIGN(pixmp->width, 4);
-		pixmp->height = ALIGN(pixmp->height, 4);
+	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		pixmp->width = clamp(pixmp->width,
+				     fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 256u,
+				     fmt_out->max_width);
+		pixmp->height = clamp(pixmp->height,
+				      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 144u,
+				      fmt_out->max_height);
+		if (fmt_out->pixfmt == V4L2_PIX_FMT_H263) {
+			pixmp->width = ALIGN(pixmp->width, 4);
+			pixmp->height = ALIGN(pixmp->height, 4);
+		}
 	}
 	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
 
@@ -864,8 +883,11 @@ static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		pixmp->pixelformat = sess->fmt_out->pixfmt;
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		pixmp->width = sess->width;
-		pixmp->height = sess->height;
+		struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+								 sess->width, sess->height);
+
+		pixmp->width = capture.width;
+		pixmp->height = capture.height;
 		pixmp->colorspace = sess->colorspace;
 		pixmp->ycbcr_enc = sess->ycbcr_enc;
 		pixmp->quantization = sess->quantization;
@@ -912,14 +934,18 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		ret = -EINVAL;
 		goto unlock;
 	}
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		meson_capture_configure(&sess->capture, sess->width, sess->height,
+					pixmp->width, pixmp->height,
+					vdec_capture_scalable(sess));
+		sess->pixfmt_cap = pixmp->pixelformat;
+		goto unlock;
+	}
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		pixfmt_out = pixmp->pixelformat;
 		pixfmt_cap = sess->pixfmt_cap;
 		sess->fmt_out = fmt_out;
-	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		pixfmt_cap = pixmp->pixelformat;
-		pixfmt_out = sess->fmt_out->pixfmt;
 	}
 
 	memset(&format, 0, sizeof(format));
@@ -933,6 +959,8 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		sess->width = format.fmt.pix_mp.width;
 		sess->height = format.fmt.pix_mp.height;
+		memset(&sess->capture, 0, sizeof(sess->capture));
+		sess->dpb_size = 0;
 		sess->colorspace = pixmp->colorspace;
 		sess->ycbcr_enc = pixmp->ycbcr_enc;
 		sess->quantization = pixmp->quantization;
@@ -957,9 +985,6 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 
 	sess->width = format.fmt.pix_mp.width;
 	sess->height = format.fmt.pix_mp.height;
-
-	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		sess->pixfmt_cap = format.fmt.pix_mp.pixelformat;
 
 unlock:
 	mutex_unlock(&sess->lock);
@@ -1145,9 +1170,16 @@ static int vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *
 		rect.top = sess->crop_top;
 		break;
 	case V4L2_SEL_TGT_COMPOSE:
+	case V4L2_SEL_TGT_COMPOSE_PADDED:
 	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
-		/* Frame-pool delivery has already applied the source crop. */
+		{
+			struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
+									 sess->width, sess->height);
+
+			rect.width = capture.width;
+			rect.height = capture.height;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -1161,13 +1193,17 @@ static int vdec_g_pixelaspect(struct file *file, void *fh, int type,
 {
 	struct amvdec_session *sess =
 		container_of(file->private_data, struct amvdec_session, fh);
+	struct meson_capture_ratio ratio;
 
 	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
 	/* CROPCAP uses y/x, while the codec's sample aspect ratio is x/y. */
-	f->numerator = sess->pixelaspect.denominator;
-	f->denominator = sess->pixelaspect.numerator;
+	ratio = meson_capture_pixelaspect(&sess->capture, sess->width, sess->height,
+					  sess->pixelaspect.numerator,
+					  sess->pixelaspect.denominator);
+	f->numerator = ratio.numerator;
+	f->denominator = ratio.denominator;
 	return 0;
 }
 

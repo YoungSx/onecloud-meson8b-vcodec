@@ -26,16 +26,18 @@ typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;typedef in
 #define DMA_BIDIRECTIONAL 0
 #define amvdec_core core
 #include "ge2d-layout.h"
+#include "../vdec/capture-geometry.h"
 struct meson8b_ge2d_api {int (*convert)(void *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_crop *);};
 struct core {void *ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2d_frames,converted_frames,convert_ns,pool_bytes;};
 struct format {u32 pixfmt;};
 struct amvdec_geometry {u32 width,height,reference_width,reference_height,crop_left,crop_top;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma,size;void *vaddr;};
-struct amvdec_session {struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;} pool;};
+struct amvdec_session {struct meson_capture_geometry capture;struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;} pool;};
 struct vb2_buffer {u32 num_planes,memory;struct {u32 data_offset,size;void *dbuf,*vaddr;dma_addr_t dma;} planes[2];};
 static int gpu_calls,cpu_calls,begin_calls,end_calls,conversion_error,begin_error;
 static void *begin_failure;
 static unsigned allocations,releases;static int allocation_error;static bool staged;static u32 output_luma=1024;
+static u32 expected_width=34,expected_height=16;
 static unsigned char y[2048],uv[1024];static unsigned char *stage_address;
 static u32 amvdec_get_output_size_wh(u32 w,u32 h){(void)w;(void)h;return output_luma;}
 static void *vb2_plane_vaddr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].vaddr;}
@@ -51,16 +53,16 @@ static void amvdec_shadow_free(struct amvdec_session *s,struct amvdec_shadow *sh
 static int amvdec_shadow_alloc(struct amvdec_session *s,struct amvdec_shadow *sh,u32 luma){(void)s;allocations++;if(allocation_error)return allocation_error;sh->vaddr=malloc(luma*3/2);assert(sh->vaddr);stage_address=sh->vaddr;memset(sh->vaddr,0xcc,luma*3/2);sh->paddr=0x400000;sh->luma=luma;sh->size=luma*3/2;return 0;}
 static int convert(void *d,const struct meson8b_ge2d_image *in,const struct meson8b_ge2d_image *out,const struct meson8b_ge2d_crop *crop){
  assert(d&&in->width==64&&in->height==32&&in->stride==64&&in->nv12&&!in->little_endian);
- assert(out->width==34&&out->height==16&&out->stride==64&&out->little_endian&&out->nv12);
+ assert(out->width==expected_width&&out->height==expected_height&&out->stride==ALIGN(expected_width,32)&&out->little_endian&&out->nv12);
  assert(in->address[1]==in->address[0]+2048&&crop->left==2&&crop->top==4);
- for(unsigned p=0;p<2;p++){unsigned rows=p?8:16;unsigned char *plane=staged?stage_address+(p?output_luma:0):(p?uv:y);
-  for(unsigned row=0;row<rows;row++)for(unsigned x=34;x<64;x++)assert(!plane[row*64+x]);
-  for(unsigned i=rows*64;i<(p?512:1024);i++)assert(!plane[i]);
+ for(unsigned p=0;p<2;p++){unsigned rows=p?expected_height/2:expected_height;unsigned char *plane=staged?stage_address+(p?output_luma:0):(p?uv:y);
+  for(unsigned row=0;row<rows;row++)for(unsigned x=expected_width;x<out->stride;x++)assert(!plane[row*out->stride+x]);
+  for(unsigned i=rows*out->stride;i<(p?512:1024);i++)assert(!plane[i]);
  }
  if(staged){assert(out->address[0]==0x400000&&out->address[1]==0x400000+output_luma);
-  if(!conversion_error)for(unsigned p=0;p<2;p++)for(unsigned row=0;row<(p?8u:16u);row++)
-   memset(stage_address+(p?output_luma:0)+row*64,0x37+p,34);
- }
+  if(!conversion_error)for(unsigned p=0;p<2;p++)for(unsigned row=0;row<(p?expected_height/2:expected_height);row++)
+   memset(stage_address+(p?output_luma:0)+row*out->stride,0x37+p,expected_width);
+ }else{assert(out->address[0]==0x200000&&out->address[1]==0x300000);}
  gpu_calls++;return conversion_error;
 }
 '''
@@ -97,6 +99,23 @@ int main(void){
  conversion_error=-ETIMEDOUT;int calls=cpu_calls;
  assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==calls+1);
  assert(allocations==1&&!releases);
+ /* Negotiated scaling changes only the output, preserving source crop. */
+ conversion_error=0;expected_width=18;expected_height=8;
+ meson_capture_configure(&s.capture,34,16,18,8,true);
+ int old_calls=cpu_calls;
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ assert(y[0]==0x37&&y[17]==0x37&&y[18]==0&&uv[0]==0x38);
+ conversion_error=-ETIMEDOUT;
+ assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-ETIMEDOUT&&cpu_calls==old_calls);
+ c.ge2d_dev=NULL;
+ assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-EOPNOTSUPP&&cpu_calls==old_calls);
+ c.ge2d_dev=&api;conversion_error=0;b.memory=V4L2_MEMORY_DMABUF;staged=false;
+ b.planes[0].dbuf=b.planes[1].dbuf=&api;
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ conversion_error=-ETIMEDOUT;
+ assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-ETIMEDOUT&&cpu_calls==old_calls);
+ b.memory=1;staged=true;b.planes[0].dbuf=b.planes[1].dbuf=NULL;
+ s.capture=(struct meson_capture_geometry){0};expected_width=34;expected_height=16;
  /* A smaller display reallocates staging; a failed allocation keeps fallback. */
  output_luma=2048;b.planes[0].size=2048;b.planes[1].size=1024;allocation_error=-ENOMEM;calls=cpu_calls;
  assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==calls+1);
