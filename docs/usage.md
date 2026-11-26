@@ -192,8 +192,9 @@ CAPTURE_SIZE=1280x720 CAPTURE_BUFFERS=3 CAPTURE_DMABUF=/dev/dri/card1 \
 stride或容量不匹配；等待编码器两队列返回后才重新排入decoder。未选择
 FRAME_DUMP/FRAME_HASH时，用户态不读取或同步采集像素；尺寸切换先排空编码器
 再释放旧采集面。这是标准V4L2交接诊断入口，尚非官方FFmpeg或OpenList集成。
-854×480→320×192仍有滤波质量/对齐缺口，不能据短流通过宣称任意比例或切换
-质量通过，详见[真实链记录](validation-records.md#11-26-真实解码缩放与共享编码交接)。
+854×480→320×192曾暴露滤波起点偏移，`2fea36e`补齐厂商首样本重复计数后
+已通过原失败用例和完整矩阵；其他比例仍按实际验收范围理解，详见
+[修复记录](validation-records.md#11-26-ge2d-滤波首样本重复修复)。
 
 ## HEVC Main 8-bit
 

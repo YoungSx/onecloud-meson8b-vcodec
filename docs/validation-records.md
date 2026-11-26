@@ -1477,3 +1477,41 @@ GE2D卸载、帧池归零；未新增系统重启或持续压力测试。
 OpenList、音视频、1.3×、并发或长期稳定性，#14/#32保持开放。记录标识
 `decoder-shared-a6f3fc8`；原件、失败候选、软件参考与包/state在工作区外
 SHA256校验归档，无永久公开附件。
+
+## 11-26 GE2D 滤波首样本重复修复
+
+继`a6f3fc8`的854×480→320×192失败，固定S805厂商
+[`stretchblt.c`](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/display/ge2d/stretchblt.c)
+设置`hsc_rpt_p0_num`/`vsc_rpt_l0_num`各1，
+[`ge2d_hw.c`](https://github.com/hardkernel/linux/blob/5aed95d35d252cafc75ce613a3a0052285662de2/drivers/amlogic/display/ge2d/ge2d_hw.c)
+将其写入INI_CTRL高位；当前移植遗漏，两个寄存器均写0。四抽头滤波读取
+起点因此偏移，运动纹理的空间偏移还会干扰最近软件帧的顺序判据。
+源码`2fea36e2474d709fb205b48a5f23edb6d08df1ae`仅在缩小的对应轴写首样本
+重复1，保持相位步长、原尺寸/裁剪、颜色和字节序路径。此前只加中心相位
+的失败候选不再采用，原始失败及对照继续保留。
+
+148项Host和独立提交源码包、ASan/UBSan、strict checkpatch、原5.15.79 ARM
+外部/additive双入口与补丁一致性通过。真实MMIO回归覆盖横纵缩小、只缩一轴、
+unity/crop和既有错误清理；分别删去横/纵首样本重复的两项故障注入均检出。
+GE2D SHA256 `b838485a571d1f302077f7cb89e20dd996967b5a4558ec66269b9eeb3f480b1b`。
+
+实机先对原失败静态/切换四组72幅完整软解、顺序及独立bilinear参考验收，
+854→320静态H264/HEVC输出Y PSNR约36.34/36.38 dB。随后24组272幅独立decoder
+重验全部通过，最低组/平面PSNR34.70 dB，MMAP与meson-drm DMA-BUF原始字节
+相同。22组244幅真实解码→GE2D→共享编码输入重验也全部通过，最低平面
+PSNR34.88 dB，含原尺寸、四倍/非等比/crop、1080p→720p、两种输入的源尺寸
+切换及两种提前STREAMOFF顺序。244幅encoder direct、copied/copy_ns=0；
+提前取消可能让decoder额外完成未交给encoder的图片，不将其算成已编码输出。
+
+各组前继续采样CPU/可用内存/温度，任务串行、有界并带恢复timer。一次
+OpenList启动超过首次HTTP等待窗，停止新硬件工作后轮询恢复四项HTTP200，
+原五业务、containerd字节/启动/累计重启数正常，非新崩溃。各批结束卸载
+GE2D/临时Overlay、恢复NEON，原state、26启动文件及固件完整校验通过。
+
+完整运行包已更新保留为`2fea36e`，同时在部署目录单独保存上述可选GE2D
+二进制与来源/哈希；默认包仍只自动加载原三个模块，不改其字节/固件或
+FFmpeg，不启用生产GE2D。旧包/state和修复前模块另存，更新不再次重启业务。
+此修复关闭的是本轮采样偏移，#14/#32仍需完整回压、同步/超时和客户端/
+应用收益门槛；未证明任意格式/比例、并发、1.3×或长期稳定性。记录标识
+`ge2d-repeat-2fea36e`；源码、输入/软件参考、输出、失败、完整包/state与
+服务恢复原件仅在工作区外SHA256校验归档，无永久公开附件。

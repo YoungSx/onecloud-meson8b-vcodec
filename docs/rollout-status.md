@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`a6f3fc8cb96cbe75d704b72c440d69629b48bbe3`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
+| 已部署开发驱动 | 完整运行包源码`2fea36e2474d709fb205b48a5f23edb6d08df1ae`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | OpenList镜像保持官方底座8.1.3、字节未改；新运行包附官方原版7.0.2独立工具，启用HLS输入，不替换宿主或容器FFmpeg。 |
@@ -44,6 +44,12 @@ copied/copy_ns=0。两组尺寸切换48幅的854→320段仍未通过参考质�
 相位实验未改善并已撤回。正式内核/固件字节未变，运行包和客户端已保留
 部署，GE2D关闭；各批测试恢复原业务、HTTP、启动文件/state和containerd
 状态，见[真实链与失败边界](validation-records.md#11-26-真实解码缩放与共享编码交接)。
+
+`2fea36e`随后定位并修复该滤波缺口：补厂商首样本重复计数，decoder272幅
+和真实共享转码244幅完整内容/顺序/全平面质量通过，含原失败比例/尺寸
+切换。完整包与修复的可选GE2D已部署保留；正式三个模块/固件字节未改，
+GE2D继续关闭。OpenList曾超过首次HTTP等待窗口，后续轮询及完整健康核对
+通过，containerd启动/重启计数未变，见[首样本修复](validation-records.md#11-26-ge2d-滤波首样本重复修复)。
 
 此前13:19 UTC升级并保留`20220a8`完整包，原`7991ba4`包/state/固件87项
 先设备外校验备份。默认NEON16组600/600精确、MJPEG9幅全平面及两种提前
