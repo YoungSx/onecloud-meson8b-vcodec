@@ -8,7 +8,7 @@
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`f053ed2f0fd2400d0ce0547e710b305fd93714cd`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
+| 已部署开发驱动 | 完整运行包源码`926d0c05721ccdbb20b5c8a7070d40ac823899ec`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | OpenList镜像保持官方底座8.1.3、字节未改；新运行包附官方原版7.0.2独立工具，启用HLS输入，不替换宿主或容器FFmpeg。 |
@@ -30,6 +30,13 @@
 现有原五容器及另一个无关容器均保留，四项HTTP200、unit enabled/active、
 26个启动文件及containerd状态核对通过，GE2D测试模块已卸载、帧池归零。
 具体版本/失败与恢复边界见[共享交接记录](validation-records.md#11-26-ge2d-到编码器共享-dma-buf-交接)。
+
+再完成并保留`926d0c0`实际缩放入口，9组47幅完整软解/顺序/独立bilinear
+全平面质量通过，41幅直接读取、6幅非整宏块高度复制；覆盖1080p→720p、
+非等比/四倍缩小、裁剪宽、同fd重开与JPEG。模块/固件字节未改，包与客户端
+刷新无须再重启业务。临时GE2D已卸载，默认NEON、原五业务/四项HTTP200、
+26个启动文件、原state与containerd状态通过。未加入decoder或证明完整链
+收益，见[缩放交接记录](validation-records.md#11-26-ge2d-缩放后共享编码输入)。
 
 此前13:19 UTC升级并保留`20220a8`完整包，原`7991ba4`包/state/固件87项
 先设备外校验备份。默认NEON16组600/600精确、MJPEG9幅全平面及两种提前

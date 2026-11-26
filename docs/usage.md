@@ -164,8 +164,19 @@ DMA-BUF，等GE2D的CAPTURE/OUTPUT出队后才排给encoder，等编码器归还
   /dev/video1 output.h264 /dev/null 1280 720 8 NV12-1 85 H264
 ```
 
-这是临时加载已验证GE2D及匹配Overlay后的诊断用法，要求NV12-1、dumb导入
-与相同输入/输出尺寸。示例不包含解码器或缩放，也不自动加载设备。原有
+`-S WxH`指定GE2D源尺寸，位置参数仍为编码输出尺寸；省略时同尺寸复制。
+每轴仅支持1～4倍缩小，源宽32～1920、高2～1088，宽高均须为偶数。例如：
+
+```sh
+./encode-test -G /dev/video2 -S 1920x1080 -d dumb -p motion \
+  /dev/video1 output.h264 /dev/null 1280 720 8 NV12-1 85 H264
+```
+
+指定`-S`时，REF文件保存未缩放的源NV12，需要在工作机独立缩放后再对比
+编码输出，不能将它当作输出尺寸的参考面。
+
+这是临时加载已验证GE2D及匹配Overlay后的诊断用法，要求NV12-1和dumb导入。
+示例不包含解码器，也不自动加载设备。原有
 `NV12`客户端名仍为NV12M，不能用来代替此单平面协议；测试后恢复默认NEON。
 
 ## HEVC Main 8-bit
