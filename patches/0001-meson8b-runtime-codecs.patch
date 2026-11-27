@@ -9943,7 +9943,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/media/platform/meson/meson8b-vcodec/vdec/vdec.c
-@@ -0,0 +1,1647 @@
+@@ -0,0 +1,1649 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/*
 + * Copyright (C) 2018 BayLibre, SAS
@@ -10596,6 +10596,8 @@
 +		vdec_reset_bufs_recycle(sess);
 +		kfree(sess->priv);
 +		sess->priv = NULL;
++		memset(&sess->capture, 0, sizeof(sess->capture));
++		sess->dpb_size = 0;
 +		sess->status = STATUS_STOPPED;
 +	}
 +

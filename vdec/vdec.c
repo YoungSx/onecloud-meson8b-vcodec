@@ -650,6 +650,8 @@ static void vdec_stop_streaming_locked(struct vb2_queue *q)
 		vdec_reset_bufs_recycle(sess);
 		kfree(sess->priv);
 		sess->priv = NULL;
+		memset(&sess->capture, 0, sizeof(sess->capture));
+		sess->dpb_size = 0;
 		sess->status = STATUS_STOPPED;
 	}
 

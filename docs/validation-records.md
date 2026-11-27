@@ -1761,3 +1761,61 @@ additive 模块构建与 [0001-meson8b-runtime-codecs.patch](../patches/0001-mes
 `e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595`，`runtime`/
 `ge2d` 字节未变；最后运行 `make test` 覆盖全部 152 项主机与文档测试通过。实机
 多 slice/HD/码控验收仍在 #15/#16/#24 保持开放。
+
+## 11-27 停流缩放清零修复与阶段一/二实机验收
+
+实机复现 `v4l2-accept` 同 `fd` 重开场景时发现：`vdec` 的 `OUTPUT` 队列设置
+`min_buffers_needed = 1`，导致仅调用 `VIDIOC_STREAMON(OUTPUT)` 而尚未
+`VIDIOC_QBUF(OUTPUT)` 时会延迟执行 `vdec_start_streaming_locked()`，从而使停流后
+立即查询 `G_FMT(CAPTURE)` 或 `REQBUFS(CAPTURE)` 仍读到旧会话的缩放尺寸。遂在
+`vdec/vdec.c` 的 `vdec_stop_streaming_locked()` 进入 `STATUS_STOPPED` 路径同步
+清零 `sess->capture` 与 `sess->dpb_size`（同时保持 `STATUS_NEEDS_RESUME`
+动态分辨率切换期间 `STREAMOFF(CAPTURE)` 的缩放几何不变），并在
+[test_capture_scaling.py](../tests/test_capture_scaling.py) 增补停流清零与保留
+测试。
+
+- **工作机与双构建验证**：`make test` 全部 153 项主机测试（含 ASan/UBSan）与
+  文档检查通过；`vdec/vdec.c` 变更通过严格 `checkpatch.pl`（0 告警）；5.15.79 ARM
+  外部与 additive 模块构建及 [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)
+  同步通过（`meson-vdec.ko` SHA256 `3b6308f0ce7ecb2fa57a2ebf1f8567dd2d9cfb638d55eb47f47431d79f8fba38`、
+  `meson-venc.ko` `e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595`、
+  `meson8b-ge2d.ko` `60973f85714e6e1a66033516072f2829905997d2c7ad4ae1d5e18a660fb5f1cf`）。
+- **Stage 2 实机验收（临时加载 `meson8b-ge2d.ko` + `capture_ge2d=1`）**：
+  - `ge2d-copy` 640×360 同尺寸及 320×180 缩放各 5 帧通过；`GE2D`
+    `VIDIOC_CREATE_BUFS`、过小缓冲 `EINVAL` 拒绝、`VIDIOC_PREPARE_BUF` 及对新创建
+    `index=1` 缓冲实际执行转换全部通过。
+  - `vdec` 同 `fd` 重开（H.264 640×360 先协商 `320×180` 解码，双队列 `STREAMOFF`
+    + `REQBUFS(0)` 后不重设 `S_FMT(OUTPUT)` 仅 `STREAMON(OUTPUT)`）在 `QBUF` 前
+    即刻 `G_FMT(CAPTURE)` 与二次 `SOURCE_CHANGE` 后均恢复为 `640×360`。
+  - `vdec`（`capture_ge2d=1`）+ DRM dumb `CAPTURE_DMABUF` + 共享 `venc` 端到端
+    转码：640×360 30/30（`GE2D=30, DIRECT=30, COPIED=0`）及缩放 320×180 30/30
+    （`GE2D=30, DIRECT=30, COPIED=0`）通过；`HEVC` 2-slice 640×384 经
+    `capture_ge2d=1` + DRM dumb `CAPTURE_DMABUF` 输出 20/20 与软件参考逐帧可见像素
+    MD5 精确一致，结束后 `pool_bytes=0`。
+  - `GE2D -> venc` 宏块对齐 320×192 `NV12-1` 直读 10/10（`DIRECT=10, COPIED=0`），
+    非对齐 320×180 按预期回退安全复制（`COPIED=10`）；`NV21M` dumb DMA-BUF
+    直读 10/10（`DIRECT=10, COPIED=0`），非连续 `lima` GEM DMA-BUF 回退安全复制
+    5/5（`DIRECT=0, COPIED=5`）。
+  - `JPEG` 1080p 5 帧（quality=85，无 `REF0`/`REF1`/`ANALYSIS` CMA）解码输出全平面
+    平均 PSNR `30.73 dB`（`y:29.47 u:35.63 v:35.56`）；`RC` `qp-min=45`
+    （`i-qp=48, p-qp=45`, 15 帧）报告 `qp=45`、`saturated_frames=14`（首帧 IDR
+    不误计饱和）。
+  - `H.263` 4CIF（704×576，12 帧，平均 PSNR `66.50 dB`）与 PLUS（164×100，3 帧，
+    平均 PSNR `65.16 dB`）全平面接近软件参考；首行 `GN=0` 非法 GOB 头在实机安全
+    拒绝并中止异常会话，后续会话可正常恢复解码。
+- **未关闭边界**：默认 `ffmpeg h263p` 输出默认开启 Annex K Slice Structured
+  （`SS=1`），仍按既有能力边界以 `-EOPNOTSUPP` 拒绝；HEVC 首 slice
+  `dependent_slice_segment_flag=1` 仍仅工作机回归，尚无实机异常码流用例；1080p 1.3×
+  实时目标（#7）及历史故障调查（#4/#5/#6/#34）继续开放。
+
+## 11-27 生产部署升级与 Stage 1 默认 NEON 复验
+
+完成上述 Stage 2 与宿主回归后，将正式默认 NEON 运行包升级部署至目标机（保留
+`2fea36e` 设备外校验备份，生产继续保持 GE2D 关闭），并在正式包下完成 Stage 1
+有界复验与五业务健康核对：
+
+- **默认 NEON 复验**：`HEVC` 2-slice 640×384 20/20 与 `H.264` 360p 30/30
+  可见像素 MD5 逐帧精确一致；`JPEG` 1080p 5 帧、编码 `NV12M` dumb DMA-BUF
+  15 帧直读（`DIRECT=15, COPIED=0`）、`RC`（`i-qp=36` 首个 IDR 不误计饱和，
+  `qp=32`, `saturated_frames=26`）与 `H.263` 4CIF/PLUS 解码通过，结束后
+  `pool_bytes=0`。

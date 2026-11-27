@@ -66,6 +66,89 @@ int main(void){
                             '-o', str(root / 'test'), '-lm'], check=True)
             subprocess.run([str(root / 'test')], check=True)
 
+    def test_stop_streaming_clears_capture_scaling_only_on_full_stop(self):
+        source = (ROOT / 'vdec/vdec.c').read_text()
+        start = source.index('static void vdec_stop_streaming_locked(')
+        end = source.index('\nstatic void vdec_stop_streaming(', start)
+        code = r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+typedef uint32_t u32;typedef uint64_t u64;typedef uintptr_t dma_addr_t;
+#define V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE 1
+#define V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE 2
+#define VB2_BUF_STATE_ERROR 1
+#define WRITE_ONCE(x,v) ((x)=(v))
+#include "capture-geometry.h"
+enum {STATUS_STOPPED,STATUS_INIT,STATUS_RUNNING,STATUS_NEEDS_RESUME};
+struct vb2_queue {u32 type;};
+struct vb2_v4l2_buffer {int unused;};
+struct amvdec_codec_ops {void (*drain)(void *);};
+struct amvdec_format {struct amvdec_codec_ops *codec_ops;};
+struct amvdec_core {void *dev;int vdec_irq;void *cur_sess;};
+struct amvdec_pool {int work;};
+struct amvdec_session {struct amvdec_core *core;const struct amvdec_format *fmt_out;void *m2m_ctx,*priv,*vififo_vaddr,*recycle_thread;
+ dma_addr_t vififo_paddr;u32 vififo_size,status,streamon_out,streamon_cap,dpb_size;
+ struct meson_capture_geometry capture;struct amvdec_pool pool;};
+static struct amvdec_session *vb2_get_drv_priv(struct vb2_queue *q){(void)q;extern struct amvdec_session session;return &session;}
+static void disable_irq(int irq){(void)irq;}
+static void enable_irq(int irq){(void)irq;}
+static bool vdec_codec_needs_recycle(struct amvdec_session *s){(void)s;return false;}
+static void kthread_stop(void *t){(void)t;}
+static bool amvdec_has_pool(struct amvdec_session *s){(void)s;return false;}
+static void cancel_work_sync(int *w){(void)w;}
+static void vdec_poweroff(struct amvdec_session *s){(void)s;}
+static void vdec_free_canvas(struct amvdec_session *s){(void)s;}
+static void amvdec_pool_free(struct amvdec_session *s){(void)s;}
+static void amvdec_pool_capture_stop(struct amvdec_session *s){(void)s;}
+static void dma_free_coherent(void *d,u32 sz,void *v,dma_addr_t p){(void)d;(void)sz;(void)v;(void)p;}
+static void vdec_reset_timestamps(struct amvdec_session *s){(void)s;}
+static void vdec_reset_bufs_recycle(struct amvdec_session *s){(void)s;}
+static void kfree(const void *p){(void)p;}
+static struct vb2_v4l2_buffer *v4l2_m2m_src_buf_remove(void *m){(void)m;return NULL;}
+static struct vb2_v4l2_buffer *v4l2_m2m_dst_buf_remove(void *m){(void)m;return NULL;}
+static void v4l2_m2m_buf_done(struct vb2_v4l2_buffer *b,int st){(void)b;(void)st;}
+static struct amvdec_codec_ops ops={0};
+static struct amvdec_format fmt={.codec_ops=&ops};
+static struct amvdec_core core={0};
+struct amvdec_session session;
+''' + source[start:end] + r'''
+int main(void){
+ struct vb2_queue out={.type=V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE};
+ struct vb2_queue cap={.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE};
+ /* Resolution change STREAMOFF(CAPTURE) must preserve scaled geometry. */
+ session=(struct amvdec_session){.core=&core,.fmt_out=&fmt,.status=STATUS_NEEDS_RESUME,
+  .streamon_out=1,.streamon_cap=1,.dpb_size=5,
+  .capture={.source_width=1920,.source_height=1080,.width=1280,.height=720}};
+ vdec_stop_streaming_locked(&cap);
+ assert(session.status==STATUS_NEEDS_RESUME&&!session.streamon_cap);
+ assert(session.dpb_size==5&&session.capture.width==1280&&session.capture.height==720);
+ /* Stopping the other queue from STATUS_NEEDS_RESUME is a full stop. */
+ vdec_stop_streaming_locked(&out);
+ assert(session.status==STATUS_STOPPED&&!session.dpb_size&&!session.streamon_out);
+ assert(!session.capture.source_width&&!session.capture.width&&!session.capture.height);
+ /* Full stop (STATUS_RUNNING -> STATUS_STOPPED) must clear stale scaling. */
+ session=(struct amvdec_session){.core=&core,.fmt_out=&fmt,.status=STATUS_RUNNING,
+  .streamon_out=1,.streamon_cap=1,.dpb_size=5,
+  .capture={.source_width=1920,.source_height=1080,.width=1280,.height=720}};
+ vdec_stop_streaming_locked(&cap);
+ assert(session.status==STATUS_STOPPED&&!session.dpb_size);
+ assert(!session.capture.source_width&&!session.capture.width&&!session.capture.height);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-Wno-unused-parameter',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'vdec'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
     def test_same_fd_reopen_clears_stale_capture_scaling(self):
         source = (ROOT / 'vdec/vdec.c').read_text()
         start = source.index('static int vdec_start_streaming_locked(')
@@ -136,6 +219,89 @@ int main(void){
  assert(!session.capture.source_width&&!session.capture.source_height&&!session.capture.width&&!session.capture.height);
  struct meson_capture_size resolved=meson_capture_resolve(&session.capture,1920,1080);
  assert(resolved.width==1920&&resolved.height==1080);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-Wno-unused-parameter',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            '-I', str(ROOT / 'vdec'), str(root / 'test.c'),
+                            '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)
+
+    def test_stop_streaming_clears_capture_scaling_only_on_full_stop(self):
+        source = (ROOT / 'vdec/vdec.c').read_text()
+        start = source.index('static void vdec_stop_streaming_locked(')
+        end = source.index('\nstatic void vdec_stop_streaming(', start)
+        code = r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+typedef uint32_t u32;typedef uint64_t u64;typedef uintptr_t dma_addr_t;
+#define V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE 1
+#define V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE 2
+#define VB2_BUF_STATE_ERROR 1
+#define WRITE_ONCE(x,v) ((x)=(v))
+#include "capture-geometry.h"
+enum {STATUS_STOPPED,STATUS_INIT,STATUS_RUNNING,STATUS_NEEDS_RESUME};
+struct vb2_queue {u32 type;};
+struct vb2_v4l2_buffer {int unused;};
+struct amvdec_codec_ops {void (*drain)(void *);};
+struct amvdec_format {struct amvdec_codec_ops *codec_ops;};
+struct amvdec_core {void *dev;int vdec_irq;void *cur_sess;};
+struct amvdec_pool {int work;};
+struct amvdec_session {struct amvdec_core *core;const struct amvdec_format *fmt_out;void *m2m_ctx,*priv,*vififo_vaddr,*recycle_thread;
+ dma_addr_t vififo_paddr;u32 vififo_size,status,streamon_out,streamon_cap,dpb_size;
+ struct meson_capture_geometry capture;struct amvdec_pool pool;};
+static struct amvdec_session *vb2_get_drv_priv(struct vb2_queue *q){(void)q;extern struct amvdec_session session;return &session;}
+static void disable_irq(int irq){(void)irq;}
+static void enable_irq(int irq){(void)irq;}
+static bool vdec_codec_needs_recycle(struct amvdec_session *s){(void)s;return false;}
+static void kthread_stop(void *t){(void)t;}
+static bool amvdec_has_pool(struct amvdec_session *s){(void)s;return false;}
+static void cancel_work_sync(int *w){(void)w;}
+static void vdec_poweroff(struct amvdec_session *s){(void)s;}
+static void vdec_free_canvas(struct amvdec_session *s){(void)s;}
+static void amvdec_pool_free(struct amvdec_session *s){(void)s;}
+static void amvdec_pool_capture_stop(struct amvdec_session *s){(void)s;}
+static void dma_free_coherent(void *d,u32 sz,void *v,dma_addr_t p){(void)d;(void)sz;(void)v;(void)p;}
+static void vdec_reset_timestamps(struct amvdec_session *s){(void)s;}
+static void vdec_reset_bufs_recycle(struct amvdec_session *s){(void)s;}
+static void kfree(const void *p){(void)p;}
+static struct vb2_v4l2_buffer *v4l2_m2m_src_buf_remove(void *m){(void)m;return NULL;}
+static struct vb2_v4l2_buffer *v4l2_m2m_dst_buf_remove(void *m){(void)m;return NULL;}
+static void v4l2_m2m_buf_done(struct vb2_v4l2_buffer *b,int st){(void)b;(void)st;}
+static struct amvdec_codec_ops ops={0};
+static struct amvdec_format fmt={.codec_ops=&ops};
+static struct amvdec_core core={0};
+struct amvdec_session session;
+''' + source[start:end] + r'''
+int main(void){
+ struct vb2_queue out={.type=V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE};
+ struct vb2_queue cap={.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE};
+ /* Resolution change STREAMOFF(CAPTURE) must preserve scaled geometry. */
+ session=(struct amvdec_session){.core=&core,.fmt_out=&fmt,.status=STATUS_NEEDS_RESUME,
+  .streamon_out=1,.streamon_cap=1,.dpb_size=5,
+  .capture={.source_width=1920,.source_height=1080,.width=1280,.height=720}};
+ vdec_stop_streaming_locked(&cap);
+ assert(session.status==STATUS_NEEDS_RESUME&&!session.streamon_cap);
+ assert(session.dpb_size==5&&session.capture.width==1280&&session.capture.height==720);
+ /* Stopping the other queue from STATUS_NEEDS_RESUME is a full stop. */
+ vdec_stop_streaming_locked(&out);
+ assert(session.status==STATUS_STOPPED&&!session.dpb_size&&!session.streamon_out);
+ assert(!session.capture.source_width&&!session.capture.width&&!session.capture.height);
+ /* Full stop (STATUS_RUNNING -> STATUS_STOPPED) must clear stale scaling. */
+ session=(struct amvdec_session){.core=&core,.fmt_out=&fmt,.status=STATUS_RUNNING,
+  .streamon_out=1,.streamon_cap=1,.dpb_size=5,
+  .capture={.source_width=1920,.source_height=1080,.width=1280,.height=720}};
+ vdec_stop_streaming_locked(&cap);
+ assert(session.status==STATUS_STOPPED&&!session.dpb_size);
+ assert(!session.capture.source_width&&!session.capture.width&&!session.capture.height);
  return 0;
 }
 '''

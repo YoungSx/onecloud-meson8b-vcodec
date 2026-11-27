@@ -1,6 +1,6 @@
 # 生产部署快照 / Deployment snapshot
 
-2026-11-26 UTC最后核对的精确来源。用户重启后验证恢复；后续Tailnet故障期间
+2026-11-27 UTC最后核对的精确来源。用户重启后验证恢复；后续Tailnet故障期间
 本地网页正常，远程现已恢复，链路根因仍未闭环。本文是部署记录；新设备按
 [安装指南](installation.md)，历史版本按[验证记录](validation-records.md)复核。
 
@@ -24,17 +24,26 @@ containerd元数据临时使用RAM副本，Docker、原五业务和四项HTTP200
 及 5.15.79 ARM 外部/additive 双构建；之后继续在工作机完成 #24 码控测量上限修正
 （首帧 IDR 沿用 `qp_max` 且 `qp_min` 高于 32 时与 P 限幅共享 `venc_rc_p_ceiling()`）、
 #15 首 slice 禁止 `dependent_slice_segment_flag` 校验与 #16 禁止 `y == 0` 的 `GN=0`
-GOB 头校验。各批候选均未部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
+GOB 头校验。各批候选当时均未部署实机，在役模块与参数保持 `2fea36e` 恢复状态，见
 [解码同步候选](validation-records.md#11-27-解码器-dma-buf-栅栏与-padding-清理)、
 [编码 CMA 与 DMA 边界候选](validation-records.md#11-27-编码器-dma-buf-边界与-jpeg-cma-缩减)、
 [缩放重开与创建缓冲候选](validation-records.md#11-27-同-fd-重开清零与-ge2d-create_bufs)
 与[码控/HEVC/H.263 边界候选](validation-records.md#11-27-码控上限测量与-hevch263-切片边界)。
 
+11-27 后续已完成上述候选（#14/#15/#16/#24/#32）实机 Stage 1（默认 NEON）与
+Stage 2（临时加载 `meson8b-ge2d.ko` + `capture_ge2d=1`）验收；验收期间定位并修复
+同 `fd` 停流后未及时清零 `sess->capture` 与 `sess->dpb_size` 的问题，通过
+153 项主机测试、严格 `checkpatch.pl` 与 5.15.79 ARM 外部/additive 双构建。
+目标机已于此前恢复可写根分区及启用 `meson8b-vcodec.service`，在保留 `2fea36e`
+设备外校验备份后，升级部署本轮默认 NEON 运行包并完成部署后复验与业务健康核对
+（五容器运行、四项 HTTP 200、`pool_bytes=0`、生产 GE2D 继续关闭），详见
+[停流清零与阶段一/二验收](validation-records.md#11-27-停流缩放清零修复与阶段一二实机验收)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
 | 最新正式版 | v0.4.0，源码`89dd558cd7cd1c8dc757ab9ec7e6f63b805e201f`；原安装及回滚资料保留。 |
-| 已部署开发驱动 | 完整运行包源码`2fea36e2474d709fb205b48a5f23edb6d08df1ae`，`/opt/meson8b-vcodec/current`；三个模块、配套固件及自动加载已保留部署，默认NEON；单平面NV12直接读取已启用。 |
+| 已部署开发驱动 | 完整运行包（含 #14/#15/#16/#24/#32 与停流缩放清零修复），默认NEON、GE2D关闭；单平面与双平面连续 NV12M/NV21M 直接读取已启用。 |
 | OpenList 镜像 | `youngsx/openlist-onecloud:v4.2.10-official-ffmpeg-a845b34-clean`。 |
 | 镜像内应用代码 | Backend `6c77764f6e940c218f08576ae67782376467d54c`；frontend `a845b348e7967e4a76f2ef07b9e840709def96cf`。后端后续提交为文档更新。 |
 | FFmpeg | OpenList镜像保持官方底座8.1.3、字节未改；新运行包附官方原版7.0.2独立工具，启用HLS输入，不替换宿主或容器FFmpeg。 |
@@ -43,8 +52,8 @@ GOB 头校验。各批候选均未部署实机，在役模块与参数保持上�
 
 | 文件 | SHA256 |
 | --- | --- |
-| meson-vdec.ko | `cb3fc681c359b26fa1c048d887db0a367a9e73a67e391396e54e48150de0eb59` |
-| meson-venc.ko | `3cbf0b9bb6d90b02b3c0d020cd04efd9c4a471371b622e38b543cf149b70c27b` |
+| meson-vdec.ko | `3b6308f0ce7ecb2fa57a2ebf1f8567dd2d9cfb638d55eb47f47431d79f8fba38` |
+| meson-venc.ko | `e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595` |
 | meson8b-runtime.ko | `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02` |
 | runtime overlay | `72dbf9f078273ccc21f4aa90cedfa990857ee16017ecd261ccace6225474f03e` |
 

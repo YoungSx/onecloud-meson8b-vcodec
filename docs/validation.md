@@ -34,15 +34,15 @@ NEON及正式模块字节不变，可选GE2D单独保留部署；完整官方工
 | 功能 | 实现与已验收范围 | 边界 |
 | --- | --- | --- |
 | H.264 解码 | 重启后H.264 50/50、1080p 300/300完整帧哈希复验；切换400/400精确一致 | 上述切换有界结果按原二进制记录；已补旧序列LAST，最新包50/50复验精确一致。历史随机短输出未闭环。 |
-| HEVC 解码 | Main 8-bit；当前NEON包14组250/250全像素精确，含small/crop/1080p、DPB16、CRA、开放GOP、裁剪切换、tiles、自然EOS、慢消费和两槽DPB1；典型1080p池节省6 MiB CMA | 原60/60尺寸切换与三段EOS30/30按其二进制记录；Main10及长期参考未支持，满预算1080p并发未保证。 |
-| H.263 解码 | baseline/PLUS、UFEP续帧与自定义尺寸已部署；首次小尺寸协商缺陷已修复，已输出图像全Y/U/V接近软解 | VOP收尾修正已正式部署；四种baseline/PLUS/自定义尺寸/UFEP各3/3顺序/YUV通过。新增176×144、352×288 baseline及320×240、704×396 PLUS各12/12内容通过；Slice Structured仍拒绝，HD与异常矩阵待补。可选工具拒绝，容量限制见[追平记录](codec-parity.md)。 |
+| HEVC 解码 | Main 8-bit；当前NEON包14组250/250全像素精确与2-slice 640×384 20/20精确一致，含small/crop/1080p、DPB16、CRA、开放GOP、裁剪切换、tiles、自然EOS、慢消费和两槽DPB1；典型1080p池节省6 MiB CMA | 原60/60尺寸切换与三段EOS30/30按其二进制记录；首slice `dependent_slice_segment_flag=1` 拒绝仅主机回归，Main10及长期参考未支持，满预算1080p并发未保证。 |
+| H.263 解码 | baseline/PLUS、UFEP续帧与自定义尺寸已部署；首次小尺寸协商缺陷及首行 `GN=0` 异常拒绝已验证，4CIF 12帧平均PSNR 66.50 dB、PLUS 164×100 3帧平均PSNR 65.16 dB | VOP收尾修正已正式部署；四种baseline/PLUS/自定义尺寸/UFEP各3/3顺序/YUV通过。新增176×144、352×288 baseline及320×240、704×396 PLUS各12/12内容通过；Slice Structured（含默认 `ffmpeg h263p` 输出）仍拒绝，HD与异常矩阵待补。可选工具拒绝，容量限制见[追平记录](codec-parity.md)。 |
 | 显示元数据 | 只读selection/CROPCAP与MPEG-4/VC-1/H.263像素比例已随包部署 | 主机真实函数通过，H.263 baseline的CROPCAP为11/12、PLUS为1/1，HEVC854×480的coded864×480与可见selection已实测；原版FFmpeg非方形像素查询有[方向边界](codec-parity.md#显示区域与像素比例)。 |
 | WMV3 解码 | 已部署Annex L/RCV转换及VC-1微码；320×240实机输出3幅，顺序与Y/U/V检查通过 | 参考5幅，仅3/5，尾帧验收失败；官方FFmpeg无WMV3 M2M映射，不计完整支持。 |
 | MPEG-1/2、MPEG-4、VC-1 advanced | 已实现固件协议、帧池和drain；历史MPEG-2小流90/90、B帧流149/150或150/150 | 重启后MPEG-2 B流30/30顺序/YUV通过；MPEG-4 I/P与B流均28/30，VC-1/WMV3尾图仍开放，不宣称完整兼容。 |
 | MJPEG 解码 | SOF0的归一化4:2:0/4:2:2/4:4:4，十组三图共30/30顺序/全平面质量通过，含小尺寸、854×480与1080p；修正色度stride及unity滤波 | 仅8-bit三分量交错scan，尺寸需匹配协商。SOF1、渐进、灰度及重复采样因子布局明确拒绝；色度降采样不与软件逐字节相同。 |
 | H.264 编码 | Baseline/Level 4.0；重启后11种输入布局、1080p10帧、SAR 17:13的12帧及GOP/强制IDR/多slice/重开/VBR/峰值CPB完整软解/YUV通过；标准QP/VBR/GOP/SPS/VUI接口 | 短样片不代表所有尺寸/质量；BGR24拒绝；无Main/High/CABAC/B帧编码，单AU上限1 MiB。RGB24最宽1376，其余布局见使用指南。 |
-| JPEG 编码 | 重启后质量85、1080p三张完整软解/YUV通过 | 本轮不继承历史900张1080p检查；原版FFmpeg无本项目JPEG M2M包装，使用直接客户端。 |
-| 输入 DMA / 输出转换 | 连续 NV12M/NV21M DMA-BUF 编码输入可直读；默认NEON；显式GE2D的MMAP复用一个DMA中转面，连续DMA-BUF采集直接写入 | GE2D600幅原生（含73幅真实DMA-BUF）和9幅MJPEG回退通过；官方7.0.2/8.1.3完整60幅视频转码及CPU缩放转码通过。生产默认NEON；实时、硬件缩放全链、音频/HLS及历史崩溃根因仍未闭环。 |
+| JPEG 编码 | 质量85、1080p五帧跳过REF0/REF1/ANALYSIS CMA并完成软解/PSNR（平均30.73 dB） | 本轮不继承历史900张1080p检查；原版FFmpeg无本项目JPEG M2M包装，使用直接客户端。 |
+| 输入 DMA / 输出转换 | 连续单平面/双平面 NV12M/NV21M DMA-BUF 编码输入直读及非连续 `lima` 回退、解码导入 DMA-BUF 栅栏等待均已实测；显式 GE2D `CREATE_BUFS`/`PREPARE_BUF` 与停流重开清零缩放通过 | 显式 GE2D 600幅原生、30/30 共享转码（640×360 及 320×180 缩放）与 20/20 HEVC 2-slice DMA-BUF 通过；生产默认NEON，实时、硬件缩放全链收益、音频/HLS及历史崩溃根因仍未闭环。 |
 | 会话与内存 | 两路720p与两路1080p各12帧完整软解/YUV通过；两路1080p实测最低CMA约5.1 MiB | 短时两路通过不保证任意并发或总吞吐；第二decoder STREAMON仍为EBUSY；1080p60幅解码加编码完整内容/质量通过，约0.71×，未达目标。 |
 | 加载与回滚 | 当前包安装时enabled/active、切换内容通过，诊断后恢复命令成功；旧安装外部校验备份 | 用户重启后旧包自动加载通过；最新Tailnet故障时本地网页正常。新包冷启动/异常重启、整包降级及长期稳定性未验收。 |
 
