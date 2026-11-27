@@ -39,11 +39,14 @@ Stage 2（临时加载 `meson8b-ge2d.ko` + `capture_ge2d=1`）验收；验收期
 （五容器运行、四项 HTTP 200、`pool_bytes=0`、生产 GE2D 继续关闭），详见
 [停流清零与阶段一/二验收](validation-records.md#11-27-停流缩放清零修复与阶段一二实机验收)。
 
-随后完成 #31 GE2D 扩展格式、色彩矩阵、翻转/旋转与缓存 `capture_stage` 候选的
-主机测试、严格 `checkpatch.pl`、5.15.79 ARM 外部/additive 双构建及 S805
-实机临时验证（测试后已卸载 `meson8b-ge2d` 并恢复在役默认 NEON、五容器与
-四项 HTTP 200 正常；双源/alpha 混合与生产启用继续保留），见
-[GE2D 扩展实机验收](validation-records.md#11-27-ge2d-格式色彩矩阵翻转旋转与缓存暂存验收)。
+随后完成 #31 GE2D 扩展格式、色彩矩阵、翻转/旋转、缓存 `capture_stage` 与二阶段
+`ABGR32/RGBA32/ARGB32` + `BLEND_CONST`/`BLEND_OVER` 实机临时验证，并补齐 #7
+1080p 300 帧官方 FFmpeg 7.0.2（`0.857×`）与单引擎基线测量（测试后均已卸载
+`meson8b-ge2d` 并恢复在役默认 NEON、原业务容器与四项 HTTP 200 正常，
+`pool_bytes=0`；1080p 下 `tailscaled` 持续写爆 syslog 导致高负载并曾记录一次
+`eth0` `NETDEV WATCHDOG` 复位，生产 GE2D 与 1080p 持续压测继续保留关闭），见
+[GE2D 扩展实机验收](validation-records.md#11-27-ge2d-格式色彩矩阵翻转旋转与缓存暂存验收)
+与[1080p 拆解与 alpha 混合验收](validation-records.md#11-27-1080p-阶段拆解ge2d-alpha-混合与网络超时现场)。
 
 | 组件 | 当前记录 |
 | --- | --- |

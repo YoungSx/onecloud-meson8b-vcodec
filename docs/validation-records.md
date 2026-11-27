@@ -1856,3 +1856,54 @@ S805 实机临时加载验收：
   NEON（`capture_ge2d=N`、`meson8b-vcodec`/`containerd`/`docker` `active` 且
   `NRestarts=0`、五容器运行、四项本地 HTTP `200`、`pool_bytes=0`）。双源/alpha
   混合（#31 剩余范围）与生产默认 GE2D 启用继续保留开放。
+
+## 11-27 1080p 阶段拆解、GE2D alpha 混合与网络超时现场
+
+按 #14/#32/#7/#31 推进两项验证（临时数据与报告均存于外置存储）：
+
+- **1080p 300 帧/10 秒阶段基线（#14/#32/#7）**：
+  - 官方原版 `FFmpeg 7.0.2`：`.h264` 裸流因缺有效 PTS 仅输出 `3/300`；有效 PTS
+    `.mp4` 在 `-num_capture_buffers 16 -num_output_buffers 12` 下于第 58 帧因解码
+    缓冲耗尽提前退出；改用 decoder `-num_capture_buffers 24` 与 encoder
+    `-num_output_buffers 4` 后完成 **300/300** 转码，`wall=11.667 s`（**0.857×**，
+    `child_cpu=2.795 s`，`decoder.convert_ns=3.221 s`，`encoder.copy_ns=1.366 s`，
+    `CmaFree` 最低 `12 KiB`）。同源 60 帧 `1080p->720p` 官方 `-vf scale=1280:720`
+    CPU 缩放为 `5.055 s`（**0.396×**，`child_cpu=8.028 s`）。
+  - 解码至空 300 帧：默认 NEON `ffmpeg -f null -` `6.932 s`（`43.3 fps`），
+    `res-switch-test` MMAP `7.024 s`（`convert_ns=2.534 s`）。临时 `capture_ge2d=1`
+    下 `capture_stage` MMAP 为 `8.574 s`（`convert_ns=8.063 s`）；DRM dumb
+    DMA-BUF(4) `1080p->1080p` **`6.942 s`**（`43.2 fps`，`convert_ns=6.082 s`）、
+    `1080p->720p` **`6.816 s`**（`44.0 fps`，`convert_ns=4.909 s`）。
+  - 独立 300 帧 `1080p` 编码（`encode-test` `NV12M`）：`-p motion` MMAP `9.409 s`
+    （`1.06×`，`copy_ns=1.116 s`）；后续高系统负载下（`load avg ~10.6`）`-p static`
+    MMAP 为 `14.991 s`（`0.667×`，`child_cpu=4.241 s`，`copy_ns=1.555 s`）、
+    `-d dumb` 为 `15.573 s`（`0.642×`，`direct_frames=300, copy_ns=0`，`CmaFree`
+    最低 `0–401 KiB`）。
+- **#31 二阶段 Alpha 格式与混合实机验收**：
+  - 新增 `ABGR32`/`RGBA32`/`ARGB32`（V4L2 字节序 `cmap_le` `1/2/3`）、
+    `V4L2_CID_ALPHA_COMPONENT`、`V4L2_CID_BG_COLOR` 与
+    `V4L2_CID_MESON8B_GE2D_BLEND`（`COPY`/`CONST`/`OVER`，`SRC2_DEF_COLOR` /
+    `ALU_CONST_COLOR` / `SRC2` 画布）。
+  - `make test`（153 项主机与文档检查，含 ASan/UBSan）、严格 `checkpatch.pl`
+    （`ge2d/ge2d-layout.h`、`ge2d/meson8b-ge2d.c` 均 0 告警）与 5.15.79 ARM
+    模块构建（`meson8b-ge2d.ko` SHA256
+    `eff02e33fcf6b7763f73f8df9c1637ea87fdab0e1575f37eb3e080b62212cf1d`）通过。
+  - S805 实机临时加载 `meson8b-ge2d.ko`（64×16）：`ARGB32->ARGB32`、
+    `ABGR32<->ARGB32`、`RGBA32<->ARGB32` 五向像素复制逐字节精确一致；
+    `BLEND_CONST`（逐像素 alpha 及 `XBGR32` 全局 `alpha=128` 叠底）与
+    `BLEND_OVER`（`ABGR32` 及全局 `alpha=128` 叠合预填充目标缓冲）均通过（实测
+    `0xff755244`，与理论 `0xff745244` 差 1 LSB）；混合输出 `NV12M` 于 `STREAMON`
+    返回 `EINVAL`，单队列 `QBUF` 后 `STREAMOFF` + 关闭恢复通过。
+- **高负载与网络超时异常现场（#4/#7 相关保护）**：
+  - 将 `ge2d_blit_one()` 的 `readl_poll_timeout` 间隔改为 `10 us` 进行 `1080p`
+    DMA-BUF 测试时，因高负载与频繁 hrtimer 唤醒且目标机 `CmaFree` 曾跌至 `464 KiB`，
+    触发 25 秒解码超时及内核 `NETDEV WATCHDOG: eth0 (meson8b-dwmac): transmit queue 0 timed out`
+    链路复位，遂回退保持 `50 us` 轮询并立即停止 `1080p` 高压试验。测试全期亦观察到
+    目标机 `tailscaled`（v1.104.5）持续向系统日志刷写崩溃日志并推高负载
+    （实机 `load avg ~10.6`），仅在不改动其二进制与服务的前提下清理日志保空间。
+- **还原与开放边界**：清理临时 GE2D 模块与测试媒体，恢复在役默认 NEON
+  （`meson-vdec.ko` `3b6308f0ce7ecb2fa57a2ebf1f8567dd2d9cfb638d55eb47f47431d79f8fba38`、
+  `meson-venc.ko` `e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595`、
+  `meson8b-runtime.ko` `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02`、
+  `capture_ge2d=N`、`pool_bytes=0`），`meson8b-vcodec`/`containerd`/`docker` 均
+  `active`，四项本地服务返回 HTTP `200`。#14/#32/#7/#31 仍保持开放。

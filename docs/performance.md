@@ -260,3 +260,42 @@ MMAP/连续DMA-BUF内容、顺序与全YUV质量通过，两条路径原始字�
 22组244幅（含原失败比例、尺寸切换和两种取消顺序）全内容/顺序/质量通过，
 encoder copied/copy_ns=0。正式NEON继续使用原模块，可选GE2D修复单独部署；
 不从这些短时任务推断1.3×或官方FFmpeg收益，见[修复验收](validation-records.md#11-26-ge2d-滤波首样本重复修复)。
+
+## 11-27 1080p 阶段拆解与官方 FFmpeg 7.0.2 基线
+
+进一步以 300 帧/10 秒 `1080p30`（及 60 帧/2 秒缩放对照）对生产默认 NEON
+与临时 GE2D（`capture_ge2d=1`）进行分阶段实测：
+
+- **官方原版 FFmpeg 7.0.2 参数边界与基线**：
+  - 原始 `.h264` Annex B 输入因缺少有效 PTS 触发大量丢帧（仅 3/300）；有效 PTS
+    `.mp4` 输入配合 `-num_capture_buffers 16 -num_output_buffers 12` 仍因解码缓冲被编码器
+    持有而在第 58 帧触发 `"All capture buffers returned to userspace"` 提前终止。
+  - 扩大解码器输出缓冲并缩小编码器输入缓冲（decoder `-num_capture_buffers 24`、
+    encoder `-num_output_buffers 4`）后，官方 `7.0.2` 完成全部 **300/300** 帧
+    `1080p->1080p` 转码：`wall=11.667 s`（**0.857×**，`child_cpu=2.795 s`，
+    `decoder.convert_ns=3.221 s`，`encoder.copy_ns=1.366 s`，`CmaFree` 最低 `12 KiB`）。
+  - 同源 60 帧 `1080p->720p` 官方 `-vf scale=1280:720` CPU 缩放为 `5.055 s`
+    （**0.396×**，`child_cpu=8.028 s`）。
+- **单引擎拆解（300 帧 `1080p`）**：
+  - 解码至空：NEON `ffmpeg -f null -` `6.932 s`（`43.3 fps`）；`res-switch-test`
+    NEON MMAP `7.024 s`（`convert_ns=2.534 s`）。
+  - 临时 `capture_ge2d=1` 解码：`capture_stage` MMAP `8.574 s`（`convert_ns=8.063 s`，
+    受 3 MiB 缓存同步与复制开销影响慢于 NEON）；DRM dumb DMA-BUF(4)
+    `1080p->1080p` **`6.942 s`**（`43.2 fps`，`convert_ns=6.082 s`）、
+    `1080p->720p` **`6.816 s`**（`44.0 fps`，`convert_ns=4.909 s`，明显快于
+    FFmpeg CPU `-vf scale`）。
+  - 独立 H.264 编码（`encode-test` `NV12M` 300 帧 `1080p`）：`-p motion` MMAP
+    `9.409 s`（`1.06×`，`copy_ns=1.116 s`）；后续目标机高系统负载期间（`load avg ~10.6`）
+    `-p static` MMAP 为 `14.991 s`（`0.667×`，`child_cpu=4.241 s`，`copy_ns=1.555 s`）、
+    `-d dumb` 零复制输入为 `15.573 s`（`0.642×`，`direct_frames=300, copy_ns=0`，
+    `CmaFree` 最低 `0–401 KiB`）。
+- **已定位的 1.3× 瓶颈**：
+  - 官方 `7.0.2` `v4l2_m2m` 仅走 MMAP 缓冲且无标准 V4L2 缩放滤镜，每帧仍经历三次
+    3.1 MiB 搬运（`vdec` NEON 字节序/复制、`ffmpeg` 用户态缓冲复制与 `venc_stage_input`）；
+  - `1080p` `amvdec_get_output_size_wh(1920, 1080)=2097152 > 1920*1080` 使每帧导入
+    DMA-BUF 仍触发 3 MiB `DMA_BIDIRECTIONAL` `amvdec_clear_padding()` 缓存同步，且
+    未缩放 `NV12->NV12` 在 `ge2d_blit()` 中仍拆分为 Y/UV 两次复位与命令轮询；
+  - 将 `readl_poll_timeout` 间隔由 `50 us` 收紧至 `10 us` 会在 `1080p` 下引发每帧数千次
+    hrtimer 唤醒并在高负载目标机上触发 `1080p` 解码超时与 `eth0` `NETDEV WATCHDOG`
+    复位（详见[验证记录](validation-records.md#11-27-1080p-阶段拆解ge2d-alpha-混合与网络超时现场)），
+    已回退保持 `50 us` 轮询，默认生产继续保持 NEON 与 GE2D 关闭。
