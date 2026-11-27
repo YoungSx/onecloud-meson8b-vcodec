@@ -116,10 +116,12 @@ int main(void){
  desc.index=4;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_NV21M);
  desc.index=9;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_UYVY);
  desc.index=14;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_XRGB32);
- desc.index=15;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
+ desc.index=17;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_ARGB32);
+ desc.index=18;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
  desc.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;desc.index=5;
  assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_RGB24);
- desc.index=10;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
+ desc.index=12;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_ARGB32);
+ desc.index=13;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
  assert(!ge2d_get_fmt(NULL,&c.fh,&f));
  return 0;
 }

@@ -36,6 +36,7 @@
 #define SRC_X 0x28
 #define SRC_Y 0x2c
 #define SRC_FMT 0x38
+#define SRC2_DEF_COLOR 0x3c
 #define SRC2_CLIPX 0x40
 #define SRC2_CLIPY 0x44
 #define SRC2_X 0x48
@@ -61,6 +62,7 @@
 #define MATRIX_CTRL 0xa8
 #define MATRIX_OFFSET 0xac
 #define ALU_CTRL 0xb0
+#define ALU_CONST_COLOR 0xb4
 #define DP_ONOFF 0xcc
 #define SCALE_IDX 0xd0
 #define SCALE_COEF 0xd4
@@ -70,6 +72,7 @@
 #define SOFT_RESET BIT(31)
 /* Include buffered/pipeline commands and outstanding destination writes. */
 #define BUSY_MASK (BIT(0) | BIT(1) | BIT(2) | BIT(4) | GENMASK(28, 17))
+#define V4L2_CID_MESON8B_GE2D_BLEND (V4L2_CID_USER_BASE + 0x10)
 
 struct ge2d_ctx;
 
@@ -79,7 +82,7 @@ struct meson8b_ge2d {
 	struct clk *clk;
 	struct reset_control *reset;
 	struct meson_canvas *canvas;
-	u8 src_canvas, dst_canvas, src_uv_canvas, dst_uv_canvas, src_v_canvas;
+	u8 src_canvas, dst_canvas, src_uv_canvas, dst_uv_canvas, src_v_canvas, src2_canvas;
 	struct v4l2_device v4l2;
 	struct video_device *video;
 	struct v4l2_m2m_dev *m2m;
@@ -144,9 +147,12 @@ static const struct ge2d_hw_fmt *ge2d_find_hw_fmt(enum meson8b_ge2d_format fmt)
 		[MESON8B_GE2D_FMT_XBGR32] = { 3, 1, 1, false, false, false, false },
 		[MESON8B_GE2D_FMT_RGBX32] = { 3, 2, 2, false, false, false, false },
 		[MESON8B_GE2D_FMT_XRGB32] = { 3, 3, 3, false, false, false, false },
+		[MESON8B_GE2D_FMT_ABGR32] = { 3, 1, 1, false, false, false, false },
+		[MESON8B_GE2D_FMT_RGBA32] = { 3, 2, 2, false, false, false, false },
+		[MESON8B_GE2D_FMT_ARGB32] = { 3, 3, 3, false, false, false, false },
 	};
 
-	if (fmt <= MESON8B_GE2D_FMT_DEFAULT || fmt > MESON8B_GE2D_FMT_XRGB32)
+	if (fmt <= MESON8B_GE2D_FMT_DEFAULT || fmt > MESON8B_GE2D_FMT_ARGB32)
 		return NULL;
 	return &table[fmt];
 }
@@ -236,6 +242,24 @@ static void ge2d_write_matrix(struct meson8b_ge2d *core,
 	ge2d_write(core, MATRIX_OFFSET, m->offset);
 }
 
+static void ge2d_write_alu(struct meson8b_ge2d *core,
+			   enum meson8b_ge2d_format src_fmt,
+			   const struct meson8b_ge2d_crop *crop)
+{
+	u32 const_color = ((crop->bg_color & 0xffffffu) << 8) | crop->global_alpha;
+	u32 alu = (5u << 20) | (1u << 12) | (5u << 8) | 1u;
+
+	ge2d_write(core, ALU_CONST_COLOR, const_color);
+	if (crop->blend != MESON8B_GE2D_BLEND_COPY) {
+		if (meson8b_ge2d_format_has_alpha(src_fmt) &&
+		    crop->global_alpha == 255)
+			alu = (6u << 16) | (7u << 12) | (1u << 4) | 3u;
+		else
+			alu = (12u << 16) | (13u << 12) | (6u << 4) | 7u;
+	}
+	ge2d_write(core, ALU_CTRL, alu);
+}
+
 static void ge2d_resolve_dir(const struct meson8b_ge2d_crop *crop,
 			     bool *swap, bool *x_rev, bool *y_rev)
 {
@@ -262,6 +286,7 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	u32 x = crop->left + width - 1, y = crop->top + height - 1;
 	u32 status, hstep, vstep, misc, phase, advance = 0;
 	u32 src_cmap, dst_cmap, cb_canvas = 0, cr_canvas = 0, dst2_canvas = 0;
+	u32 src2_canvas = 0, src2_ctrl = 0, src2_fill = 0;
 	u32 x_start_ex, x_end_ex, y_start_ex, y_end_ex;
 	bool preh, prev, swap, x_rev, y_rev;
 	int ret;
@@ -273,6 +298,9 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	    meson8b_ge2d_grey_mismatch(src_fmt, dst_fmt) ||
 	    meson8b_ge2d_image_valid(src) || meson8b_ge2d_image_valid(dst) ||
 	    meson8b_ge2d_crop_valid(src, crop) || meson8b_ge2d_images_overlap(src, dst))
+		return -EINVAL;
+	if (crop->blend != MESON8B_GE2D_BLEND_COPY &&
+	    (!meson8b_ge2d_format_is_rgb(dst_fmt) || d->dst2_en))
 		return -EINVAL;
 	ge2d_resolve_dir(crop, &swap, &x_rev, &y_rev);
 	scale_w = swap ? out_height : out_width;
@@ -330,17 +358,32 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	}
 	src_cmap = src->little_endian ? s->cmap_le : s->cmap_be;
 	dst_cmap = dst->little_endian ? d->cmap_le : d->cmap_be;
+	if (crop->blend == MESON8B_GE2D_BLEND_OVER) {
+		ret = meson_canvas_config(core->canvas, core->src2_canvas, dst->address[0],
+					  meson8b_ge2d_plane_stride(dst, 0),
+					  meson8b_ge2d_plane_rows(dst, 0),
+					  MESON_CANVAS_WRAP_NONE, MESON_CANVAS_BLKMODE_LINEAR, 0);
+		if (ret)
+			return ret;
+		src2_canvas = core->src2_canvas;
+		src2_ctrl = (dst->little_endian ? BIT(15) : 0) |
+			    (dst_cmap << 11) | ((u32)d->hw_fmt << 8);
+	} else if (crop->blend == MESON8B_GE2D_BLEND_CONST) {
+		ge2d_write(core, SRC2_DEF_COLOR, ((crop->bg_color & 0xffffffu) << 8) | 0xffu);
+		src2_ctrl = BIT(15) | (2u << 11) | (3u << 8);
+		src2_fill = BIT(9);
+	}
 	ge2d_write(core, GEN_CTRL0, (s->sep_en ? BIT(0) : 0) |
 		   (s->y_yc_ratio ? BIT(10) : 0) | (s->x_yc_ratio ? BIT(11) : 0));
-	ge2d_write(core, GEN_CTRL1, (3 << 22) | (0x3f << 16));
+	ge2d_write(core, GEN_CTRL1, (3 << 22) | (0x3f << 16) | crop->global_alpha);
 	ge2d_write(core, GEN_CTRL2, (dst->little_endian ? BIT(23) : 0) |
 		   (dst_cmap << 19) | ((d->dst2_en ? 0u : (u32)d->hw_fmt) << 16) |
-		   (src->little_endian ? BIT(7) : 0) | (src_cmap << 3) | s->hw_fmt);
+		   src2_ctrl | (src->little_endian ? BIT(7) : 0) | (src_cmap << 3) | s->hw_fmt);
 	ge2d_write(core, GEN_CTRL3, BIT(0) |
 		   (d->dst2_en ? ((dst_cmap - 5) << 19) | BIT(16) | (15 << 10) | BIT(8) : 0));
 	ge2d_write(core, SRC_CANVAS, ((u32)core->src_canvas << 24) |
 		   (cb_canvas << 16) | (cr_canvas << 8));
-	ge2d_write(core, DST_CANVAS, core->dst_canvas | (dst2_canvas << 16));
+	ge2d_write(core, DST_CANVAS, core->dst_canvas | (src2_canvas << 8) | (dst2_canvas << 16));
 	ge2d_write(core, SRC_CLIPX, (crop->left << 16) | x);
 	ge2d_write(core, SRC_CLIPY, (crop->top << 16) | y);
 	ge2d_write(core, DST_CLIPX, out_width - 1);
@@ -394,10 +437,9 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	ge2d_write(core, HSC_INI, width != scale_w ? BIT(29) : 0);
 	ge2d_write(core, VSC_INI, height != scale_h ? BIT(29) : 0);
 	ge2d_write(core, HSC_ADV, advance);
-	/* Logic COPY for color and alpha; no color matrix or filtering. */
-	ge2d_write(core, ALU_CTRL, (5 << 20) | (1 << 12) | (5 << 8) | 1);
+	ge2d_write_alu(core, src_fmt, crop);
 	dma_wmb();
-	ge2d_write(core, CMD_CTRL, 1u | (swap ? BIT(7) : 0) |
+	ge2d_write(core, CMD_CTRL, 1u | src2_fill | (swap ? BIT(7) : 0) |
 		   (x_rev ? BIT(6) : 0) | (y_rev ? BIT(5) : 0));
 	readl(core->regs + CMD_CTRL);
 	ret = readl_poll_timeout(core->regs + STATUS0, status,
@@ -424,6 +466,7 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 	u32 plane;
 
 	if (!meson8b_ge2d_format_is_semiplanar(src_fmt) || src_fmt != dst_fmt ||
+	    crop->blend != MESON8B_GE2D_BLEND_COPY ||
 	    crop->rotate || crop->hflip || crop->vflip ||
 	    crop->width != dst->width || crop->height != dst->height)
 		return ge2d_blit_one(core, src, dst, crop);
@@ -596,6 +639,9 @@ static const struct ge2d_v4l2_fmt ge2d_v4l2_formats[] = {
 	{ V4L2_PIX_FMT_XBGR32, MESON8B_GE2D_FMT_XBGR32, 1, true },
 	{ V4L2_PIX_FMT_RGBX32, MESON8B_GE2D_FMT_RGBX32, 1, true },
 	{ V4L2_PIX_FMT_XRGB32, MESON8B_GE2D_FMT_XRGB32, 1, true },
+	{ V4L2_PIX_FMT_ABGR32, MESON8B_GE2D_FMT_ABGR32, 1, true },
+	{ V4L2_PIX_FMT_RGBA32, MESON8B_GE2D_FMT_RGBA32, 1, true },
+	{ V4L2_PIX_FMT_ARGB32, MESON8B_GE2D_FMT_ARGB32, 1, true },
 };
 
 static const struct ge2d_v4l2_fmt *ge2d_find_v4l2_fmt(u32 fourcc)
@@ -785,9 +831,13 @@ static void ge2d_queue(struct vb2_buffer *buffer)
 static int ge2d_start(struct vb2_queue *queue, unsigned int count)
 {
 	struct ge2d_ctx *ctx = vb2_get_drv_priv(queue);
+	const struct ge2d_v4l2_fmt *out = ge2d_find_v4l2_fmt(ctx->output.pixelformat);
 	u32 step, scale_w, scale_h;
 	bool pre;
 
+	if (ctx->crop.blend != MESON8B_GE2D_BLEND_COPY &&
+	    (!out || !meson8b_ge2d_format_is_rgb(out->fmt)))
+		return -EINVAL;
 	meson8b_ge2d_target_size(ctx->crop.rotate, ctx->output.width,
 				 ctx->output.height, &scale_w, &scale_h);
 	if (meson8b_ge2d_phase(ctx->crop.width, scale_w, &step, &pre) ||
@@ -1040,14 +1090,14 @@ static int ge2d_set_selection(struct file *file, void *priv, struct v4l2_selecti
 		.width = ctx->input.width, .height = ctx->input.height,
 		.format = in ? in->fmt : MESON8B_GE2D_FMT_GREY,
 	};
-	struct meson8b_ge2d_crop crop = {
-		.left = selection->r.left, .top = selection->r.top,
-		.width = selection->r.width, .height = selection->r.height,
-		.rotate = ctx->crop.rotate, .hflip = ctx->crop.hflip,
-		.vflip = ctx->crop.vflip,
-	};
+	struct meson8b_ge2d_crop crop = ctx->crop;
 	u32 step, scale_w, scale_h;
 	bool pre;
+
+	crop.left = selection->r.left;
+	crop.top = selection->r.top;
+	crop.width = selection->r.width;
+	crop.height = selection->r.height;
 
 	meson8b_ge2d_target_size(ctx->crop.rotate, ctx->output.width,
 				 ctx->output.height, &scale_w, &scale_h);
@@ -1106,6 +1156,15 @@ static int ge2d_s_ctrl(struct v4l2_ctrl *ctrl)
 			return -EBUSY;
 		ctx->crop.rotate = ctrl->val;
 		return 0;
+	case V4L2_CID_ALPHA_COMPONENT:
+		ctx->crop.global_alpha = ctrl->val;
+		return 0;
+	case V4L2_CID_BG_COLOR:
+		ctx->crop.bg_color = ctrl->val;
+		return 0;
+	case V4L2_CID_MESON8B_GE2D_BLEND:
+		ctx->crop.blend = ctrl->val;
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -1113,6 +1172,17 @@ static int ge2d_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops ge2d_ctrl_ops = {
 	.s_ctrl = ge2d_s_ctrl,
+};
+
+static const struct v4l2_ctrl_config ge2d_blend_ctrl = {
+	.ops = &ge2d_ctrl_ops,
+	.id = V4L2_CID_MESON8B_GE2D_BLEND,
+	.name = "Alpha Blend Mode",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.min = MESON8B_GE2D_BLEND_COPY,
+	.max = MESON8B_GE2D_BLEND_OVER,
+	.step = 1,
+	.def = MESON8B_GE2D_BLEND_COPY,
 };
 
 static int ge2d_open(struct file *file)
@@ -1131,8 +1201,9 @@ static int ge2d_open(struct file *file)
 	ctx->output = ctx->input;
 	ctx->crop = (struct meson8b_ge2d_crop) {
 		.width = ctx->input.width, .height = ctx->input.height,
+		.global_alpha = 255,
 	};
-	ret = v4l2_ctrl_handler_init(&ctx->ctrl_handler, 3);
+	ret = v4l2_ctrl_handler_init(&ctx->ctrl_handler, 6);
 	if (ret) {
 		kfree(ctx);
 		return ret;
@@ -1143,6 +1214,11 @@ static int ge2d_open(struct file *file)
 			  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	v4l2_ctrl_new_std(&ctx->ctrl_handler, &ge2d_ctrl_ops,
 			  V4L2_CID_ROTATE, 0, 270, 90, 0);
+	v4l2_ctrl_new_std(&ctx->ctrl_handler, &ge2d_ctrl_ops,
+			  V4L2_CID_ALPHA_COMPONENT, 0, 255, 1, 255);
+	v4l2_ctrl_new_std(&ctx->ctrl_handler, &ge2d_ctrl_ops,
+			  V4L2_CID_BG_COLOR, 0, 0xffffff, 1, 0);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &ge2d_blend_ctrl, NULL);
 	if (ctx->ctrl_handler.error) {
 		ret = ctx->ctrl_handler.error;
 		v4l2_ctrl_handler_free(&ctx->ctrl_handler);
@@ -1289,9 +1365,12 @@ static int ge2d_probe(struct platform_device *pdev)
 	ret = meson_canvas_alloc(core->canvas, &core->src_v_canvas);
 	if (ret)
 		goto free_dst_uv;
-	ret = clk_prepare_enable(core->clk);
+	ret = meson_canvas_alloc(core->canvas, &core->src2_canvas);
 	if (ret)
 		goto free_src_v;
+	ret = clk_prepare_enable(core->clk);
+	if (ret)
+		goto free_src2;
 	ret = reset_control_deassert(core->reset);
 	if (ret)
 		goto disable_clk;
@@ -1340,6 +1419,8 @@ unregister_v4l2:
 	v4l2_device_unregister(&core->v4l2);
 disable_clk:
 	clk_disable_unprepare(core->clk);
+free_src2:
+	meson_canvas_free(core->canvas, core->src2_canvas);
 free_src_v:
 	meson_canvas_free(core->canvas, core->src_v_canvas);
 free_dst_uv:
@@ -1366,6 +1447,7 @@ static int ge2d_remove(struct platform_device *pdev)
 	v4l2_device_unregister(&core->v4l2);
 	reset_control_assert(core->reset);
 	clk_disable_unprepare(core->clk);
+	meson_canvas_free(core->canvas, core->src2_canvas);
 	meson_canvas_free(core->canvas, core->src_v_canvas);
 	meson_canvas_free(core->canvas, core->dst_uv_canvas);
 	meson_canvas_free(core->canvas, core->src_uv_canvas);

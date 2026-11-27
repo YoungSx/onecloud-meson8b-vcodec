@@ -32,7 +32,7 @@ typedef uint64_t u64;
 #include "ge2d-layout.h"
 #include "ge2d-scale.h"
 ''' + macros + r'''
-struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas,src_v_canvas;bool offline;};
+struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas,src_v_canvas,src2_canvas;bool offline;};
 static u32 registers[128];
 static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
@@ -50,7 +50,7 @@ static int meson_canvas_config(void *c,unsigned i,dma_addr_t a,u32 s,u32 h,int w
 }
 static u32 readl(void *r) {(void)r;return 0;}
 #define readl_poll_timeout(r,status,cond,interval,limit) ({ \
- (void)(r);assert((interval)==50 && (limit)==100000); \
+	(void)(r);assert((interval)==50 && (limit)==100000); \
  int result=-ETIMEDOUT; \
  if(poll_error_at && starts==poll_error_at) result=-ETIMEDOUT; \
  else if(poll_error) result=poll_error; \
@@ -65,7 +65,7 @@ static void dma_wmb(void) {barriers++;}
 static void dma_rmb(void) {barriers++;}
 ''' + body + r'''
 int main(void) {
- struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4,.src_uv_canvas=5,.dst_uv_canvas=6,.src_v_canvas=7};
+ struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4,.src_uv_canvas=5,.dst_uv_canvas=6,.src_v_canvas=7,.src2_canvas=8};
  assert(!ge2d_copy(&c,0x100000,0x200000,512,32,false));
  assert(registers[GEN_CTRL2/4]==BIT(23));
  assert(registers[SRC_CANVAS/4]==3u<<24 && registers[DST_CANVAS/4]==4);
@@ -197,6 +197,27 @@ int main(void) {
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert((registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(0)))==(BIT(7)|BIT(6)|BIT(5)|BIT(0)));
  assert(((registers[SRC_X/4]>>30)&3)==3&&((registers[SRC_Y/4]>>30)&3)==3);
+ /* ABGR32 constant-alpha blend and ARGB32 dual-source SRC_OVER onto XRGB32. */
+ input=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=2048,.address={0x100000},.little_endian=true,.format=MESON8B_GE2D_FMT_ABGR32};
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=2048,.address={0x200000},.little_endian=true,.format=MESON8B_GE2D_FMT_XRGB32};
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.blend=MESON8B_GE2D_BLEND_CONST,.global_alpha=128,.bg_color=0x112233};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[SRC2_DEF_COLOR/4]==0x112233ffu);
+ assert(registers[ALU_CONST_COLOR/4]==0x11223380u);
+ assert(registers[ALU_CTRL/4]==((12u<<16)|(13u<<12)|(6u<<4)|7u));
+ assert((registers[CMD_CTRL/4]&BIT(9))&&((registers[GEN_CTRL1/4]&0xffu)==128));
+ input.format=MESON8B_GE2D_FMT_ARGB32;
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.blend=MESON8B_GE2D_BLEND_OVER,.global_alpha=255};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[ALU_CTRL/4]==((6u<<16)|(7u<<12)|(1u<<4)|3u));
+ assert(!(registers[CMD_CTRL/4]&BIT(9))&&(registers[DST_CANVAS/4]==(4u|(8u<<8))));
+ /* Blending into planar/semiplanar YUV or invalid blend mode fails cleanly. */
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
+ starts_before=starts;
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==starts_before);
+ crop.blend=MESON8B_GE2D_BLEND_OVER+1;
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=2048,.address={0x200000},.little_endian=true,.format=MESON8B_GE2D_FMT_XRGB32};
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==starts_before);
  return 0;
 }
 '''

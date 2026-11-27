@@ -18,6 +18,15 @@ enum meson8b_ge2d_format {
 	MESON8B_GE2D_FMT_XBGR32,
 	MESON8B_GE2D_FMT_RGBX32,
 	MESON8B_GE2D_FMT_XRGB32,
+	MESON8B_GE2D_FMT_ABGR32,
+	MESON8B_GE2D_FMT_RGBA32,
+	MESON8B_GE2D_FMT_ARGB32,
+};
+
+enum meson8b_ge2d_blend {
+	MESON8B_GE2D_BLEND_COPY = 0,
+	MESON8B_GE2D_BLEND_CONST,
+	MESON8B_GE2D_BLEND_OVER,
 };
 
 enum meson8b_ge2d_colorspace {
@@ -41,6 +50,9 @@ struct meson8b_ge2d_crop {
 	u32 left, top, width, height;
 	u32 rotate;
 	bool hflip, vflip;
+	enum meson8b_ge2d_blend blend;
+	u32 global_alpha;
+	u32 bg_color;
 };
 
 static inline enum meson8b_ge2d_format
@@ -74,7 +86,12 @@ static inline bool meson8b_ge2d_format_is_yuv(enum meson8b_ge2d_format fmt)
 
 static inline bool meson8b_ge2d_format_is_rgb(enum meson8b_ge2d_format fmt)
 {
-	return fmt >= MESON8B_GE2D_FMT_RGB24 && fmt <= MESON8B_GE2D_FMT_XRGB32;
+	return fmt >= MESON8B_GE2D_FMT_RGB24 && fmt <= MESON8B_GE2D_FMT_ARGB32;
+}
+
+static inline bool meson8b_ge2d_format_has_alpha(enum meson8b_ge2d_format fmt)
+{
+	return fmt >= MESON8B_GE2D_FMT_ABGR32 && fmt <= MESON8B_GE2D_FMT_ARGB32;
 }
 
 static inline bool meson8b_ge2d_grey_mismatch(enum meson8b_ge2d_format a,
@@ -97,6 +114,9 @@ static inline u32 meson8b_ge2d_format_bpp(enum meson8b_ge2d_format fmt)
 	case MESON8B_GE2D_FMT_XBGR32:
 	case MESON8B_GE2D_FMT_RGBX32:
 	case MESON8B_GE2D_FMT_XRGB32:
+	case MESON8B_GE2D_FMT_ABGR32:
+	case MESON8B_GE2D_FMT_RGBA32:
+	case MESON8B_GE2D_FMT_ARGB32:
 		return 4;
 	default:
 		return 1;
@@ -148,7 +168,7 @@ static inline int meson8b_ge2d_image_valid(const struct meson8b_ge2d_image *imag
 	enum meson8b_ge2d_format fmt = meson8b_ge2d_resolved_format(image);
 	u32 stride, size, bpp, planes, min_stride, i, j;
 
-	if ((u32)image->format > MESON8B_GE2D_FMT_XRGB32 ||
+	if ((u32)image->format > MESON8B_GE2D_FMT_ARGB32 ||
 	    (u32)image->colorspace > MESON8B_GE2D_CS_BT709_FULL)
 		return -EINVAL;
 	if (meson8b_ge2d_layout(image->width, image->height, &stride, &size))
@@ -225,6 +245,8 @@ static inline int meson8b_ge2d_crop_valid(const struct meson8b_ge2d_image *image
 
 	if (crop->rotate != 0 && crop->rotate != 90 &&
 	    crop->rotate != 180 && crop->rotate != 270)
+		return -EINVAL;
+	if ((u32)crop->blend > MESON8B_GE2D_BLEND_OVER || crop->global_alpha > 255)
 		return -EINVAL;
 	if (!crop->width || !crop->height || crop->left >= image->width ||
 	    crop->top >= image->height || crop->width > image->width - crop->left ||

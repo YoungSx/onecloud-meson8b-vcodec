@@ -71,5 +71,21 @@ int main(void)
 	assert(meson8b_ge2d_crop_valid(&rgb, &crop) == -EINVAL);
 	crop.rotate = 90;
 	assert(!meson8b_ge2d_crop_valid(&rgb, &crop));
+	struct meson8b_ge2d_image argb = {
+		.width = 64, .height = 32, .stride = 256,
+		.address = { 0x1000000 }, .format = MESON8B_GE2D_FMT_ARGB32,
+	};
+	assert(!meson8b_ge2d_image_valid(&argb));
+	assert(meson8b_ge2d_format_has_alpha(MESON8B_GE2D_FMT_ABGR32));
+	assert(meson8b_ge2d_format_has_alpha(MESON8B_GE2D_FMT_RGBA32));
+	assert(meson8b_ge2d_format_has_alpha(MESON8B_GE2D_FMT_ARGB32));
+	assert(!meson8b_ge2d_format_has_alpha(MESON8B_GE2D_FMT_XRGB32));
+	crop.blend = MESON8B_GE2D_BLEND_OVER;
+	assert(!meson8b_ge2d_crop_valid(&rgb, &crop));
+	crop.blend = MESON8B_GE2D_BLEND_OVER + 1;
+	assert(meson8b_ge2d_crop_valid(&rgb, &crop) == -EINVAL);
+	crop.blend = MESON8B_GE2D_BLEND_CONST;
+	crop.global_alpha = 256;
+	assert(meson8b_ge2d_crop_valid(&rgb, &crop) == -EINVAL);
 	return 0;
 }
