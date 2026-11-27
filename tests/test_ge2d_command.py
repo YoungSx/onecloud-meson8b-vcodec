@@ -11,13 +11,15 @@ class Ge2dCommandTests(unittest.TestCase):
     def test_canvas_endian_command_and_fault_cleanup(self):
         source = (ROOT / "ge2d/meson8b-ge2d.c").read_text()
         macros = source[source.index("#define GEN_CTRL0"):source.index("struct ge2d_ctx;")]
-        body = source[source.index("static int ge2d_blit_one("):source.index("static int ge2d_selftest(")]
+        body = source[source.index("struct ge2d_hw_fmt {"):source.index("static int ge2d_selftest(")]
         code = r'''
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+typedef uint8_t u8;
+typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t dma_addr_t;
 typedef uint64_t u64;
@@ -30,7 +32,7 @@ typedef uint64_t u64;
 #include "ge2d-layout.h"
 #include "ge2d-scale.h"
 ''' + macros + r'''
-struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas;bool offline;};
+struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas,src_v_canvas;bool offline;};
 static u32 registers[128];
 static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
@@ -44,7 +46,7 @@ static void ge2d_write(struct meson8b_ge2d *c,u32 r,u32 v) {
  (void)c;registers[r/4]=v;if(r==CMD_CTRL){assert(barriers);starts++;}
 }
 static int meson_canvas_config(void *c,unsigned i,dma_addr_t a,u32 s,u32 h,int w,int b,int e) {
- (void)c;(void)i;(void)a;assert((s==512||s==256) && (h==32||h==16||h==8) && !w && !b && !e);canvas_calls++;return canvas_error;
+ (void)c;(void)i;(void)a;assert((s>=32 && s<=8192 && !(s&7)) && (h==32||h==16||h==8||h==512||h==256) && !w && !b && !e);canvas_calls++;return canvas_error;
 }
 static u32 readl(void *r) {(void)r;return 0;}
 #define readl_poll_timeout(r,status,cond,interval,limit) ({ \
@@ -63,7 +65,7 @@ static void dma_wmb(void) {barriers++;}
 static void dma_rmb(void) {barriers++;}
 ''' + body + r'''
 int main(void) {
- struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4,.src_uv_canvas=5,.dst_uv_canvas=6};
+ struct meson8b_ge2d c={.regs=(unsigned char *)registers,.src_canvas=3,.dst_canvas=4,.src_uv_canvas=5,.dst_uv_canvas=6,.src_v_canvas=7};
  assert(!ge2d_copy(&c,0x100000,0x200000,512,32,false));
  assert(registers[GEN_CTRL2/4]==BIT(23));
  assert(registers[SRC_CANVAS/4]==3u<<24 && registers[DST_CANVAS/4]==4);
@@ -162,6 +164,39 @@ int main(void) {
   before=starts;
   assert(ge2d_copy(&c,0x100000,0x200000,512,32,true)==-EIO&&starts==before);
  }
+ /* NV21 chroma swap, 3-plane YUV420/YVU420, RGB matrix and flip/rotation. */
+ c.offline=false;poll_error=0;poll_error_at=0;status_count=status_reads=0;canvas_error=0;reset_error=0;
+ input=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x100000,0x104000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV21};
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32};
+ unsigned starts_before=starts;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(starts==starts_before+1);
+ assert(((registers[GEN_CTRL2/4]>>19)&0xf)==14&&((registers[GEN_CTRL3/4]>>19)&0xf)==9);
+ /* YUV420 and YVU420 route Cb/Cr to src_uv_canvas vs src_v_canvas. */
+ input=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x100000,0x104000,0x105000},.little_endian=true,.format=MESON8B_GE2D_FMT_YVU420};
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[SRC_CANVAS/4]==((3u<<24)|(7u<<16)|(5u<<8)));
+ input.format=MESON8B_GE2D_FMT_YUV420;
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(registers[SRC_CANVAS/4]==((3u<<24)|(5u<<16)|(7u<<8)));
+ /* Planar 3-plane output is rejected cleanly without hardware start. */
+ output=input;output.address[0]=0x200000;output.address[1]=0x204000;output.address[2]=0x205000;
+ starts_before=starts;
+ assert(ge2d_blit(&c,&input,&output,&crop)==-EINVAL&&starts==starts_before);
+ /* RGB24 <-> NV12 enables BT.709 matrix and clears matrix for same-family copy. */
+ input=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=1536,.address={0x100000},.little_endian=true,.format=MESON8B_GE2D_FMT_RGB24};
+ output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12,.colorspace=MESON8B_GE2D_CS_BT709_LIM};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert((registers[MATRIX_CTRL/4]&BIT(0))&&((registers[MATRIX_COEF00_01/4]>>16)==0x0bb));
+ /* 90-degree rotation swaps scaled axes, sets dst_xy_swap and chroma phase bits. */
+ input=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x100000,0x104000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
+ output=(struct meson8b_ge2d_image){.width=32,.height=512,.stride=32,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.rotate=90,.vflip=true};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert((registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(0)))==(BIT(7)|BIT(6)|BIT(5)|BIT(0)));
+ assert(((registers[SRC_X/4]>>30)&3)==3&&((registers[SRC_Y/4]>>30)&3)==3);
  return 0;
 }
 '''

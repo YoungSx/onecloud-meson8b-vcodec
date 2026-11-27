@@ -25,28 +25,33 @@ typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;typedef in
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
 #define V4L2_PIX_FMT_MJPEG 1
 #define DMA_BIDIRECTIONAL 0
+#define DMA_FROM_DEVICE 2
 #define amvdec_core core
 #include "ge2d-layout.h"
 #include "../vdec/capture-geometry.h"
 struct meson8b_ge2d_api {int (*convert)(void *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_image *,const struct meson8b_ge2d_crop *);};
-struct core {void *ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2d_frames,converted_frames,convert_ns,pool_bytes;};
+struct core {void *dev,*ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2d_frames,converted_frames,convert_ns,pool_bytes;};
 struct format {u32 pixfmt;};
 struct amvdec_geometry {u32 width,height,reference_width,reference_height,crop_left,crop_top;};
-struct amvdec_shadow {dma_addr_t paddr;u32 luma,size,width,height;void *vaddr;};
+struct amvdec_shadow {dma_addr_t paddr;u32 luma,size,width,height;void *vaddr,*cached;};
 struct amvdec_session {struct meson_capture_geometry capture;struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;} pool;};
 struct dma_resv {long result;unsigned waits;bool write;};
 struct dma_buf {struct dma_resv *resv;};
 struct vb2_buffer {u32 num_planes,memory;struct {u32 data_offset,size;struct dma_buf *dbuf;void *vaddr;dma_addr_t dma;} planes[2];};
 static int gpu_calls,cpu_calls,begin_calls,end_calls,conversion_error,begin_error,end_error;
-static int begin_once_error,cpu_error;static unsigned cpu_access,vmaps,resv_waits;
+static int begin_once_error,cpu_error;static unsigned cpu_access,vmaps,resv_waits,sync_calls;
 static void *begin_failure,*end_failure;
 static unsigned allocations,releases;static int allocation_error;static bool staged;static u32 output_luma=1024;
 static u32 expected_width=34,expected_height=16,expected_crop_left=2,expected_crop_top=4;
-static unsigned char y[2048],uv[1024];static unsigned char *stage_address;
+static unsigned char y[2048],uv[1024];static unsigned char *stage_address,*stage_cached;
 static u32 amvdec_get_output_size_wh(u32 w,u32 h){(void)w;(void)h;return output_luma;}
 static unsigned msecs_to_jiffies(unsigned ms){assert(ms==1000);return 100;}
 static long dma_resv_wait_timeout(struct dma_resv *r,bool all,bool intr,unsigned timeout){
  assert(r&&all&&intr&&timeout==100&&!cpu_access);r->waits++;resv_waits++;return r->result;
+}
+static void dma_sync_single_for_cpu(void *d,dma_addr_t addr,size_t size,int dir){
+ (void)d;assert(addr==0x400000&&dir==DMA_FROM_DEVICE&&stage_cached&&stage_address);
+ memcpy(stage_cached,stage_address,size);sync_calls++;
 }
 static void *vb2_plane_vaddr(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes&&(!b->planes[i].dbuf||cpu_access));vmaps++;return b->planes[i].vaddr;}
 static u32 vb2_plane_size(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].size;}
@@ -66,8 +71,8 @@ static u64 ktime_to_ns(ktime_t t){return t;}
 static int amvdec_meson8b_convert(struct amvdec_session *s,const struct amvdec_geometry *g,const struct amvdec_shadow *sh,struct vb2_buffer *b){
  (void)s;(void)g;(void)sh;for(unsigned i=0;i<b->num_planes;i++)assert(!b->planes[i].dbuf||cpu_access);cpu_calls++;return cpu_error;
 }
-static void amvdec_shadow_free(struct amvdec_session *s,struct amvdec_shadow *sh){(void)s;free(sh->vaddr);memset(sh,0,sizeof(*sh));releases++;}
-static int amvdec_shadow_alloc(struct amvdec_session *s,struct amvdec_shadow *sh,u32 luma){(void)s;allocations++;if(allocation_error)return allocation_error;sh->vaddr=malloc(luma*3/2);assert(sh->vaddr);stage_address=sh->vaddr;memset(sh->vaddr,0xcc,luma*3/2);sh->paddr=0x400000;sh->luma=luma;sh->size=luma*3/2;sh->width=0;sh->height=0;return 0;}
+static void amvdec_shadow_free(struct amvdec_session *s,struct amvdec_shadow *sh){(void)s;free(sh->vaddr);free(sh->cached);stage_cached=NULL;memset(sh,0,sizeof(*sh));releases++;}
+static int amvdec_shadow_alloc(struct amvdec_session *s,struct amvdec_shadow *sh,u32 luma,bool cached){(void)s;allocations++;if(allocation_error)return allocation_error;sh->vaddr=malloc(luma*3/2);assert(sh->vaddr);stage_address=sh->vaddr;memset(sh->vaddr,0xcc,luma*3/2);sh->cached=cached?malloc(luma*3/2):NULL;if(cached){assert(sh->cached);memset(sh->cached,0xdd,luma*3/2);}stage_cached=sh->cached;sh->paddr=0x400000;sh->luma=luma;sh->size=luma*3/2;sh->width=0;sh->height=0;return 0;}
 static int convert(void *d,const struct meson8b_ge2d_image *in,const struct meson8b_ge2d_image *out,const struct meson8b_ge2d_crop *crop){
  assert(!cpu_access);
  assert(d&&in->width==64&&in->height==32&&in->stride==64&&in->nv12&&!in->little_endian);
@@ -90,7 +95,7 @@ static int convert(void *d,const struct meson8b_ge2d_image *in,const struct meso
 int main(void){
  struct meson8b_ge2d_api api={convert};struct core c={.ge2d_dev=&api,.ge2d_api=&api};
  struct format f={2};struct amvdec_session s={.core=&c,.fmt_out=&f};
- struct amvdec_geometry g={34,16,64,32,2,4};struct amvdec_shadow sh={0x100000,2048,3072,0,0,&api};
+ struct amvdec_geometry g={34,16,64,32,2,4};struct amvdec_shadow sh={0x100000,2048,3072,0,0,&api,NULL};
  struct dma_resv resv[2]={{.result=1},{.result=1}};
  struct dma_buf dbuf[2]={{&resv[0]},{&resv[1]}};
  struct vb2_buffer b={.num_planes=2,.memory=V4L2_MEMORY_DMABUF,.planes={{.size=1024,.vaddr=y,.dma=0x200000},
@@ -113,7 +118,7 @@ int main(void){
  for(unsigned frame=0;frame<3;frame++){
   memset(y,0xa5,sizeof(y));memset(uv,0xa5,sizeof(uv));
   assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b));
-  assert(allocations==1&&!releases&&c.pool_bytes==1536);
+  assert(allocations==1&&!releases&&c.pool_bytes==1536&&sync_calls==frame+1);
   for(unsigned p=0;p<2;p++)for(unsigned row=0;row<(p?8u:16u);row++)for(unsigned x=0;x<64;x++)
    assert((p?uv:y)[row*64+x]==(x<34?0x37+p:0));
  }

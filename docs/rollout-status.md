@@ -39,6 +39,12 @@ Stage 2（临时加载 `meson8b-ge2d.ko` + `capture_ge2d=1`）验收；验收期
 （五容器运行、四项 HTTP 200、`pool_bytes=0`、生产 GE2D 继续关闭），详见
 [停流清零与阶段一/二验收](validation-records.md#11-27-停流缩放清零修复与阶段一二实机验收)。
 
+随后完成 #31 GE2D 扩展格式、色彩矩阵、翻转/旋转与缓存 `capture_stage` 候选的
+主机测试、严格 `checkpatch.pl`、5.15.79 ARM 外部/additive 双构建及 S805
+实机临时验证（测试后已卸载 `meson8b-ge2d` 并恢复在役默认 NEON、五容器与
+四项 HTTP 200 正常；双源/alpha 混合与生产启用继续保留），见
+[GE2D 扩展实机验收](validation-records.md#11-27-ge2d-格式色彩矩阵翻转旋转与缓存暂存验收)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |

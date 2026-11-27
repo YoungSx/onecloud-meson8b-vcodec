@@ -24,9 +24,10 @@ class Ge2dQueueTests(unittest.TestCase):
 #include <stddef.h>
 #include <string.h>
 #include <linux/videodev2.h>
-typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
+typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
 #define U32_MAX UINT32_MAX
 #define ERESTARTSYS 512
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #include "ge2d-layout.h"
 struct work_struct {int unused;};
 struct ge2d_ctx;struct meson8b_ge2d {struct work_struct work;struct ge2d_ctx *active;void *m2m;int hardware_lock;bool ready;};

@@ -54,5 +54,22 @@ int main(void)
 	destination.address[0] = 0x3000000;
 	destination.address[1] = 0x4000000;
 	assert(!meson8b_ge2d_images_overlap(&image, &destination));
+	struct meson8b_ge2d_image yv12 = {
+		.width = 640, .height = 360, .stride = 640,
+		.address = { 0x1000000, 0x1100000, 0x1140000 },
+		.format = MESON8B_GE2D_FMT_YUV420,
+	};
+	assert(!meson8b_ge2d_image_valid(&yv12));
+	yv12.address[2] = 0x1108000;
+	assert(meson8b_ge2d_image_valid(&yv12) == -EINVAL);
+	struct meson8b_ge2d_image rgb = {
+		.width = 640, .height = 360, .stride = 1920,
+		.address = { 0x1000000 }, .format = MESON8B_GE2D_FMT_RGB24,
+	};
+	assert(!meson8b_ge2d_image_valid(&rgb));
+	crop = (struct meson8b_ge2d_crop){ .width = 640, .height = 360, .rotate = 45 };
+	assert(meson8b_ge2d_crop_valid(&rgb, &crop) == -EINVAL);
+	crop.rotate = 90;
+	assert(!meson8b_ge2d_crop_valid(&rgb, &crop));
 	return 0;
 }

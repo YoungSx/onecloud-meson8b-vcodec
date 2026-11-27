@@ -24,7 +24,7 @@ class Ge2dFormatTests(unittest.TestCase):
 #include <stddef.h>
 #include <string.h>
 #include <linux/videodev2.h>
-typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
+typedef uint8_t u8;typedef uint16_t u16;typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
 #define U32_MAX UINT32_MAX
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
 #define clamp_t(t,x,l,h) ((t)(x)<(t)(l)?(t)(l):(t)(x)>(t)(h)?(t)(h):(t)(x))
@@ -34,10 +34,11 @@ struct ge2d_ctx;
 struct vb2_queue {u32 type;bool busy;struct ge2d_ctx *ctx;};
 struct m2m {struct vb2_queue src,dst;};
 struct v4l2_fh {struct m2m *m2m_ctx;};
-struct ge2d_ctx {struct v4l2_fh fh;struct v4l2_pix_format_mplane input,output;struct meson8b_ge2d_crop crop;};
+struct v4l2_ctrl_handler {int error;};
+struct ge2d_ctx {struct v4l2_fh fh;struct v4l2_ctrl_handler ctrl_handler;struct v4l2_pix_format_mplane input,output;struct meson8b_ge2d_crop crop;};
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
 struct vb2_buffer {u32 type,num_planes;struct vb2_queue *vb2_queue;
- struct {u32 data_offset,size,payload;dma_addr_t address;} planes[2];};
+ struct {u32 data_offset,size,payload;dma_addr_t address;} planes[3];};
 struct file {int unused;};
 static void *vb2_get_drv_priv(struct vb2_queue *q){return q->ctx;}
 static u32 vb2_plane_size(struct vb2_buffer *b,unsigned i){assert(i<b->num_planes);return b->planes[i].size;}
@@ -100,9 +101,25 @@ int main(void){
  b.planes[0].address=0x1000000;
  f.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;f.fmt.pix_mp.pixelformat=V4L2_PIX_FMT_GREY;
  assert(ge2d_set_fmt(NULL,&c.fh,&f)==-EINVAL);
- struct v4l2_fmtdesc desc={0};assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_GREY);
- desc.index=2;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_NV12M);
- desc.index=3;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
+ /* NV12 -> RGB24/NV21/XBGR32 cross-format, 3-plane YUV420M output negotiation and enum. */
+ f.fmt.pix_mp.pixelformat=V4L2_PIX_FMT_RGB24;f.fmt.pix_mp.width=640;f.fmt.pix_mp.height=360;
+ f.fmt.pix_mp.plane_fmt[0].bytesperline=0;
+ assert(!ge2d_set_fmt(NULL,&c.fh,&f)&&c.output.num_planes==1&&c.output.plane_fmt[0].bytesperline==1920);
+ assert(c.output.plane_fmt[0].sizeimage==1920*360);
+ f.type=V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;f.fmt.pix_mp.pixelformat=V4L2_PIX_FMT_YUV420M;
+ f.fmt.pix_mp.width=854;f.fmt.pix_mp.height=480;f.fmt.pix_mp.plane_fmt[0].bytesperline=0;
+ assert(!ge2d_set_fmt(NULL,&c.fh,&f)&&c.input.num_planes==3);
+ assert(c.input.plane_fmt[0].bytesperline==896&&c.input.plane_fmt[1].bytesperline==448);
+ assert(c.output.pixelformat==V4L2_PIX_FMT_NV12M);
+ struct v4l2_fmtdesc desc={.type=V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE};
+ assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_GREY);
+ desc.index=4;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_NV21M);
+ desc.index=9;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_UYVY);
+ desc.index=14;assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_XRGB32);
+ desc.index=15;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
+ desc.type=V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;desc.index=5;
+ assert(!ge2d_enum_fmt(NULL,NULL,&desc)&&desc.pixelformat==V4L2_PIX_FMT_RGB24);
+ desc.index=10;assert(ge2d_enum_fmt(NULL,NULL,&desc)==-EINVAL);
  assert(!ge2d_get_fmt(NULL,&c.fh,&f));
  return 0;
 }

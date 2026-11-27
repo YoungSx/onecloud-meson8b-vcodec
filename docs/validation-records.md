@@ -1819,3 +1819,40 @@ additive 模块构建与 [0001-meson8b-runtime-codecs.patch](../patches/0001-mes
   15 帧直读（`DIRECT=15, COPIED=0`）、`RC`（`i-qp=36` 首个 IDR 不误计饱和，
   `qp=32`, `saturated_frames=26`）与 `H.263` 4CIF/PLUS 解码通过，结束后
   `pool_bytes=0`。
+
+## 11-27 GE2D 格式色彩矩阵翻转旋转与缓存暂存验收
+
+完成 #31 GE2D 多格式（`NV12`/`NV21`/`NV21M`/`YUV420`/`YUV420M`/`YVU420`/
+`YVU420M`/`UYVY`/`RGB24`/`BGR24`/`XBGR32`/`RGBX32`/`XRGB32`）、BT.601/BT.709
+有限与全量程矩阵、`HFLIP`/`VFLIP`/`ROTATE(90/180/270)` 及 `vdec` 显式 GE2D
+MMAP 缓存别名 `capture_stage`（配合 `dma_sync_single_for_cpu`）的宿主回归与
+S805 实机临时加载验收：
+
+- **工作机与双构建验证**：`make test`（153 项主机测试含 ASan/UBSan 与文档检查）
+  通过；`ge2d/ge2d-layout.h`、`ge2d/meson8b-ge2d.c` 与 `vdec/meson8b-capture.c`
+  通过严格 `checkpatch.pl`（0 告警）；5.15.79 ARM 外部/additive 模块构建与
+  [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)
+  同步通过（`meson8b-ge2d.ko` SHA256
+  `cd5e2e5b29f3a09ecb2d86bdb13f6601285013cb8c8dbd2b41b21e5fe9201157`、`meson-vdec.ko`
+  `5d4dfb9005ed71a06a41a9fc71e5c8613a418a452fe99bd90e43917477f6d3af`、
+  `meson8b-runtime.ko` `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02`、
+  `meson-venc.ko` `e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595`）。
+- **S805 实机临时验证（`meson8b-ge2d.ko` + `capture_ge2d=1`）**：
+  - `RGB24/BGR24/XBGR32/RGBX32/XRGB32` 互转全部全像素精确匹配（按 V4L2 字节序）；
+    `NV12 -> NV12M` 走 `GREY` 平面直拷逐字节零误差，`UYVY -> NV12M` 通过，
+    `NV21/NV21M/YUV420/YUV420M/YVU420/YVU420M -> NV12M` 经由 `ge2d_blit_one()`
+    硬件 4:2:0 色度相位插值后亮度逐像素一致、平滑色度最大差 `<= 4`（需注意
+    `SRC_FMT` `0x4c` 垂直色度相位在阶跃边界处约有 `-0.75` 行插值）。
+  - `BT.601` 有限/全量程与 `BT.709` 有限/全量程 `RGB24 -> NV12M -> RGB24`
+    回环色块及绿条 luma（`140`/`145`/`164`/`173`）实机通过；`HFLIP`、`VFLIP`、
+    `ROT90`、`ROT180`、`ROT270` 对 64×32 `RGB24` 全像素精确一致。
+  - `vdec` 缓存 `capture_stage` MMAP 输出与软件参考逐帧精确一致：`H.264` 360p
+    30/30 及 `HEVC` 2-slice 640×384 20/20 可见像素 MD5 精确一致，`320×180`
+    MMAP 缩放 30/30 通过；`meson-drm` 哑帧 DMA-BUF `320×192` 经 `vdec -> venc`
+    共享转码 30/30（`DIRECT=30, COPIED=0`），`v4l2-accept`（`CREATE_BUFS`/
+    `PREPARE_BUF`/同 `fd` 重开清零缩放/`H.263 GN=0` 拒绝）通过，结束后
+    `pool_bytes=0`。
+- **还原与未关闭边界**：验收结束后已卸载 `meson8b-ge2d.ko` 并恢复在役默认
+  NEON（`capture_ge2d=N`、`meson8b-vcodec`/`containerd`/`docker` `active` 且
+  `NRestarts=0`、五容器运行、四项本地 HTTP `200`、`pool_bytes=0`）。双源/alpha
+  混合（#31 剩余范围）与生产默认 GE2D 启用继续保留开放。

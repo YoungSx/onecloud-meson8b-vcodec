@@ -38,11 +38,13 @@ static void amvdec_shadow_free(struct amvdec_session *sess,
  * uncached, which made the CPU byte-order copy read at uncached speed and
  * dominate the whole decode cost. Hardware is the only writer of this
  * buffer; the CPU only reads it. The default NEON path retains a cached
- * read alias pending a HighMem-capable noncoherent allocator. GE2D needs
- * no alias; its CPU fallback reads the coherent mapping directly.
+ * read alias pending a HighMem-capable noncoherent allocator. VDEC->GE2D
+ * slots need no alias (their rare CPU fallback reads the coherent mapping);
+ * capture_stage keeps a read-only cached alias invalidated before CPU copy.
  */
 static int amvdec_shadow_alloc(struct amvdec_session *sess,
-			       struct amvdec_shadow *shadow, u32 luma)
+			       struct amvdec_shadow *shadow, u32 luma,
+			       bool cached)
 {
 	unsigned int npages = PAGE_ALIGN(luma + luma / 2) >> PAGE_SHIFT;
 	struct page **pages;
@@ -62,7 +64,7 @@ static int amvdec_shadow_alloc(struct amvdec_session *sess,
 	shadow->luma = luma;
 	shadow->width = 0;
 	shadow->height = 0;
-	if (sess->core->ge2d_dev)
+	if (!cached)
 		return 0;
 
 	pages = kmalloc_array(npages, sizeof(*pages), GFP_KERNEL);
@@ -332,7 +334,7 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			core->pool_bytes -= stage->size;
 			amvdec_shadow_free(sess, stage);
 		}
-		ret = amvdec_shadow_alloc(sess, stage, luma);
+		ret = amvdec_shadow_alloc(sess, stage, luma, true);
 		if (ret)
 			goto fallback;
 		core->pool_bytes += stage->size;
@@ -384,8 +386,15 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		goto fallback;
 	core->ge2d_frames++;
 	if (!imported) {
-		memcpy(dst[0], stage->vaddr, luma);
-		memcpy(dst[1], stage->vaddr + luma, luma / 2);
+		const void *src = stage->vaddr;
+
+		if (stage->cached) {
+			dma_sync_single_for_cpu(core->dev, stage->paddr, stage->size,
+						DMA_FROM_DEVICE);
+			src = stage->cached;
+		}
+		memcpy(dst[0], src, luma);
+		memcpy(dst[1], src + luma, luma / 2);
 	}
 	return 0;
 
@@ -489,7 +498,8 @@ int amvdec_pool_prepare(struct amvdec_session *sess, u32 count)
 	}
 
 	for (i = fresh ? 0 : pool->state.count; i < count; i++) {
-		ret = amvdec_shadow_alloc(sess, &pool->slot[i], luma);
+		ret = amvdec_shadow_alloc(sess, &pool->slot[i], luma,
+					  !sess->core->ge2d_dev);
 		if (ret) {
 			dev_err(sess->core->dev,
 				"frame pool of %u slots needs %u bytes of CMA each; got %u slots\n",
