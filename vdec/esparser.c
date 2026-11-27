@@ -15,6 +15,8 @@
 #include <linux/reset.h>
 #include <linux/interrupt.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-resv.h>
+#include <linux/jiffies.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-mem2mem.h>
 
@@ -318,6 +320,11 @@ static int esparser_prepare_input(struct amvdec_session *sess, struct vb2_buffer
 	int ret, end_ret;
 
 	if (dbuf) {
+		long wait_ret = dma_resv_wait_timeout(dbuf->resv, false, true,
+						      msecs_to_jiffies(1000));
+
+		if (wait_ret <= 0)
+			return wait_ret ? wait_ret : -ETIMEDOUT;
 		ret = dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
 		if (ret)
 			return ret;

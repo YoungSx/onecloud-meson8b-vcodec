@@ -55,6 +55,8 @@ struct amvdec_shadow {
 	dma_addr_t paddr;
 	u32 size;
 	u32 luma;
+	u32 width;
+	u32 height;
 };
 
 /* What a picture was decoded at; a resolution switch changes the session's. */

@@ -31,7 +31,7 @@ struct page {int index;};
 struct device {int unused;};
 struct amvdec_core {struct device *dev;void *ge2d_dev;u32 pool_slots,pool_bytes;};
 
-struct amvdec_shadow {void *vaddr,*cached;dma_addr_t paddr;u32 size,luma;};
+struct amvdec_shadow {void *vaddr,*cached;dma_addr_t paddr;u32 size,luma,width,height;};
 struct amvdec_frame_pool {struct amvdec_shadow slot[2],capture_stage;int state;};
 struct amvdec_session {struct amvdec_core *core;struct amvdec_frame_pool pool;};
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))

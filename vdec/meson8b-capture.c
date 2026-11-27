@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0+
 #include <linux/dma-mapping.h>
 #include <linux/dma-buf.h>
+#include <linux/dma-resv.h>
+#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/ktime.h>
 #include <linux/mm.h>
@@ -58,6 +60,8 @@ static int amvdec_shadow_alloc(struct amvdec_session *sess,
 		return -ENOMEM;
 	}
 	shadow->luma = luma;
+	shadow->width = 0;
+	shadow->height = 0;
 	if (sess->core->ge2d_dev)
 		return 0;
 
@@ -238,6 +242,39 @@ finish:
 	return ret;
 }
 
+/* Do not overwrite an imported CAPTURE buffer while another user holds it. */
+static int amvdec_capture_wait(struct vb2_buffer *vb)
+{
+	unsigned int i;
+
+	if (vb->memory != V4L2_MEMORY_DMABUF)
+		return 0;
+	for (i = 0; i < vb->num_planes; i++) {
+		long ret;
+
+		if (!vb->planes[i].dbuf)
+			continue;
+		ret = dma_resv_wait_timeout(vb->planes[i].dbuf->resv, true,
+					    true, msecs_to_jiffies(1000));
+		if (ret <= 0)
+			return ret ? ret : -ETIMEDOUT;
+	}
+	return 0;
+}
+
+static void amvdec_clear_padding(void *address, u32 width, u32 stride,
+				 u32 rows, u32 payload)
+{
+	u32 row;
+
+	if (width < stride)
+		for (row = 0; row < rows; row++)
+			memset(address + row * stride + width, 0,
+			       stride - width);
+	if (payload > stride * rows)
+		memset(address + stride * rows, 0, payload - stride * rows);
+}
+
 /* Convert one decoded picture through GE2D or an unscaled CPU fallback. */
 static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			     const struct amvdec_geometry *geo,
@@ -265,13 +302,19 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		.left = geo->crop_left, .top = geo->crop_top,
 		.width = geo->width, .height = geo->height,
 	};
-	void *dst[2];
+	void *dst[2] = { };
 	unsigned int i;
-	int ret = -EOPNOTSUPP;
+	int ret;
 
+	if (vb->num_planes != 2)
+		return -EINVAL;
+	ret = amvdec_capture_wait(vb);
+	if (ret)
+		return ret;
+	ret = -EOPNOTSUPP;
 	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_MJPEG)
 		goto fallback;
-	if (vb->num_planes != 2 || !shadow->vaddr || shadow->luma < stride * height ||
+	if (!shadow->vaddr || shadow->luma < stride * height ||
 	    shadow->size < shadow->luma + stride * height / 2 ||
 	    (u64)shadow->paddr + shadow->size > (u64)U32_MAX + 1)
 		return -EINVAL;
@@ -294,37 +337,47 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			goto fallback;
 		core->pool_bytes += stage->size;
 	}
+	if (!imported &&
+	    (stage->width != output.width || stage->height != output.height)) {
+		memset(stage->vaddr, 0, stage->size);
+		stage->width = output.width;
+		stage->height = output.height;
+	}
 	for (i = 0; i < 2; i++) {
 		u32 rows = i ? output.height / 2 : output.height;
 		u32 payload = luma / (i ? 2 : 1);
-		void *address;
-		u32 row;
+		bool pad = output.width < output.stride || payload > output.stride * rows;
 
-		if (vb->planes[i].dbuf) {
-			ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
-			if (ret)
-				return ret;
-		}
-		dst[i] = vb2_plane_vaddr(vb, i);
-		ret = dst[i] ? 0 : -EINVAL;
-		if (!ret) {
-			address = imported ? dst[i] : stage->vaddr + (i ? luma : 0);
-			/* GE2D only writes visible pixels; clear the remaining padding. */
-			for (row = 0; row < rows; row++)
-				memset(address + row * output.stride + output.width, 0,
-				       output.stride - output.width);
-			memset(address + output.stride * rows, 0, payload - output.stride * rows);
-		}
-		if (vb->planes[i].dbuf) {
-			int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf, DMA_BIDIRECTIONAL);
+		if (imported) {
+			if (pad) {
+				if (vb->planes[i].dbuf) {
+					ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf,
+								       DMA_BIDIRECTIONAL);
+					if (ret)
+						return ret;
+				}
+				dst[i] = vb2_plane_vaddr(vb, i);
+				ret = dst[i] ? 0 : -EINVAL;
+				if (!ret)
+					amvdec_clear_padding(dst[i], output.width,
+							     output.stride, rows, payload);
+				if (vb->planes[i].dbuf) {
+					int end_ret = dma_buf_end_cpu_access(vb->planes[i].dbuf,
+									     DMA_BIDIRECTIONAL);
 
-			if (!ret)
-				ret = end_ret;
+					if (!ret)
+						ret = end_ret;
+				}
+				if (ret)
+					return ret;
+			}
+			output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+		} else {
+			dst[i] = vb2_plane_vaddr(vb, i);
+			if (!dst[i])
+				return -EINVAL;
+			output.address[i] = stage->paddr + (i ? luma : 0);
 		}
-		if (ret)
-			return ret;
-		output.address[i] = imported ? vb2_dma_contig_plane_dma_addr(vb, i) :
-			stage->paddr + (i ? luma : 0);
 	}
 	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
 	if (ret)

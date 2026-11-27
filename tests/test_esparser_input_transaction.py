@@ -69,7 +69,9 @@ typedef uint8_t u8;typedef uint32_t u32;typedef uint64_t u64;typedef uintptr_t d
 #define dev_dbg(...) ((void)0)
 #define dev_warn(...) ((void)0)
 #define DMA_BIDIRECTIONAL 0
-struct dma_buf {int unused;};
+#define ERESTARTSYS 512
+struct dma_resv {long result;unsigned waits;};
+struct dma_buf {struct dma_resv *resv;};
 struct vb2_buffer {u32 size;u64 timestamp;struct {u32 data_offset;struct dma_buf *dbuf;}planes[1];};
 struct vb2_v4l2_buffer {struct vb2_buffer vb2_buf;u32 flags,field,sequence;int timecode;};
 struct amvdec_session;
@@ -80,6 +82,10 @@ struct amvdec_session {struct amvdec_core *core;struct amvdec_format *fmt_out;vo
 static int ts_result,pad_result,aborted,kicks,removed,taken,prepared,done,error;
 static int begin_error,end_error,begins,ends,inspect_error;
 static bool cpu_access,imported,published;
+static unsigned msecs_to_jiffies(unsigned ms){assert(ms==1000);return 100;}
+static long dma_resv_wait_timeout(struct dma_resv *r,bool all,bool intr,unsigned timeout){
+ assert(r&&!all&&intr&&timeout==100&&!cpu_access);r->waits++;return r->result;
+}
 static int dma_buf_begin_cpu_access(struct dma_buf *d,int dir){assert(d&&dir==DMA_BIDIRECTIONAL&&!cpu_access);begins++;if(begin_error)return begin_error;cpu_access=true;return 0;}
 static int dma_buf_end_cpu_access(struct dma_buf *d,int dir){assert(d&&dir==DMA_BIDIRECTIONAL&&cpu_access);ends++;cpu_access=false;return end_error;}
 static void dma_wmb(void){assert(!cpu_access);published=true;}
@@ -112,9 +118,13 @@ int main(void){struct amvdec_codec_ops ops={.inspect_input=prepare};struct amvde
  expected_data_offset=b.vb2_buf.planes[0].data_offset=37;b.vb2_buf.size=37+16;
  assert(!esparser_queue(&s,&b)&&prepared==4&&aborted==2&&kicks==2&&done==2&&taken==4&&s.esparser_queued_bufs==2);
  assert(b.vb2_buf.size==37+32&&b.vb2_buf.planes[0].data_offset==37);
- struct dma_buf dbuf={0};b.vb2_buf.planes[0].dbuf=&dbuf;imported=true;b.vb2_buf.size=37+16;
- assert(!esparser_queue(&s,&b)&&begins==1&&ends==1&&prepared==5&&kicks==3&&!cpu_access);
- begin_error=-EINTR;b.vb2_buf.size=37+16;
+ struct dma_resv resv={.result=1};struct dma_buf dbuf={&resv};b.vb2_buf.planes[0].dbuf=&dbuf;imported=true;b.vb2_buf.size=37+16;
+ assert(!esparser_queue(&s,&b)&&resv.waits==1&&begins==1&&ends==1&&prepared==5&&kicks==3&&!cpu_access);
+ resv.result=0;b.vb2_buf.size=37+16;
+ assert(!esparser_queue(&s,&b)&&resv.waits==2&&begins==1&&ends==1&&prepared==5&&kicks==3&&!cpu_access);
+ resv.result=-ERESTARTSYS;b.vb2_buf.size=37+16;
+ assert(!esparser_queue(&s,&b)&&resv.waits==3&&begins==1&&ends==1&&prepared==5&&kicks==3&&!cpu_access);
+ resv.result=1;begin_error=-EINTR;b.vb2_buf.size=37+16;
  assert(!esparser_queue(&s,&b)&&begins==2&&ends==1&&prepared==5&&kicks==3&&!cpu_access);
  begin_error=0;end_error=-EIO;b.vb2_buf.size=37+16;
  assert(!esparser_queue(&s,&b)&&begins==3&&ends==2&&prepared==6&&kicks==3&&!cpu_access);
