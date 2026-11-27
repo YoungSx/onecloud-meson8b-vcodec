@@ -4,6 +4,16 @@
 本地网页正常，远程现已恢复，链路根因仍未闭环。本文是部署记录；新设备按
 [安装指南](installation.md)，历史版本按[验证记录](validation-records.md)复核。
 
+22:22 UTC后的故障状态：根分区因ext4校验错误保持只读，Tailscale SSH命令
+失败，现有备用终端可用。临时GE2D已卸载，原模块按SHA256恢复NEON；
+OpenList通过原freezer解冻，四项HTTP200恢复。运行时缓存/直接读取差异页
+已保全，定向释放两个文件缓存后containerd恢复。11-27 02:01 UTC核对时，
+containerd元数据临时使用RAM副本，Docker、原五业务和四项HTTP200已恢复；
+更新后的元数据另存SSD和设备外校验备份。根分区仍只读，codec模块为手动
+加载，自动加载unit处于inactive，不能把这个临时恢复视为正常部署验收。
+下表只记录安装来源；硬件实验继续暂停，无救援入口时不重启设备，见
+[故障现场](validation-records.md#11-26-根分区只读与缓存字节差异现场)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |
