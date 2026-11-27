@@ -504,6 +504,7 @@ static int vdec_start_streaming_locked(struct vb2_queue *q,
 	sess->wrap_count = 0;
 	sess->pixelaspect.numerator = 1;
 	sess->pixelaspect.denominator = 1;
+	memset(&sess->capture, 0, sizeof(sess->capture));
 	sess->reference_width = 0;
 	sess->reference_height = 0;
 	sess->crop_left = 0;

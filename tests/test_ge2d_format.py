@@ -77,6 +77,8 @@ int main(void){
  b.planes[1].address=0x2000000;
  unsigned planes=2,buffers=1,sizes[]={864*480,864*240-1};
  assert(ge2d_queue_setup(&m.src,&buffers,&planes,sizes,NULL)==-EINVAL);
+ sizes[1]=864*240+4096;
+ assert(!ge2d_queue_setup(&m.src,&buffers,&planes,sizes,NULL));
  planes=0;assert(!ge2d_queue_setup(&m.src,&buffers,&planes,sizes,NULL)&&planes==2&&sizes[1]==864*240);
  struct v4l2_selection s={.type=V4L2_BUF_TYPE_VIDEO_OUTPUT,.target=V4L2_SEL_TGT_CROP,
  .r={.left=2,.top=2,.width=800,.height=400},.flags=V4L2_SEL_FLAG_GE|V4L2_SEL_FLAG_LE};

@@ -1706,3 +1706,26 @@ errors/warnings/checks）、5.15.79 ARM 完整内核/外部/additive 模块构�
 `01c8adb5ccdfcb4d62a78b0abde91701a5bdb63f08273b76208880490de7efa4`，`vdec`/
 `ge2d`/`runtime` 字节未变。本轮仍仅限工作机检查，#14/#32 实机与全链吞吐验收
 保持开放。
+
+## 11-27 同 fd 重开清零与 GE2D CREATE_BUFS
+
+继续在工作机离线推进 #32/#14（未连接、修改或安装实机，生产继续保留恢复后
+的 `2fea36e` 状态）：
+
+- **解码器同 `fd` 重开清零缩放几何**：`vdec/vdec.c` 的 `vdec_start_streaming_locked()`
+  从 `STATUS_STOPPED` 重建新会话时一并清零 `sess->capture`，防止同 `fd`
+  经 `STREAMOFF`/`REQBUFS(0)` 后未重新 `S_FMT(OUTPUT)` 就启动同尺寸新流时
+  沿用上一会话的缩放配置。
+- **GE2D 补齐 `PREPARE_BUF`/`CREATE_BUFS`**：`ge2d/meson8b-ge2d.c` 的
+  `ge2d_ioctl_ops` 接入 `v4l2_m2m_ioctl_prepare_buf` 与 `v4l2_m2m_ioctl_create_bufs`，
+  与 `ge2d_queue_setup()` 的既有容量校验配合以支持按需扩展连续缓冲。
+
+工作机 ASan/UBSan 回归新增 `vdec_start_streaming_locked()` 同 `fd` 重开清零
+`sess->capture` 与 `ge2d_queue_setup()` 扩容接受用例；`git diff` 严格
+`checkpatch.pl` 零告警，5.15.79 ARM 完整内核/外部/additive 模块构建与
+[0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)
+一致性通过，外部与 additive 模块 SHA256 一致为 `meson-vdec.ko`
+`1885d1b85e25f40fb15cc28f6205745d8b44ca3cae91822b704b7a562f85b7a5`、`meson8b-ge2d.ko`
+`60973f85714e6e1a66033516072f2829905997d2c7ad4ae1d5e18a660fb5f1cf`，`venc`/
+`runtime` 未变；最后运行 `make test` 覆盖全部 152 项主机与文档测试通过。
+实机硬件重开、队列扩容与全链吞吐仍在 #14/#32 保持开放。
