@@ -14,6 +14,13 @@ containerd元数据临时使用RAM副本，Docker、原五业务和四项HTTP200
 下表只记录安装来源；硬件实验继续暂停，无救援入口时不重启设备，见
 [故障现场](validation-records.md#11-26-根分区只读与缓存字节差异现场)。
 
+11-27 完成 30 分钟主机侧只读健康轮询（30 轮 HTTP 200、6 轮 SSH 正常）并再次
+复核设备状态不变。工作机随后补齐解码器导入 DMA-BUF 栅栏等待并消除无 padding
+导入缓冲与稳态 MMAP 暂存面的冗余 CPU 访问/清零，通过 150 项主机测试、
+严格 checkpatch、3 项故障注入及 5.15.79 ARM 外部/additive 双构建；候选未
+部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
+[解码同步候选](validation-records.md#11-27-解码器-dma-buf-栅栏与-padding-清理)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |

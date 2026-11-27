@@ -1648,3 +1648,35 @@ Arcane原端口绑定后仅终止该遗留代理，Arcane恢复。02:01 UTC原�
 后可用。用户确认没有串口、可控电源、备用S805或额外本地终端，因此
 原厂系统切换、冷启动/异常重启与离线修复无法在当前条件下验收。继续
 只读取证和必要服务轮询，生产硬件实验保持停止。
+
+## 11-27 解码器 DMA-BUF 栅栏与 padding 清理
+
+只读恢复后的 30 分钟主机侧被动轮询完成（30 轮四项 HTTP 200、6 轮 SSH
+`uname -r` 正常），05:59 UTC 再次只读复核五容器、Docker/containerd
+`NRestarts=0`、模块/固件哈希、GE2D 关闭与 `pool_bytes=0` 均保持。随后在
+工作机推进 #14/#32 离线候选，未连接/修改或安装实机，生产继续保留恢复后
+的 `2fea36e` 状态。
+
+- **导入栅栏等待**：`vdec/meson8b-capture.c` 新增 `amvdec_capture_wait()`，
+  在显式 GE2D 或 MJPEG CPU 回退写入导入 CAPTURE DMA-BUF 前等待所有读写者
+  栅栏（`dma_resv_wait_timeout(..., true, true, 1 s)`）；`vdec/esparser.c`
+  为导入 OUTPUT DMA-BUF 在准备与写操作前等待写者栅栏（`all=false, 1 s`）。
+  超时或中断直接返回 `-ETIMEDOUT` / `-ERESTARTSYS` 并中止当前输出，不回退
+  CPU 重试。
+- **消除冗余 CPU 访问/清零**：导入 CAPTURE DMA-BUF 在可见宽高与对齐一致且
+  无尾部的精确布局下跳过 `dma_buf_begin_cpu_access`、`vb2_plane_vaddr`
+  （`dma_buf_vmap`）、`memset` 与 `dma_buf_end_cpu_access`；有行尾或尾部
+  padding 时仅清理对应区域。MMAP 共享暂存面在 `amvdec_shadow` 记录最近已
+  清零输出宽高，仅在首次分配或输出尺寸变化时清零，避免稳态逐帧重复清零。
+
+真实函数 ASan/UBSan 回归覆盖 CAPTURE 双平面/缩放/MJPEG 栅栏超时与中断、
+精确导入缓冲零 CPU 访问/无 `vmap` 通过、同容量尺寸缩小重清暂存面，以及
+OUTPUT 导入栅栏超时/中断中止且不触发 ESPARSER；3 项故障注入（撤除 CAPTURE
+栅栏等待、撤除暂存尺寸变化重清、撤除 OUTPUT 栅栏等待）均被检出。`make test`
+全部 150 项主机测试与文档检查、严格 `checkpatch.pl` 零告警、5.15.79 ARM 完整
+内核、外部与 additive 模块构建及补丁零 fuzz/源码一致性通过；`venc`/
+`runtime`/`ge2d` 模块字节未变，外部与 additive `meson-vdec.ko` SHA256 均为
+`b51d67379869d6fdfca135f05a7cabc45ea18d44c39b78d5fb05cfeb7c43a9ff`。
+
+本轮仅工作机验证，未实机测试真实导出器栅栏、DMA 像素或吞吐；#14/#32 实机
+验收与 #34/#4/#5/#6 等问题仍保持开放，待后续具备安全条件再验。
