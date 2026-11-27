@@ -119,9 +119,22 @@ int main(void){
    assert(c.input[0]==0x200000&&c.input[1]==0x200000+(layout?0x10000:32*16));
   }
  }
- /* Exercise the single-plane fast path at real canvas sizes and DMA limits. */
+  /* Exercise the single-plane and multi-plane fast paths at real DMA limits. */
  u8 *input=malloc(4*1024*1024),*stage_buffer=malloc(4*1024*1024);assert(input&&stage_buffer);
  memset(input,0x65,4*1024*1024);
+ for(unsigned i=0;i<2;i++){
+  struct venc_core core={0};
+  struct venc_ctx c={.core=&core,.src=&formats[0],.src_fourcc=V4L2_PIX_FMT_NV12M,
+   .width=32,.height=16,.coded_width=32,.buffers={{0x100000,stage_buffer}}};
+  struct vb2_buffer b={.num_planes=2,.data={y,u},.size={512,256},.payload={512,256}};
+  reset();direct=true;imported_address=(dma_addr_t)U32_MAX+1-0x10000-(i?248:256);
+  memset(stage_buffer,0xa5,4*1024*1024);
+  assert(!venc_stage_input(&c,&b)&&waits==1&&!active);
+  assert(core.direct_frames==(i==0)&&core.copied_frames==(i!=0));
+  /* Short backing allocation also rejects the multi-plane fast path cleanly. */
+  reset();core=(struct venc_core){0};b.size[0]=504;b.size[1]=256;imported_address=0x200000;
+  assert(!venc_stage_input(&c,&b)&&!core.direct_frames&&core.copied_frames==1);
+ }
  struct {u32 width,height,coded;dma_addr_t address;bool mapped,expected;} cases[]={
   {1280,720,1280,0x200000,true,true},{854,480,864,0x200000,true,true},
   {1920,1088,1920,0x200000,true,true},{1920,1080,1920,0x200000,true,false},

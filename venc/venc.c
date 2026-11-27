@@ -782,15 +782,19 @@ static void venc_buffspec_init(struct venc_ctx *ctx)
 	u32 cw = ALIGN(ctx->coded_width, 32);	/* references are always NV12 */
 	u32 ch = ALIGN(ctx->height, 16);
 
+	memset(&ctx->mem, 0, sizeof(ctx->mem));
+	ctx->mem.assit = base;
+	ctx->mem.bitstream_start = ctx->buffers[VENC_STREAM].paddr;
+	ctx->mem.bitstream_end = ctx->mem.bitstream_start + VENC_BITSTREAM_SIZE - 1;
+	if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG)
+		return;
+
 	ctx->mem.dct_start = ctx->buffers[VENC_INPUT].paddr;
 	ctx->mem.dct_end = ctx->mem.dct_start + ctx->buffers[VENC_INPUT].size - 1;
 	ctx->mem.dec0_y = ctx->buffers[VENC_REF0].paddr;
 	ctx->mem.dec0_uv = ctx->mem.dec0_y + cw * ch;
 	ctx->mem.dec1_y = ctx->buffers[VENC_REF1].paddr;
 	ctx->mem.dec1_uv = ctx->mem.dec1_y + cw * ch;
-	ctx->mem.assit = base;
-	ctx->mem.bitstream_start = ctx->buffers[VENC_STREAM].paddr;
-	ctx->mem.bitstream_end = ctx->mem.bitstream_start + VENC_BITSTREAM_SIZE - 1;
 	base = ctx->buffers[VENC_ANALYSIS].paddr;
 	ctx->mem.inter_bits = base;
 	ctx->mem.inter_mv = base + 0x8000;
@@ -819,7 +823,8 @@ static int venc_hw_init(struct venc_ctx *ctx)
 		ctx->dblk_canvas = dblk_canvas;
 		ctx->ref_canvas = ref_canvas;
 	}
-	venc_canvas_init(ctx);
+	if (ctx->dst_fmt != V4L2_PIX_FMT_JPEG)
+		venc_canvas_init(ctx);
 	venc_write(core, HCODEC_ASSIST_MMC_CTRL1, 0x2);
 
 	ret = venc_loadmc(ctx);
@@ -856,12 +861,13 @@ static void venc_free_buffers(struct venc_ctx *ctx)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
-		if (!ctx->buffers[i].vaddr)
-			continue;
-		dma_free_attrs(ctx->core->dev, ctx->buffers[i].size,
-			       ctx->buffers[i].vaddr, ctx->buffers[i].paddr,
-			       i == VENC_INPUT ? DMA_ATTR_WRITE_COMBINE : 0);
+		if (ctx->buffers[i].vaddr)
+			dma_free_attrs(ctx->core->dev, ctx->buffers[i].size,
+				       ctx->buffers[i].vaddr, ctx->buffers[i].paddr,
+				       i == VENC_INPUT ? DMA_ATTR_WRITE_COMBINE : 0);
 		ctx->buffers[i].vaddr = NULL;
+		ctx->buffers[i].paddr = 0;
+		ctx->buffers[i].size = 0;
 	}
 }
 
@@ -873,6 +879,10 @@ static int venc_alloc_buffers(struct venc_ctx *ctx)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(ctx->buffers); i++) {
+		/* JPEG encodes intra-only directly to the bitstream without references. */
+		if (ctx->dst_fmt == V4L2_PIX_FMT_JPEG &&
+		    (i == VENC_REF0 || i == VENC_REF1 || i == VENC_ANALYSIS))
+			continue;
 		ctx->buffers[i].size = sizes[i];
 		/* MFDIN reads raw planes, not the vendor private MB input ABI. */
 		if (i == VENC_INPUT)
@@ -1328,10 +1338,14 @@ static int venc_stage_input(struct venc_ctx *ctx, struct vb2_buffer *b)
 		return 0;
 	}
 	for (i = 0; i < fmt->planes; i++) {
+		u32 plane_width = venc_canvas_bytes(fmt, ctx->coded_width, i);
+		u32 plane_bytes = plane_width * (rows / fmt->vsub[i]);
+
 		ctx->input[i] = venc_input_dma(b, i);
 		direct &= ctx->input[i] && !(ctx->input[i] & 7) &&
-			  pix.plane_fmt[i].bytesperline ==
-			  venc_canvas_bytes(fmt, ctx->coded_width, i);
+			  pix.plane_fmt[i].bytesperline == plane_width &&
+			  vb2_plane_size(b, i) >= plane_bytes &&
+			  (u64)ctx->input[i] + plane_bytes <= (u64)U32_MAX + 1;
 	}
 	if (direct) {
 		ctx->core->direct_frames++;

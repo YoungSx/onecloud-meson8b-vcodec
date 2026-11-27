@@ -1680,3 +1680,29 @@ OUTPUT 导入栅栏超时/中断中止且不触发 ESPARSER；3 项故障注入�
 
 本轮仅工作机验证，未实机测试真实导出器栅栏、DMA 像素或吞吐；#14/#32 实机
 验收与 #34/#4/#5/#6 等问题仍保持开放，待后续具备安全条件再验。
+
+## 11-27 编码器 DMA-BUF 边界与 JPEG CMA 缩减
+
+继续在工作机离线推进 #14（未连接、修改或安装实机，生产继续保留恢复后
+的 `2fea36e` 状态与上表在役模块）：
+
+- **JPEG 免除 H.264 专用 CMA**：`venc/venc.c` 的 `venc_alloc_buffers()`、`venc_buffspec_init()`
+  与 `venc_hw_init()` 在 `V4L2_PIX_FMT_JPEG` 帧内编码会话跳过未使用的
+  `VENC_REF0`、`VENC_REF1`、`VENC_ANALYSIS` 分配及参考 canvas 初始化，并在
+  `venc_free_buffers()` 失败/释放路径一并清零各槽位 `paddr`/`size`。1080p
+  JPEG 编码会话单路节省约 `7.06 MiB` CMA（720p 约 `3.70 MiB`）。
+- **多平面 DMA-BUF 32 位与容量校验**：`venc/input.c` 的 `venc_in_map()` 增加
+  空 `sg_table`、零基址及 `(u64)dma_addr + size <= U32_MAX + 1` 的 32 位 DMA
+  范围校验；`venc/venc.c` 的 `venc_stage_input()` 对双平面 `NV12M`/`NV21M`
+  直接通道补齐平面容量 `vb2_plane_size >= width * (rows / vsub)` 与 32 位
+  上限检查，越界或容积不足回退安全 staging 路径。
+
+工作机 ASan/UBSan 回归新增 `venc_in_map()` 空表/非连续/4 GiB 跨界检查、`NV12M`
+双平面 4 GiB 边界及短容积回退用例，以及 JPEG 仅 3 项分配与部分失败全清理校验；
+`make test` 全部 151 项主机测试与文档检查、`git diff` 严格 `checkpatch.pl`（0
+errors/warnings/checks）、5.15.79 ARM 完整内核/外部/additive 模块构建与
+[0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)
+一致性通过；外部与 additive `meson-venc.ko` SHA256 均为
+`01c8adb5ccdfcb4d62a78b0abde91701a5bdb63f08273b76208880490de7efa4`，`vdec`/
+`ge2d`/`runtime` 字节未变。本轮仍仅限工作机检查，#14/#32 实机与全链吞吐验收
+保持开放。

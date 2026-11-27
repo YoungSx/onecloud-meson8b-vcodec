@@ -17,9 +17,12 @@ containerd元数据临时使用RAM副本，Docker、原五业务和四项HTTP200
 11-27 完成 30 分钟主机侧只读健康轮询（30 轮 HTTP 200、6 轮 SSH 正常）并再次
 复核设备状态不变。工作机随后补齐解码器导入 DMA-BUF 栅栏等待并消除无 padding
 导入缓冲与稳态 MMAP 暂存面的冗余 CPU 访问/清零，通过 150 项主机测试、
-严格 checkpatch、3 项故障注入及 5.15.79 ARM 外部/additive 双构建；候选未
-部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
-[解码同步候选](validation-records.md#11-27-解码器-dma-buf-栅栏与-padding-清理)。
+严格 checkpatch、3 项故障注入及 5.15.79 ARM 外部/additive 双构建；之后又在
+工作机完成 #14 编码器多平面 DMA-BUF 32 位边界校验与 JPEG 会话 CMA 缩减，
+通过 151 项主机测试、严格 checkpatch 及 5.15.79 ARM 外部/additive 双构建。
+两项候选均未部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
+[解码同步候选](validation-records.md#11-27-解码器-dma-buf-栅栏与-padding-清理)与
+[编码 CMA 与 DMA 边界候选](validation-records.md#11-27-编码器-dma-buf-边界与-jpeg-cma-缩减)。
 
 | 组件 | 当前记录 |
 | --- | --- |

@@ -86,3 +86,60 @@ int main(void){
                             '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
                             str(root / 'test.c'), '-o', str(root / 'test')], check=True)
             subprocess.run([str(root / 'test')], check=True)
+
+    def test_dmabuf_map_contiguity_and_32bit_dma_bounds(self):
+        source = (ROOT / 'venc/input.c').read_text()
+        body = source[source.index('static int venc_in_map('):
+                      source.index('\nstatic void venc_in_unmap(')]
+        code = r'''
+#include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;
+#define U32_MAX UINT32_MAX
+#define DMA_TO_DEVICE 1
+#define IS_ERR(p) ((uintptr_t)(p)>=(uintptr_t)-4095)
+#define PTR_ERR(p) ((int)(intptr_t)(p))
+struct scatterlist {dma_addr_t addr;unsigned len;};
+struct sg_table {unsigned nents;struct scatterlist *sgl;};
+struct dma_buf_attachment {int unused;};
+struct venc_import {struct dma_buf_attachment *attach;struct sg_table *sgt;dma_addr_t dma_addr;unsigned long size;bool contiguous;};
+#define for_each_sgtable_dma_sg(t,sg,i) for((i)=0,(sg)=(t)->sgl;(i)<(t)->nents;(i)++,(sg)++)
+static dma_addr_t sg_dma_address(const struct scatterlist *sg){return sg->addr;}
+static unsigned sg_dma_len(const struct scatterlist *sg){return sg->len;}
+static struct sg_table *current_table;
+static struct sg_table *dma_buf_map_attachment(struct dma_buf_attachment *a,int dir){
+ (void)a;assert(dir==DMA_TO_DEVICE);return current_table;
+}
+''' + body + r'''
+int main(void){
+ struct scatterlist sgs[2];struct sg_table table={2,sgs};
+ struct venc_import buf={.size=4096};
+ current_table=&table;
+ /* Exactly at 4 GiB boundary with two adjacent segments passes. */
+ sgs[0]=(struct scatterlist){(dma_addr_t)U32_MAX+1-4096,2048};
+ sgs[1]=(struct scatterlist){(dma_addr_t)U32_MAX+1-2048,2048};
+ assert(!venc_in_map(&buf)&&buf.contiguous&&buf.dma_addr==sgs[0].addr);
+ /* Crossing 4 GiB by 1 byte rejects direct DMA contiguity. */
+ sgs[0].addr++;sgs[1].addr++;
+ assert(!venc_in_map(&buf)&&!buf.contiguous);
+ /* Non-adjacent segments reject direct DMA contiguity. */
+ sgs[0]=(struct scatterlist){0x200000,2048};
+ sgs[1]=(struct scatterlist){0x202000,2048};
+ assert(!venc_in_map(&buf)&&!buf.contiguous);
+ /* Empty sg_table or zero base address never marks contiguous. */
+ table.nents=0;assert(!venc_in_map(&buf)&&!buf.contiguous&&!buf.dma_addr);
+ table.nents=1;sgs[0]=(struct scatterlist){0,4096};
+ assert(!venc_in_map(&buf)&&!buf.contiguous);
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'test.c').write_text(code)
+            subprocess.run(['cc', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+                            '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
+                            str(root / 'test.c'), '-o', str(root / 'test')], check=True)
+            subprocess.run([str(root / 'test')], check=True)

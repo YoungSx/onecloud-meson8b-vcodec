@@ -57,7 +57,7 @@ static int venc_in_map(void *buf_priv)
 {
 	struct venc_import *buf = buf_priv;
 	struct scatterlist *sg;
-	dma_addr_t expected;
+	dma_addr_t expected = 0;
 	unsigned long contiguous = 0;
 	unsigned int i;
 
@@ -68,15 +68,20 @@ static int venc_in_map(void *buf_priv)
 		buf->sgt = NULL;
 		return ret;
 	}
-	expected = sg_dma_address(buf->sgt->sgl);
-	for_each_sgtable_dma_sg(buf->sgt, sg, i) {
-		if (sg_dma_address(sg) != expected)
-			break;
-		expected += sg_dma_len(sg);
-		contiguous += sg_dma_len(sg);
+	if (buf->sgt->nents && buf->sgt->sgl) {
+		expected = sg_dma_address(buf->sgt->sgl);
+		for_each_sgtable_dma_sg(buf->sgt, sg, i) {
+			if (sg_dma_address(sg) != expected)
+				break;
+			expected += sg_dma_len(sg);
+			contiguous += sg_dma_len(sg);
+		}
+		buf->dma_addr = sg_dma_address(buf->sgt->sgl);
+	} else {
+		buf->dma_addr = 0;
 	}
-	buf->dma_addr = sg_dma_address(buf->sgt->sgl);
-	buf->contiguous = contiguous >= buf->size;
+	buf->contiguous = buf->dma_addr && contiguous >= buf->size &&
+			  (u64)buf->dma_addr + buf->size <= (u64)U32_MAX + 1;
 	return 0;
 }
 
