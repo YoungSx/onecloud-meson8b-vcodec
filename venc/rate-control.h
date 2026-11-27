@@ -87,12 +87,18 @@ static inline s32 venc_rc_clamp(const struct venc_rc *rc, s32 qp)
 }
 
 /* P QPs rate control may choose: the QP range, capped at the ceiling */
+static inline s32 venc_rc_p_ceiling(const struct venc_rc *rc)
+{
+	s32 ceiling = rc->qp_max < VENC_RC_QP_CEILING ?
+		      rc->qp_max : VENC_RC_QP_CEILING;
+
+	return ceiling < rc->qp_min ? rc->qp_min : ceiling;
+}
+
 static inline s32 venc_rc_clamp_p(const struct venc_rc *rc, s32 qp)
 {
-	s32 ceiling = rc->qp_max < VENC_RC_QP_CEILING ? rc->qp_max : VENC_RC_QP_CEILING;
+	s32 ceiling = venc_rc_p_ceiling(rc);
 
-	if (ceiling < rc->qp_min)
-		ceiling = rc->qp_min;
 	return qp < rc->qp_min ? rc->qp_min : qp > ceiling ? ceiling : qp;
 }
 
@@ -249,12 +255,12 @@ struct venc_rc_measurement {
 };
 
 static inline void venc_rc_measure(struct venc_rc_measurement *m,
-				   const struct venc_rc *rc, u32 bytes, s32 qp)
+				   const struct venc_rc *rc, u32 bytes, s32 qp, bool idr)
 {
 	u64 ns = div64_u64((u64)rc->numerator * 1000000000u, rc->denominator);
-	u32 index, ceiling = rc->gop_size == 1 || rc->idr_run > 1 ?
-		rc->qp_max : (rc->qp_max < VENC_RC_QP_CEILING ?
-			      rc->qp_max : VENC_RC_QP_CEILING);
+	u32 index;
+	s32 ceiling = idr || rc->gop_size == 1 || rc->idr_run > 1 ?
+		rc->qp_max : venc_rc_p_ceiling(rc);
 
 	if (!ns)
 		ns = 1;
@@ -277,7 +283,7 @@ static inline void venc_rc_measure(struct venc_rc_measurement *m,
 	m->current_bps = div64_u64(m->window_bits * 1000000000u, m->window_ns);
 	if (m->current_bps > m->peak_bps)
 		m->peak_bps = m->current_bps;
-	if (qp >= (s32)ceiling) {
+	if (qp >= ceiling) {
 		m->saturated_frames++;
 		m->saturated_ns += ns;
 		m->streak_ns += ns;

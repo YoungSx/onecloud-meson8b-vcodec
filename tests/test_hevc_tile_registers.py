@@ -93,6 +93,16 @@ int main(void) {
  h.rpm_param.p.slice_type=1;h.ldc_flag=1;codec_hevc_set_mpred(&s,&f,&f);
  assert(regs[HEVC_MPRED_CTRL0/4]&MPRED_CTRL0_LDC);
  h.ldc_flag=0;codec_hevc_set_mpred(&s,&f,&f);assert(!(regs[HEVC_MPRED_CTRL0/4]&MPRED_CTRL0_LDC));
+ /* Mixed independent and dependent slices across tile boundaries keep exact flags. */
+ h.rpm_param.p.tiles_flags=3;h.new_tile=true;
+ h.rpm_param.p.dependent_slice_segment_flag=1;
+ h.rpm_param.p.slice_segment_address=8;
+ codec_hevc_set_mpred(&s,&f,&f);
+ assert((regs[HEVC_MPRED_CTRL0/4]&(MPRED_CTRL0_NEW_TILE|MPRED_CTRL0_NEW_SLI_SEG|MPRED_CTRL0_NEW_PIC))==
+  (MPRED_CTRL0_NEW_TILE|MPRED_CTRL0_NEW_SLI_SEG));
+ h.new_tile=false;h.rpm_param.p.dependent_slice_segment_flag=0;
+ codec_hevc_set_mpred(&s,&f,&f);
+ assert(!(regs[HEVC_MPRED_CTRL0/4]&(MPRED_CTRL0_NEW_TILE|MPRED_CTRL0_NEW_SLI_SEG|MPRED_CTRL0_NEW_PIC)));
  return 0;
 }
 '''

@@ -1565,7 +1565,9 @@ static int codec_hevc_process_rpm(struct amvdec_session *sess)
 	    param->p.log2_parallel_merge_level > 6 ||
 	    param->p.five_minus_max_num_merge_cand > 4 ||
 	    param->p.first_slice_segment_in_pic_flag > 1 ||
-	    param->p.dependent_slice_segment_flag > 1)
+	    param->p.dependent_slice_segment_flag > 1 ||
+	    (!param->p.slice_segment_address &&
+	     param->p.dependent_slice_segment_flag))
 		return -EINVAL;
 
 	/* Parse once, including across CAPTURE negotiation and buffer retries. */

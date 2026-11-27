@@ -1789,7 +1789,7 @@ static int venc_account_picture(struct venc_ctx *ctx, bool idr, u32 bytes,
 			ctx->gop_idx++;
 		if (ctx->picture_rc) {
 			venc_rc_update(&ctx->rc, bytes, ctx->quant, idr);
-			venc_rc_measure(m, &ctx->rc, bytes, ctx->quant);
+			venc_rc_measure(m, &ctx->rc, bytes, ctx->quant, idr);
 			if (m->streak_ns >= 1000000000u &&
 			    m->current_bps > ctx->rc.bitrate + ctx->rc.bitrate / 10 &&
 			    !ctx->rc_unreachable_reported) {

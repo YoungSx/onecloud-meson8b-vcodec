@@ -78,6 +78,19 @@ static void test_hd(const u8 *header)
 	assert(h263_translate(&context, input, (bit + 7) / 8, output, 150000,
 			      1916, 1080) == -EINVAL);
 	free(output);
+	/* GN=0 GOB headers are forbidden before the first macroblock row. */
+	u8 gob0[64] = { 0 }, gob0_out[64];
+	u32 gob0_bit = 0;
+
+	bit_copy(gob0, &gob0_bit, header, 0, 108);
+	set_bits(gob0, 73, 9, 32 / 4 - 1);
+	set_bits(gob0, 83, 9, 32 / 4);
+	set_bits(gob0, gob0_bit, 17, 1);
+	set_bits(gob0, gob0_bit + 24, 5, 10);
+	gob0_bit += 29;
+	set_bits(gob0, gob0_bit, 16, 0xffff);
+	assert(h263_translate(&context, gob0, (gob0_bit + 16 + 7) / 8,
+			      gob0_out, sizeof(gob0_out), 32, 32) == -EINVAL);
 }
 
 

@@ -20,11 +20,15 @@ containerd元数据临时使用RAM副本，Docker、原五业务和四项HTTP200
 严格 checkpatch、3 项故障注入及 5.15.79 ARM 外部/additive 双构建；之后又在
 工作机完成 #14 编码器多平面 DMA-BUF 32 位边界校验与 JPEG 会话 CMA 缩减，
 并补齐 #32 同 fd 重开清零旧缩放几何与 GE2D `PREPARE_BUF`/`CREATE_BUFS` ioctl。
-相关主机测试、严格 checkpatch 及 5.15.79 ARM 外部/additive 双构建均已通过，
-三批候选均未部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
+并行核对 `make test`（152 项主机测试 + ASan/UBSan + 文档检查）、严格 `checkpatch.pl`
+及 5.15.79 ARM 外部/additive 双构建；之后继续在工作机完成 #24 码控测量上限修正
+（首帧 IDR 沿用 `qp_max` 且 `qp_min` 高于 32 时与 P 限幅共享 `venc_rc_p_ceiling()`）、
+#15 首 slice 禁止 `dependent_slice_segment_flag` 校验与 #16 禁止 `y == 0` 的 `GN=0`
+GOB 头校验。各批候选均未部署实机，在役模块与参数保持上表及 `2fea36e` 恢复状态，见
 [解码同步候选](validation-records.md#11-27-解码器-dma-buf-栅栏与-padding-清理)、
-[编码 CMA 与 DMA 边界候选](validation-records.md#11-27-编码器-dma-buf-边界与-jpeg-cma-缩减)与
-[缩放重开与创建缓冲候选](validation-records.md#11-27-同-fd-重开清零与-ge2d-create_bufs)。
+[编码 CMA 与 DMA 边界候选](validation-records.md#11-27-编码器-dma-buf-边界与-jpeg-cma-缩减)、
+[缩放重开与创建缓冲候选](validation-records.md#11-27-同-fd-重开清零与-ge2d-create_bufs)
+与[码控/HEVC/H.263 边界候选](validation-records.md#11-27-码控上限测量与-hevch263-切片边界)。
 
 | 组件 | 当前记录 |
 | --- | --- |

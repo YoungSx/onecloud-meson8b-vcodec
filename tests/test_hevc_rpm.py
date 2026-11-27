@@ -82,6 +82,11 @@ int main(void){
  h.rpm_param.p.slice_segment_address=1;h.rpm_param.p.first_slice_segment_in_pic_flag=0;
  assert(!codec_hevc_process_rpm(&s)&&h.width==1920&&h.height==1088);
  h.rpm_param.p.dependent_slice_segment_flag=1;assert(!codec_hevc_process_rpm(&s));
+ /* First slice of a picture cannot be dependent. */
+ h.rpm_param.p.slice_segment_address=0;
+ assert(codec_hevc_process_rpm(&s)==-EINVAL);
+ h.rpm_param.p.dependent_slice_segment_flag=0;
+ h.rpm_param.p.slice_segment_address=1;
  BAD(log2_max_pic_order_cnt_lsb_minus4,32);
  BAD(collocated_from_l0_flag,2);
  BAD(num_ref_idx_l0_active,17);

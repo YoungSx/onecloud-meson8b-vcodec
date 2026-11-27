@@ -83,6 +83,15 @@ int main(void) {
     assert(venc_pick_picture(&c,false));
     assert(c.limit.terminal); /* Controls cannot revive a failed queue. */
     assert(venc_pick_picture(&c,true) && !c.limit.terminal);
+    memset(&c.recovery, 0, sizeof(c.recovery));
+    memset(&c.limit, 0, sizeof(c.limit));
+    memset(&c.rc_measure, 0, sizeof(c.rc_measure));
+    c.rc_restart = true;
+    c.i_qp = 36; c.p_qp = 26; c.rc_config.qp_min = 0; c.rc_config.qp_max = 51;
+    c.peak_bitrate = 0; c.cpb_size = 0;
+    assert(venc_pick_picture(&c, true));
+    assert(c.quant == 36);
+    assert(!venc_account_picture(&c, true, 10000, 0) && !c.rc_measure.saturated_frames);
     puts("picture boundary and overflow recovery: ok"); return 0;
 }
 '''

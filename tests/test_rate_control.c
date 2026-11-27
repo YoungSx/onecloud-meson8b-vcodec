@@ -165,16 +165,32 @@ int main(void)
 	struct venc_rc_measurement measurement = {0};
 	configure(&rc, 2000000);
 	for (int frame = 0; frame < 300; frame++)
-		venc_rc_measure(&measurement, &rc, 10000, 32);
+		venc_rc_measure(&measurement, &rc, 10000, 32, false);
 	assert(measurement.count <= 31 && measurement.count >= 30);
 	assert(measurement.current_bps >= 2399990 && measurement.current_bps <= 2400010);
 	assert(measurement.saturated_frames == 300 && measurement.overshoots == 300);
 	assert(measurement.bytes == 3000000);
+	/* First IDR in a long GOP uses qp_max as its ceiling, not the P ceiling. */
+	measurement = (struct venc_rc_measurement){0};
+	rc.idr_run = 1;
+	venc_rc_measure(&measurement, &rc, 10000, 36, true);
+	assert(!measurement.saturated_frames);
+	venc_rc_measure(&measurement, &rc, 10000, 51, true);
+	assert(measurement.saturated_frames == 1);
+	/* Raising qp_min above the P ceiling raises the effective P measurement ceiling. */
+	measurement = (struct venc_rc_measurement){0};
+	rc.idr_run = 0;
+	rc.qp_min = 45;
+	venc_rc_measure(&measurement, &rc, 10000, 38, false);
+	assert(!measurement.saturated_frames);
+	venc_rc_measure(&measurement, &rc, 10000, 45, false);
+	assert(measurement.saturated_frames == 1);
+	configure(&rc, 2000000);
 	measurement = (struct venc_rc_measurement){0};
 	rc.numerator = 1001;
 	rc.denominator = 30000;
 	for (int frame = 0; frame < 300; frame++)
-		venc_rc_measure(&measurement, &rc, 10000, 26);
+		venc_rc_measure(&measurement, &rc, 10000, 26, false);
 	assert(measurement.current_bps >= 2397590 && measurement.current_bps <= 2397620);
 	assert(!measurement.saturated_frames);
 	puts("rate control checks passed");

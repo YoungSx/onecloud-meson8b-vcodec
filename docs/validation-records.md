@@ -1729,3 +1729,35 @@ errors/warnings/checks）、5.15.79 ARM 完整内核/外部/additive 模块构�
 `60973f85714e6e1a66033516072f2829905997d2c7ad4ae1d5e18a660fb5f1cf`，`venc`/
 `runtime` 未变；最后运行 `make test` 覆盖全部 152 项主机与文档测试通过。
 实机硬件重开、队列扩容与全链吞吐仍在 #14/#32 保持开放。
+
+## 11-27 码控上限测量与 HEVC/H.263 切片边界
+
+继续在工作机离线推进 #24、#15 与 #16（未连接、修改或安装实机，生产继续保留恢复后
+的 `2fea36e` 状态）：
+
+- **码控测量上限一致性**：`venc/rate-control.h` 提取 `venc_rc_p_ceiling()`
+  供 `venc_rc_clamp_p()` 与 `venc_rc_measure()` 共享，并向 `venc_rc_measure()`
+  （及 `venc/venc.c` 调用点）传入 `bool idr`：长 GOP 首个 IDR 使用 `qp_max`
+  （而非 P 帧 `32`）作为饱和判据，且当 `qp_min > VENC_RC_QP_CEILING` 时与实际
+  P-QP 限幅保持同一上限，消除误计饱和帧与误报风险。
+- **HEVC 首 slice 依赖标志校验**：`vdec/codec_hevc.c` 的 `codec_hevc_process_rpm()`
+  拒绝 `slice_segment_address == 0` 且 `dependent_slice_segment_flag != 0` 的
+  非法输入，防止为无前驱独立 slice 的首包配置 `MPRED_CTRL0_NEW_PIC | MPRED_CTRL0_NEW_SLI_SEG`。
+- **H.263 首行 `GN=0` GOB 头拒绝**：`vdec/h263-vlc.h` 的 `h263_translate()`
+  要求检测到的 GOB 头号 `gob != 0`，拒绝首宏块行（`y == 0`）出现非法 `GN=0`
+  GOB 头。
+
+工作机 ASan/UBSan 回归扩展 [test_rate_control.c](../tests/test_rate_control.c)、
+[test_rate_control_state.py](../tests/test_rate_control_state.py)、
+[test_hevc_rpm.py](../tests/test_hevc_rpm.py)、
+[test_hevc_tile_registers.py](../tests/test_hevc_tile_registers.py) 与
+[test_h263_vlc.c](../tests/test_h263_vlc.c)（涵盖首个 `QP 36` IDR 不计饱和、
+`qp_min = 45` 测量上限、首 slice `dependent_slice_segment_flag=1` 拒绝、跨 tile
+混合 slice 标志及 `GN=0` GOB 拒绝）；`git diff -- venc/ vdec/` 严格
+`checkpatch.pl` 零告警（0 errors/warnings/checks），5.15.79 ARM 完整内核/外部/
+additive 模块构建与 [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)
+一致性通过，外部与 additive 模块 SHA256 一致为 `meson-vdec.ko`
+`8f7f07a0ad874947df99c6d569e7f6c71b7c05db79de7f8510e292bc2ffb05b7`、`meson-venc.ko`
+`e6b1aa08d4c071f1b0507f9303dbca7f8d25bd3e6660a36133a02bba530e9595`，`runtime`/
+`ge2d` 字节未变；最后运行 `make test` 覆盖全部 152 项主机与文档测试通过。实机
+多 slice/HD/码控验收仍在 #15/#16/#24 保持开放。

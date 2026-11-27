@@ -201,7 +201,7 @@ static inline int h263_translate(struct h263_context *context,
 				gob = h263_read(&r, 5);
 				h263_read(&r, 2);
 				quant = h263_read(&r, 5);
-				if (r.error || !quant || x ||
+				if (r.error || !gob || !quant || x ||
 				    gob * gob_height != y)
 					return -EINVAL;
 				for (component = 0; component < mb_width * 2; component++) {
