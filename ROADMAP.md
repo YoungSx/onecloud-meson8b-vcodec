@@ -60,7 +60,6 @@ decoder缩放接口接入完整标准链的内容与收益尚未验收。
 | MPEG-4 Part2尾帧 | 修正 `MESON8B` 工作区后 `90` VOP 仍 `88/90`、`50` VOP `48/50`，不重放VOP或补造图片 | [#10](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/10) |
 | MPEG-4 B图内容 | `testsrc2`/`vflip` `28/30` 无全零帧，但 `testsrc-q2` 行11起 MB `(6,11)` 写入停止仍在（`min_Y_PSNR 11.26 dB`） | [#11](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/11) |
 | WMV3 simple/main | Annex L/RCV已部署，`320×240` 3/5 通过、`3/5` 尾帧仍缺；官方 FFmpeg 7.0.2 无 `wmv3_v4l2m2m` | [#17](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/17) |
-| HEVC tiles | 均匀/非均匀、多 slice、854×480 非 CTU 裁剪、回压、动态切换、取消顺序与重开组合实机全通过（56/56 零误差）；仅遗留参考比对拓展与后续边界 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15) |
 | 码控 | 实测 `640×360 @ 500k`（`qp=32` 饱和 `57/60`）与 `1080p @ 1000k`（`qp=32` 饱和 `28/30`）；固定 `encoder.c` 无 S805 CBR 路径，继续评估 | [#24](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/24) |
 | 原厂对照 | 获取原厂配置及可恢复环境，按同输入/质量/内存分别比较播放、解码和转码 | [#33](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/33) |
 
@@ -92,6 +91,7 @@ S805 HEVC编码、Main10及高级H.264编码没有可靠同芯片可用路径时
 | MPEG-2 B帧码流 drain 交付 | 静默期锚定后 `m2v-bf-150f` 5轮 `150/150`（哈希全一致、`min_Y_PSNR 63.92 dB`）、`90/90`、回压及两种 `STREAMOFF`+重开通过 | [#8](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/8)（completed） |
 | H.263 范围与固件错误恢复 | 720p/1080p `-threads 1` 全YUV、回压/`STREAMOFF`+重开、固件缺失(`ENOENT`)/损坏(`EINVAL`)/恢复与官方 FFmpeg 7.0.2 `h263_v4l2m2m` 通过；Slice Structured 明确拒绝 | [#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16)（completed） |
 | 独立 JPEG 图片解码与缩放旋转 | `V4L2_PIX_FMT_JPEG` 9组（4:2:0/4:2:2/4:4:4/灰度/rot90/180/270/`720p->360p`）+ `SOF2` 拒绝 + `STREAMOFF`/重开 + `JPEG->H264` 60/60 + 1295字微码核对通过 | [#30](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/30)（completed） |
+| HEVC tiles 多 slice 与生命周期 | 独立/依赖 slice 与均匀/非均匀/非 CTU 裁剪 tiles（含 B 帧）、`CAPTURE_BUFFERS=4` 回压、双顺序 `STREAMOFF`+重开及 `720p->854x480` 动态切换可见全平面逐帧哈希全一致通过 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15)（completed） |
 
 ## 应用与平台边界
 

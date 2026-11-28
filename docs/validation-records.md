@@ -2033,3 +2033,16 @@ S805 实机临时加载验收：
     `#22`（`encoder.c` 仅发整帧 IRQ 并每帧读取一次 `VLC_TOTAL_BYTES`，无 slice-ready 中断/偏移寄存器）、
     `#18/#27/#28/#29`（`5.15.79` UAPI 缺 `AVS`/`RV30`/`RV40`/`DIV3`，FFmpeg 7.0.2 缺 `wmv3`/`avs`/`rv*`/`div3`/`h264_mvc`/`jpeg` M2M 包装；
     `vreal.c` 需 `rmparser` + RV8 `LMEM_DMA`，`vh264mvc.c` 需 CCPU `CPC_P=0xc00` + 双视图 DPB）。上述均保留研究/未实现边界并开放跟踪。
+
+## 11-28 #15 HEVC tiles 与多 dependent slice 混合收尾验收
+
+在工作机用 JCT-VC `HM` 编译 `TAppEncoder` 生成三组含**`tiles_enabled_flag=1` 与 `dependent_slice_segment_flag=1` 混合**的 Main 8-bit 码流
+（全部 12 帧经独立 `ffmpeg` 软解逐帧哈希确认为 `12` 幅唯一图像），并在目标机临时加载 `HEAD` 默认 NEON `meson-vdec.ko`
+（SHA256 `6743a295fcef19cca1a3630581c6fef6ac01a6a237dc8dc8e4f203349990dc76`）完成有界实机比对（测试后已卸载并恢复在役服务）：
+
+- **`tile-dslice-nonuni-640x384`**（`640×384`，低延迟 B 帧、非均匀 `2×2` tiles、`60` 独立 + `108` 依赖 slice segment）：`EOS frames=12 resolutions=1`，可见全平面 Y/U/V 与 `ffmpeg` 参考逐帧 SHA256 `12/12` 精确一致；
+- **`tile-dslice-crop-854x480`**（`854×480`，非 CTU 对齐 conformance 裁剪 + 均匀 `2×2` tiles、`84` 独立 + `144` 依赖 slice segment）：`EOS frames=12 resolutions=1`，可见全平面逐帧 SHA256 `12/12` 精确一致；
+- **`tile-dslice-720p-3x2`**（`1280×720`，非均匀 `3×2` tiles、`132` 独立 + `324` 依赖 slice segment）：`EOS frames=12 resolutions=1`，可见全平面逐帧 SHA256 `12/12` 精确一致；
+- **慢消费回压**（`tile-dslice-crop-854x480`，`CAPTURE_BUFFERS=4 CAPTURE_DELAY_MS=20`）：`EOS frames=12`，`12/12` 精确一致；
+- **提前取消与重开**（`tile-dslice-nonuni-640x384`，`STREAMOFF_AFTER=3` 分别以 `STREAMOFF_CAPTURE_FIRST=0` 与 `1` 后同节点重开）：两轮均 `EOS frames=12`、`12/12` 精确一致；
+- **动态分辨率切换**（`tile-dslice-720p-3x2` -> `tile-dslice-crop-854x480`）：`EOS frames=24 resolutions=2`，两段全平面分别 `12/12` 精确一致，`pool_bytes=0`、`dmesg` 无错误/警告。
