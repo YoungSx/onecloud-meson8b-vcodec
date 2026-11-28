@@ -17,15 +17,28 @@
 #include "vdec-input.h"
 #include "h263-vlc.h"
 
-/* Size of the vendor's MPEG4 decoder workspace (one SD decode slot) */
-#define SIZE_WORKSPACE		SZ_1M
-
 /*
- * The ucode addresses its workspace at ORI_BUFFER_START_ADDR + 4 MB
- * (the slot after the four SD decode buffers of the vendor memory map)
- * and translates to a physical address by adding MEM_OFFSET_REG.
+ * The GXL firmware addresses its workspace at ORI_BUFFER_START_ADDR + 4 MB
+ * and translates to a physical address by adding MEM_OFFSET_REG. Meson8b's
+ * vmpeg4_mc_5 / h263_mc instead reserve 0x01f00000 and 0x01f80000 behind the
+ * four HD decode slots and backup slot (total 2 MB workspace).
  */
+#define SIZE_WORKSPACE		SZ_1M
+#define SIZE_WORKSPACE_M8B	(2 * SZ_1M)
 #define UCODE_WORKSPACE_BASE	0x01400000
+#define UCODE_WORKSPACE_BASE_M8B 0x01f00000
+
+static u32 codec_mpeg4_workspace_size(struct amvdec_core *core)
+{
+	return core->platform->revision == VDEC_REVISION_MESON8B ?
+		SIZE_WORKSPACE_M8B : SIZE_WORKSPACE;
+}
+
+static u32 codec_mpeg4_workspace_base(struct amvdec_core *core)
+{
+	return core->platform->revision == VDEC_REVISION_MESON8B ?
+		UCODE_WORKSPACE_BASE_M8B : UCODE_WORKSPACE_BASE;
+}
 
 /* map firmware registers to known MPEG4 functions (vendor vmpeg4.c) */
 #define MP4_RATE		AV_SCRATCH_3
@@ -51,6 +64,7 @@ struct codec_mpeg4 {
 
 	struct amvdec_session *sess;
 	struct delayed_work drain_work;
+	u64 drain_jiffies;
 	bool draining;
 	u8 *h263_output;
 	struct h263_context h263;
@@ -120,9 +134,11 @@ static int codec_mpeg4_start(struct amvdec_session *sess)
 		}
 	}
 
-	mpeg4->workspace_vaddr = dma_alloc_coherent(core->dev, SIZE_WORKSPACE,
-						    &mpeg4->workspace_paddr,
-						    GFP_KERNEL);
+	mpeg4->workspace_vaddr =
+		dma_alloc_coherent(core->dev,
+				   codec_mpeg4_workspace_size(core),
+				   &mpeg4->workspace_paddr,
+				   GFP_KERNEL);
 	if (!mpeg4->workspace_vaddr) {
 		dev_err(core->dev, "Failed to request MPEG4 workspace\n");
 		ret = -ENOMEM;
@@ -172,7 +188,8 @@ static void codec_mpeg4_resume(struct amvdec_session *sess)
 
 	/* tell the ucode where its workspace really lives */
 	amvdec_write_dos(core, MEM_OFFSET_REG,
-			 mpeg4->workspace_paddr - UCODE_WORKSPACE_BASE);
+			 mpeg4->workspace_paddr -
+			 codec_mpeg4_workspace_base(core));
 
 	if (core->platform->revision == VDEC_REVISION_MESON8B) {
 		amvdec_write_dos(core, MPSR, 0);
@@ -204,10 +221,11 @@ static void codec_mpeg4_drain_work(struct work_struct *work)
 
 	while (polls++ < max_polls) {
 		int in_flight = atomic_read(&sess->esparser_queued_bufs);
+		u64 quiet_after = max_t(u64, READ_ONCE(sess->last_irq_jiffies),
+					mpeg4->drain_jiffies);
 
 		irq_quiet = !READ_ONCE(sess->irq_active) &&
-			!time_is_after_jiffies64(
-			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
+			!time_is_after_jiffies64(quiet_after + msecs_to_jiffies(100));
 
 		if (irq_quiet && in_flight <= 1)
 			break;
@@ -238,6 +256,7 @@ static void codec_mpeg4_drain(struct amvdec_session *sess)
 		return;
 	}
 
+	mpeg4->drain_jiffies = get_jiffies_64();
 	mpeg4->draining = true;
 	schedule_delayed_work(&mpeg4->drain_work, 0);
 }
@@ -250,7 +269,7 @@ static int codec_mpeg4_stop(struct amvdec_session *sess)
 	cancel_delayed_work_sync(&mpeg4->drain_work);
 
 	if (mpeg4->workspace_vaddr)
-		dma_free_coherent(core->dev, SIZE_WORKSPACE,
+		dma_free_coherent(core->dev, codec_mpeg4_workspace_size(core),
 				  mpeg4->workspace_vaddr,
 				  mpeg4->workspace_paddr);
 	kvfree(mpeg4->h263_output);

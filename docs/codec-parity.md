@@ -183,7 +183,8 @@ H.264复用原码表并验证原映射行为。内部保存SAR x/y，CROPCAP按�
 
 2026-11-26扩大固定厂商源码/手册对照，除AVS外还确认以下未接入路径：
 RealVideo8/9的`vreal.c`（手册还列RV10）、`vh264mvc.c`多视图解码、
-`vmpeg4.c`中MPEG4_3/4/5对应不同微码，以及`jpegdec.c`独立图片/PSCALE路径。
+`vmpeg4.c`中MPEG4_3/4/5对应不同微码，以及`jpegdec.c`独立图片/PSCALE路径（[#30](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/30)
+现已移植实现并通过 9 组独立 JPEG/`PSCALE`/`ROTATE` 有界像素验证）。
 分别由[#27](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/27)、
 [#28](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/28)、
 [#29](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/29)、

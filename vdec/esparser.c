@@ -390,7 +390,9 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		/* Reserve the bounded translated payload before removing its raw AU. */
 		return -EAGAIN;
 	} else if (esparser_vififo_get_free_space(sess) < payload_size +
-		   (sess->fmt_out->pixfmt == V4L2_PIX_FMT_VC1_ANNEX_L ? 14 : 0)) {
+		   (sess->fmt_out->pixfmt == V4L2_PIX_FMT_VC1_ANNEX_L ? 14 :
+		    sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG ?
+		    ESPARSER_PAD_SPAN(2) : 0)) {
 		return -EAGAIN;
 	}
 
@@ -430,6 +432,18 @@ esparser_queue(struct amvdec_session *sess, struct vb2_v4l2_buffer *vbuf)
 		amvdec_abort(sess);
 
 		return ret ? : -ETIMEDOUT;
+	}
+	/* JPEG VLD leaves a trailing pre-fetch window in VIFIFO unless WP advances past EOI. */
+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG) {
+		static const u8 jpeg_tail[2] = { 0, 0 };
+
+		ret = esparser_queue_eos(core, jpeg_tail, sizeof(jpeg_tail));
+		if (ret) {
+			amvdec_remove_ts(sess, vb->timestamp);
+			v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
+			amvdec_abort(sess);
+			return ret;
+		}
 	}
 
 	v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);

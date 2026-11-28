@@ -44,6 +44,7 @@ struct codec_mpeg12 {
 
 	struct amvdec_session *sess;
 	struct delayed_work drain_work;
+	u64 drain_jiffies;
 	bool draining;
 };
 
@@ -188,10 +189,11 @@ static void codec_mpeg12_drain_work(struct work_struct *work)
 
 	while (polls++ < max_polls) {
 		int in_flight = atomic_read(&sess->esparser_queued_bufs);
+		u64 quiet_after = max_t(u64, READ_ONCE(sess->last_irq_jiffies),
+					mpeg12->drain_jiffies);
 
 		irq_quiet = !READ_ONCE(sess->irq_active) &&
-			!time_is_after_jiffies64(
-			READ_ONCE(sess->last_irq_jiffies) + msecs_to_jiffies(100));
+			!time_is_after_jiffies64(quiet_after + msecs_to_jiffies(100));
 
 		if (irq_quiet && in_flight <= 1)
 			break;
@@ -220,6 +222,7 @@ static void codec_mpeg12_drain(struct amvdec_session *sess)
 		return;
 	}
 
+	mpeg12->drain_jiffies = get_jiffies_64();
 	mpeg12->draining = true;
 	schedule_delayed_work(&mpeg12->drain_work, 0);
 }

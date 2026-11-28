@@ -1907,3 +1907,57 @@ S805 实机临时加载验收：
   `meson8b-runtime.ko` `e88dd31947056dcc416357ac25cfdbd1eb99a43d53d5c4e65a6be3e1b28c1b02`、
   `capture_ge2d=N`、`pool_bytes=0`），`meson8b-vcodec`/`containerd`/`docker` 均
   `active`，四项本地服务返回 HTTP `200`。#14/#32/#7/#31 仍保持开放。
+
+## 11-28 GE2D 旋转混成、格式尾帧与独立 JPEG 实机验证
+
+在工作机源码修改并通过有界实机临时加载验证，生产服务在每次测试后立即按
+回退钩子恢复默认 NEON 与原始在役状态（目标机 `/lib/firmware/meson/vdec/meson8b_jpeg.bin`
+与 `meson8b-ge2d.ko` 测试后已移除）：
+
+- **#31 GE2D 翻转/旋转与双源混合修复**：
+  - 根因与修复：`ge2d_blit_one()` 原对 `SRC_Y` 固定写入 `y + 1`（垂直反向时产生
+    行偏移），且 `CMD_CTRL` 开启 `BLEND_OVER` 仅置位 `dst_x_rev`/`dst_y_rev`
+    而未同步设置 `src2_x_rev`/`src2_y_rev`；此外 S805 GE2D 硬件 `CMD_CTRL` 仅支持
+    `dst_xy_swap` 而无 `src2_xy_swap`。现已区分 `y_rev` 行界、为 `BLEND_OVER` 同步
+    `BIT(4)/BIT(3)`，并在 `ge2d_blit()` 中对 `BLEND_OVER` + `90°/270°` 通过缓存的
+    `blend_stage`（`ARGB32`）执行两遍旋转后混成，同时补充主机命令/状态回归。
+  - 实机临时验证（`meson8b-ge2d.ko`）：`ge2d-alpha-test` 11/11 全通过；
+    `ge2d-rot-alpha-check` 7/7 全通过（含 `rot=90 BLEND_CONST ga=160`、
+    `rot=180 hf=1 BLEND_OVER ga=200` 与 `rot=270 vf=1 dmabuf=1 BLEND_OVER ga=128`，
+    全项 `max_err <= 1, bad=0`）。
+- **#8 / #10 / #11 / #16 P2 解码修正与边界定位**：
+  - **#8 MPEG-2 drain 静默基线**：将 `drain_work` 静默基准锚定到
+    `max(last_irq_jiffies, drain_jiffies) + 100 ms`，补充主机回归。实机
+    `m2v-bf-150f` 连跑三轮全部 `EOS frames=150 resolutions=1`，三份逐帧哈希文件
+    （各 150 行）字节级完全一致。
+  - **#16 H.263+ 720p 与固件错误处理**：`h263p-720p-noslice` 实机 `EOS frames=15
+    resolutions=1`，15 帧逐帧 `Y:MAD=0.002–0.010, PSNR=65.5–75.4 dB`；移除或
+    破坏 `meson8b_h263.bin` 时分别失败并恢复后重新输出 15 帧（仍保持禁用
+    Slice Structured 模式）。
+  - **#10 / #11 MPEG-4 工作区修正与微码边界**：将 `codec_mpeg4.c` 中 `MESON8B`
+    工作区基址/大小修正为与硬件表对齐的 `0x01f00000` / `2 MiB`。实机测试：
+    `m4v-ip-50f` 输出 `48/50`（前 48 帧 `max_Y_MAD=0.030, avg_Y_MAD=0.015`，
+    尾 2 帧缺失）；`m4v-bf-testsrc-vflip`（`28/30, max_Y_MAD=1.336`）与
+    `m4v-bf-testsrc2-q2`（`28/30, max_Y_MAD=5.244`）均无全零破坏帧；而
+    `m4v-bf-testsrc-q2`（`28/30`）I/P 帧 `MAD~0.012`，B 帧仍在行 11 宏块 `(6,11)`
+    处终止写入（`my=12..14` 全零），属固件/内容相关限制并保留记录。
+- **#30 独立 JPEG（`V4L2_PIX_FMT_JPEG`）+ `PSCALE` + `V4L2_CID_ROTATE`**：
+  - 实现 `codec_jpeg.c`、`jpeg-header.h`、`meson8b_jpeg.bin` 提取及 `esparser.c`
+    尾字节推动（为 JPEG 负载后追加 `esparser_queue_eos` 填充，解决 VLD 末尾约
+    `140 B` 预取窗口滞留导致的相位二 `0x340` 超时），并在暂存回写路径按 S805
+    `PSCALE` 32 字节色度跨距及 `swab64` 解包输出 `YU12M`（含 `DMA-BUF` 同步与灰度
+    `U/V=0x80` 填充）。
+  - 实机 9 组测试全通过（均 `EOS frames=1 resolutions=1`）：
+    - `640×480 4:2:0`：`Y MAD=0.013 (PSNR 67.08 dB), U=0.384 (52.26), V=0.339 (52.79)`
+    - `640×480 4:2:2`（`21/11/11`）：`Y MAD=0.016 (66.09), U=0.582 (49.90), V=0.451 (49.72)`
+    - `640×480 4:4:4`（`11/11/11`）：`Y MAD=0.016 (66.09), U=0.693 (47.65), V=0.619 (46.48)`
+    - `640×480 gray`：`Y MAD=0.269 (53.84), U/V MAD=0.000`（全部 `0x80`）
+    - `640×480 rot90 / rot270`（`480×640`）：`Y MAD=0.013 (67.08), U=0.384 (52.26), V=0.339 (52.79)`
+    - `640×480 rot180`：`Y MAD=0.013 (67.08), U=0.384 (52.26), V=0.339 (52.79)`
+    - `1280×720 4:2:0`：`Y MAD=0.010 (68.06), U=0.369 (52.43), V=0.324 (52.99)`
+    - `1280×720 -> 640×360` 缩放：`Y MAD=0.287 (46.20), U=0.697 (43.85), V=0.878 (41.05)`
+- **工作机与双构建校验**：最终源码同步更新
+  [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)，
+  并完成严格 `checkpatch.pl`、`make test` 及 `scripts/build-kernel.sh` 双构建验证；
+  实机测试结束后已卸载 `meson8b-ge2d`、清除临时 staged 文件与 `meson8b_jpeg.bin`，
+  核对 `meson8b-vcodec`/`containerd`/`docker` 均 `active`、原有五业务容器全部正常。

@@ -504,7 +504,8 @@ static int vdec_start_streaming_locked(struct vb2_queue *q,
 	sess->wrap_count = 0;
 	sess->pixelaspect.numerator = 1;
 	sess->pixelaspect.denominator = 1;
-	memset(&sess->capture, 0, sizeof(sess->capture));
+	if (sess->fmt_out->flags & V4L2_FMT_FLAG_DYN_RESOLUTION)
+		memset(&sess->capture, 0, sizeof(sess->capture));
 	sess->reference_width = 0;
 	sess->reference_height = 0;
 	sess->crop_left = 0;
@@ -772,9 +773,25 @@ vdec_supports_pixfmt_cap(const struct amvdec_format *fmt_out, u32 pixfmt_cap)
 
 static bool vdec_capture_scalable(const struct amvdec_session *sess)
 {
+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG)
+		return true;
 	return sess->core->ge2d_dev && sess->dpb_size &&
 		(sess->fmt_out->pixfmt == V4L2_PIX_FMT_H264 ||
 		 sess->fmt_out->pixfmt == V4L2_PIX_FMT_HEVC);
+}
+
+static void vdec_effective_source(const struct amvdec_session *sess,
+				  u32 *width, u32 *height)
+{
+	u32 rot = sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG ? sess->rotation : 0;
+
+	if (rot == 90 || rot == 270) {
+		*width = sess->height;
+		*height = sess->width;
+	} else {
+		*width = sess->width;
+		*height = sess->height;
+	}
 }
 
 static const struct amvdec_format *
@@ -802,10 +819,16 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 		fmt_out = sess->fmt_out;
 		{
 			struct meson_capture_geometry capture;
+			u32 src_w, src_h;
 
-			meson_capture_configure(&capture, sess->width, sess->height,
+			vdec_effective_source(sess, &src_w, &src_h);
+			meson_capture_configure(&capture, src_w, src_h,
 						pixmp->width, pixmp->height,
 						vdec_capture_scalable(sess));
+			if (fmt_out->pixfmt == V4L2_PIX_FMT_JPEG) {
+				capture.width = min_t(u32, capture.width, 1920u);
+				capture.height = min_t(u32, capture.height, 1088u);
+			}
 			pixmp->width = capture.width;
 			pixmp->height = capture.height;
 		}
@@ -815,15 +838,19 @@ vdec_try_fmt_common(struct amvdec_session *sess, u32 size,
 	}
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		pixmp->width = clamp(pixmp->width,
-				     fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 256u,
-				     fmt_out->max_width);
-		pixmp->height = clamp(pixmp->height,
-				      fmt_out->pixfmt == V4L2_PIX_FMT_H263 ? 32u : 144u,
-				      fmt_out->max_height);
+		u32 min_w = (fmt_out->pixfmt == V4L2_PIX_FMT_H263 ||
+			     fmt_out->pixfmt == V4L2_PIX_FMT_JPEG) ? 32u : 256u;
+		u32 min_h = (fmt_out->pixfmt == V4L2_PIX_FMT_H263 ||
+			     fmt_out->pixfmt == V4L2_PIX_FMT_JPEG) ? 32u : 144u;
+
+		pixmp->width = clamp(pixmp->width, min_w, fmt_out->max_width);
+		pixmp->height = clamp(pixmp->height, min_h, fmt_out->max_height);
 		if (fmt_out->pixfmt == V4L2_PIX_FMT_H263) {
 			pixmp->width = ALIGN(pixmp->width, 4);
 			pixmp->height = ALIGN(pixmp->height, 4);
+		} else if (fmt_out->pixfmt == V4L2_PIX_FMT_JPEG) {
+			pixmp->width = ALIGN(pixmp->width, 2);
+			pixmp->height = ALIGN(pixmp->height, 2);
 		}
 	}
 	output_size = amvdec_get_output_size_wh(pixmp->width, pixmp->height);
@@ -886,8 +913,11 @@ static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		pixmp->pixelformat = sess->fmt_out->pixfmt;
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
-								 sess->width, sess->height);
+		u32 src_w, src_h;
+		struct meson_capture_size capture;
+
+		vdec_effective_source(sess, &src_w, &src_h);
+		capture = meson_capture_resolve(&sess->capture, src_w, src_h);
 
 		pixmp->width = capture.width;
 		pixmp->height = capture.height;
@@ -938,7 +968,10 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		goto unlock;
 	}
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		meson_capture_configure(&sess->capture, sess->width, sess->height,
+		u32 src_w, src_h;
+
+		vdec_effective_source(sess, &src_w, &src_h);
+		meson_capture_configure(&sess->capture, src_w, src_h,
 					pixmp->width, pixmp->height,
 					vdec_capture_scalable(sess));
 		sess->pixfmt_cap = pixmp->pixelformat;
@@ -986,8 +1019,10 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	format.fmt.pix_mp.height = orig_pixmp.height;
 	vdec_try_fmt_common(sess, num_formats, &format);
 
-	sess->width = format.fmt.pix_mp.width;
-	sess->height = format.fmt.pix_mp.height;
+	if (pixfmt_out != V4L2_PIX_FMT_JPEG) {
+		sess->width = format.fmt.pix_mp.width;
+		sess->height = format.fmt.pix_mp.height;
+	}
 
 unlock:
 	mutex_unlock(&sess->lock);
@@ -1035,16 +1070,19 @@ static int vdec_enum_framesizes(struct file *file, void *fh,
 	fmt = find_format(formats, num_formats, fsize->pixel_format);
 	if (!fmt)
 		return -EINVAL;
-	if (fmt->pixfmt == V4L2_PIX_FMT_H263) {
+	if (fmt->pixfmt == V4L2_PIX_FMT_H263 ||
+	    fmt->pixfmt == V4L2_PIX_FMT_JPEG) {
+		u32 step = fmt->pixfmt == V4L2_PIX_FMT_H263 ? 4 : 2;
+
 		if (fsize->index)
 			return -EINVAL;
 		fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 		fsize->stepwise.min_width = 32;
 		fsize->stepwise.max_width = fmt->max_width;
-		fsize->stepwise.step_width = 4;
+		fsize->stepwise.step_width = step;
 		fsize->stepwise.min_height = 32;
 		fsize->stepwise.max_height = fmt->max_height;
-		fsize->stepwise.step_height = 4;
+		fsize->stepwise.step_height = step;
 		return 0;
 	}
 	if (fsize->index)
@@ -1177,8 +1215,15 @@ static int vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *
 	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
 		{
-			struct meson_capture_size capture = meson_capture_resolve(&sess->capture,
-									 sess->width, sess->height);
+			u32 src_w = sess->width, src_h = sess->height;
+			struct meson_capture_size capture;
+
+			if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG &&
+			    (sess->rotation == 90 || sess->rotation == 270)) {
+				src_w = sess->height;
+				src_h = sess->width;
+			}
+			capture = meson_capture_resolve(&sess->capture, src_w, src_h);
 
 			rect.width = capture.width;
 			rect.height = capture.height;
@@ -1238,6 +1283,26 @@ static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_g_selection = vdec_g_selection,
 };
 
+static int vdec_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct amvdec_session *sess =
+		container_of(ctrl->handler, struct amvdec_session, ctrl_handler);
+
+	switch (ctrl->id) {
+	case V4L2_CID_ROTATE:
+		if (READ_ONCE(sess->streamon_cap))
+			return -EBUSY;
+		sess->rotation = ctrl->val;
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}
+
+static const struct v4l2_ctrl_ops vdec_ctrl_ops = {
+	.s_ctrl = vdec_s_ctrl,
+};
+
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 			  struct vb2_queue *dst_vq)
 {
@@ -1282,7 +1347,7 @@ static int vdec_init_ctrls(struct amvdec_session *sess)
 	struct v4l2_ctrl_handler *ctrl_handler = &sess->ctrl_handler;
 	int ret;
 
-	ret = v4l2_ctrl_handler_init(ctrl_handler, 1);
+	ret = v4l2_ctrl_handler_init(ctrl_handler, 2);
 	if (ret)
 		return ret;
 
@@ -1290,6 +1355,9 @@ static int vdec_init_ctrls(struct amvdec_session *sess)
 		v4l2_ctrl_new_std(ctrl_handler, NULL,
 				  V4L2_CID_MIN_BUFFERS_FOR_CAPTURE, 1, 32, 1,
 				  1);
+	sess->ctrl_rotate =
+		v4l2_ctrl_new_std(ctrl_handler, &vdec_ctrl_ops,
+				  V4L2_CID_ROTATE, 0, 270, 90, 0);
 
 	ret = ctrl_handler->error;
 	if (ret) {

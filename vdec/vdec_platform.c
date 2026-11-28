@@ -15,6 +15,7 @@
 #include "codec_mpeg4.h"
 #include "codec_vc1.h"
 #include "codec_mjpeg.h"
+#include "codec_jpeg.h"
 #include "codec_h264.h"
 #include "codec_hevc.h"
 #include "codec_vp9.h"
@@ -126,6 +127,18 @@ static const struct amvdec_format vdec_formats_meson8b[] = {
 		.codec_ops = &codec_mjpeg_ops,
 		.firmware_path = "meson/vdec/meson8b_mjpeg.bin",
 		.pixfmts_cap = { V4L2_PIX_FMT_NV12M, 0 },
+		.flags = V4L2_FMT_FLAG_COMPRESSED,
+	}, {
+		/* Standalone JPEG still picture with PSCALE scaling/rotation */
+		.pixfmt = V4L2_PIX_FMT_JPEG,
+		.min_buffers = 1,
+		.max_buffers = 4,
+		.max_width = 4096,
+		.max_height = 4096,
+		.vdec_ops = &vdec_1_ops,
+		.codec_ops = &codec_jpeg_ops,
+		.firmware_path = "meson/vdec/meson8b_jpeg.bin",
+		.pixfmts_cap = { V4L2_PIX_FMT_YUV420M, 0 },
 		.flags = V4L2_FMT_FLAG_COMPRESSED,
 	},
 };

@@ -27,12 +27,17 @@ typedef uint64_t u64;
 #define GENMASK(h,l) ((~0u << (l)) & (~0u >> (31-(h))))
 #define U32_MAX UINT32_MAX
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
+#define PAGE_ALIGN(n) ALIGN((n), 4096)
+#define GFP_KERNEL 0
 #define MESON_CANVAS_WRAP_NONE 0
 #define MESON_CANVAS_BLKMODE_LINEAR 0
 #include "ge2d-layout.h"
 #include "ge2d-scale.h"
 ''' + macros + r'''
-struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas,src_v_canvas,src2_canvas;bool offline;};
+struct meson8b_ge2d {void *dev,*canvas,*reset;unsigned char *regs;unsigned char src_canvas,dst_canvas,src_uv_canvas,dst_uv_canvas,src_v_canvas,src2_canvas;void *blend_stage_vaddr;dma_addr_t blend_stage_dma;size_t blend_stage_size;bool offline;};
+static unsigned char blend_stage_buf[4096];
+static void *dma_alloc_coherent(void *dev,size_t sz,dma_addr_t *dma,int gfp) {(void)dev;(void)sz;(void)gfp;*dma=0x400000;return blend_stage_buf;}
+static void dma_free_coherent(void *dev,size_t sz,void *v,dma_addr_t dma) {(void)dev;(void)sz;(void)v;(void)dma;}
 static u32 registers[128];
 static unsigned resets, starts, canvas_calls, barriers;
 static int reset_error, canvas_error, poll_error;
@@ -211,6 +216,18 @@ int main(void) {
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(registers[ALU_CTRL/4]==((6u<<16)|(7u<<12)|(1u<<4)|3u));
  assert(!(registers[CMD_CTRL/4]&BIT(9))&&(registers[DST_CANVAS/4]==(4u|(8u<<8))));
+ assert(!(registers[CMD_CTRL/4]&(BIT(4)|BIT(3))));
+ /* Blend-over with flip/rotation reverses SRC2 alongside SRC and keeps SRC_Y top..bottom. */
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.rotate=180,.hflip=true,.blend=MESON8B_GE2D_BLEND_OVER,.global_alpha=200};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert((registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(0)))==(BIT(5)|BIT(3)|BIT(0)));
+ assert((registers[SRC_Y/4]&0xffffu)==31u);
+ /* 90/270 blend-over runs two passes so SRC2 reads rotated coordinates cleanly. */
+ output=(struct meson8b_ge2d_image){.width=32,.height=512,.stride=128,.address={0x200000},.little_endian=true,.format=MESON8B_GE2D_FMT_XRGB32};
+ starts_before=starts;
+ crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.rotate=270,.vflip=true,.blend=MESON8B_GE2D_BLEND_OVER,.global_alpha=128};
+ assert(!ge2d_blit(&c,&input,&output,&crop));
+ assert(starts==starts_before+2&&(registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(0)))==BIT(0));
  /* Blending into planar/semiplanar YUV or invalid blend mode fails cleanly. */
  output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
  starts_before=starts;

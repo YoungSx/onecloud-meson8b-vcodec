@@ -81,6 +81,14 @@
     "output_sha256": "1542e1c65fdfdcfd86364a932473e1d887ae15b514f4b41999141b84dbd6dd6f",
     "sentinel": false
   },
+  "jpeg": {
+    "path": "drivers/amlogic/amports/m8/ucode/jpeg/jpeg_mc.c",
+    "words": 1295,
+    "array": "jpegdec_mc",
+    "sha256": "8a41ab8a8c7939a87bf272a5fdd191825aef5deb677c8412993363b6dac0b48b",
+    "output_sha256": "eb27aae991e8ad946c16e77a808985d0f3de17e36f412e98c6f8d99e2e575aab",
+    "sentinel": false
+  },
   "hevc": {
     "path": "drivers/amlogic/amports/m8/ucode/h265/vh265_mc.c",
     "array": "vh265_mc",

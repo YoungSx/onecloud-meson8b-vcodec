@@ -90,6 +90,9 @@ struct meson8b_ge2d {
 	struct mutex hardware_lock; /* Serialize userspace and in-kernel commands. */
 	struct work_struct work;
 	struct ge2d_ctx *active;
+	void *blend_stage_vaddr;
+	dma_addr_t blend_stage_dma;
+	size_t blend_stage_size;
 	bool offline;
 	bool ready;
 };
@@ -397,7 +400,7 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	ge2d_write(core, SRC_X, (crop->left << 16) | x |
 		   (x_start_ex << 30) | (x_end_ex << 14));
 	/* Vendor command extends the read region; clipping retains the image. */
-	ge2d_write(core, SRC_Y, (crop->top << 16) | (y + 1) |
+	ge2d_write(core, SRC_Y, (crop->top << 16) | (y_rev ? y : (y + 1)) |
 		   (y_start_ex << 30) | (y_end_ex << 14));
 	ge2d_write(core, SRC2_X, out_width - 1);
 	ge2d_write(core, SRC2_Y, out_height - 1);
@@ -440,7 +443,9 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	ge2d_write_alu(core, src_fmt, crop);
 	dma_wmb();
 	ge2d_write(core, CMD_CTRL, 1u | src2_fill | (swap ? BIT(7) : 0) |
-		   (x_rev ? BIT(6) : 0) | (y_rev ? BIT(5) : 0));
+		   (x_rev ? BIT(6) : 0) | (y_rev ? BIT(5) : 0) |
+		   (crop->blend == MESON8B_GE2D_BLEND_OVER ?
+		    ((x_rev ? BIT(4) : 0) | (y_rev ? BIT(3) : 0)) : 0));
 	readl(core->regs + CMD_CTRL);
 	ret = readl_poll_timeout(core->regs + STATUS0, status,
 				 !(status & BUSY_MASK), 50, 100000);
@@ -468,8 +473,67 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 	if (!meson8b_ge2d_format_is_semiplanar(src_fmt) || src_fmt != dst_fmt ||
 	    crop->blend != MESON8B_GE2D_BLEND_COPY ||
 	    crop->rotate || crop->hflip || crop->vflip ||
-	    crop->width != dst->width || crop->height != dst->height)
+	    crop->width != dst->width || crop->height != dst->height) {
+		if (crop->blend == MESON8B_GE2D_BLEND_OVER &&
+		    (crop->rotate == 90 || crop->rotate == 270)) {
+			const struct ge2d_hw_fmt *s = ge2d_find_hw_fmt(src_fmt);
+			const struct ge2d_hw_fmt *d = ge2d_find_hw_fmt(dst_fmt);
+			struct meson8b_ge2d_image stage;
+			struct meson8b_ge2d_crop pass;
+			size_t need;
+			int ret;
+
+			if (!s || !d || !meson8b_ge2d_format_is_rgb(dst_fmt) ||
+			    d->dst2_en || meson8b_ge2d_image_valid(src) ||
+			    meson8b_ge2d_image_valid(dst) ||
+			    meson8b_ge2d_crop_valid(src, crop) ||
+			    meson8b_ge2d_images_overlap(src, dst))
+				return -EINVAL;
+			stage = (struct meson8b_ge2d_image){
+				.width = dst->width,
+				.height = dst->height,
+				.stride = ALIGN(dst->width * 4u, 32),
+				.little_endian = true,
+				.format = MESON8B_GE2D_FMT_ARGB32,
+				.colorspace = dst->colorspace,
+			};
+			need = PAGE_ALIGN((size_t)stage.stride * stage.height);
+			if (core->blend_stage_size < need) {
+				if (core->blend_stage_vaddr) {
+					dma_free_coherent(core->dev, core->blend_stage_size,
+							  core->blend_stage_vaddr,
+							  core->blend_stage_dma);
+					core->blend_stage_vaddr = NULL;
+					core->blend_stage_size = 0;
+				}
+				core->blend_stage_vaddr =
+					dma_alloc_coherent(core->dev, need,
+							   &core->blend_stage_dma,
+							   GFP_KERNEL);
+				if (!core->blend_stage_vaddr)
+					return -ENOMEM;
+				core->blend_stage_size = need;
+			}
+			stage.address[0] = core->blend_stage_dma;
+			pass = *crop;
+			pass.blend = MESON8B_GE2D_BLEND_COPY;
+			pass.global_alpha = 255;
+			pass.bg_color = 0;
+			/* SRC2 lacks xy_swap in CMD_CTRL: rotate into stage before OVER blend. */
+			ret = ge2d_blit_one(core, src, &stage, &pass);
+			if (ret)
+				return ret;
+			pass = (struct meson8b_ge2d_crop){
+				.width = dst->width,
+				.height = dst->height,
+				.blend = MESON8B_GE2D_BLEND_OVER,
+				.global_alpha = crop->global_alpha,
+				.bg_color = crop->bg_color,
+			};
+			return ge2d_blit_one(core, &stage, dst, &pass);
+		}
 		return ge2d_blit_one(core, src, dst, crop);
+	}
 	if (meson8b_ge2d_image_valid(src) || meson8b_ge2d_image_valid(dst) ||
 	    meson8b_ge2d_crop_valid(src, crop) || meson8b_ge2d_images_overlap(src, dst))
 		return -EINVAL;
@@ -1447,6 +1511,9 @@ static int ge2d_remove(struct platform_device *pdev)
 	v4l2_device_unregister(&core->v4l2);
 	reset_control_assert(core->reset);
 	clk_disable_unprepare(core->clk);
+	if (core->blend_stage_vaddr)
+		dma_free_coherent(core->dev, core->blend_stage_size,
+				  core->blend_stage_vaddr, core->blend_stage_dma);
 	meson_canvas_free(core->canvas, core->src2_canvas);
 	meson_canvas_free(core->canvas, core->src_v_canvas);
 	meson_canvas_free(core->canvas, core->dst_uv_canvas);

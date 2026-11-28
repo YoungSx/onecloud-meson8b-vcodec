@@ -62,6 +62,8 @@ typedef uint8_t u8;typedef uint32_t u32;typedef uint64_t u64;typedef uintptr_t d
 #define V4L2_PIX_FMT_VP9 1
 #define V4L2_PIX_FMT_H263 2
 #define V4L2_PIX_FMT_VC1_ANNEX_L 3
+#define V4L2_PIX_FMT_JPEG 5
+#define ESPARSER_PAD_SPAN(n) (((n) < 4096 ? 4096 : (n)) + 512)
 #define SZ_1M (1024u*1024)
 #define VB2_BUF_STATE_ERROR 1
 #define VB2_BUF_STATE_DONE 2
@@ -79,7 +81,7 @@ struct amvdec_codec_ops {int (*inspect_input)(struct amvdec_session *,struct vb2
 struct amvdec_format {u32 pixfmt;struct amvdec_codec_ops *codec_ops;};
 struct amvdec_core {void *dev;};
 struct amvdec_session {struct amvdec_core *core;struct amvdec_format *fmt_out;void *m2m_ctx;u32 sequence_out;int esparser_queued_bufs;};
-static int ts_result,pad_result,aborted,kicks,removed,taken,prepared,done,error;
+static int ts_result,pad_result,eos_result,eos_calls,aborted,kicks,removed,taken,prepared,done,error;
 static int begin_error,end_error,begins,ends,inspect_error;
 static bool cpu_access,imported,published;
 static unsigned msecs_to_jiffies(unsigned ms){assert(ms==1000);return 100;}
@@ -109,6 +111,7 @@ static int amvdec_add_ts(struct amvdec_session *s,u64 ts,int tc,u32 offset,u32 f
 static void amvdec_remove_ts(struct amvdec_session *s,u64 ts){(void)s;(void)ts;removed++;}
 static u32 vp9_update_header(struct amvdec_core *c,struct vb2_buffer *b){(void)c;return b->size;}
 static int esparser_pad_start_code(struct amvdec_core *c,struct vb2_buffer *b,u32 size){(void)c;(void)b;assert((!imported||cpu_access)&&size==32);return pad_result;}
+static int esparser_queue_eos(struct amvdec_core *c,const u8 *d,u32 len){(void)c;assert(d&&len==2);eos_calls++;return eos_result;}
 static int esparser_write_data(struct amvdec_core *c,dma_addr_t p,u32 size){(void)c;assert(published&&!cpu_access&&p==0x1000+expected_data_offset&&size==48);published=false;kicks++;return 1;}
 ''' + prepare_body + body + r'''
 int main(void){struct amvdec_codec_ops ops={.inspect_input=prepare};struct amvdec_format f={4,&ops};struct amvdec_core c={0};struct amvdec_session s={.core=&c,.fmt_out=&f};struct vb2_v4l2_buffer b={.vb2_buf={.size=16,.timestamp=10}};
@@ -140,6 +143,12 @@ int main(void){struct amvdec_codec_ops ops={.inspect_input=prepare};struct amvde
  assert(!esparser_queue(&s,&b)&&begins==8&&ends==7&&kicks==4&&!cpu_access);
  ops.inspect_input=prepare;inspect_error=-EINVAL;end_error=-EIO;b.vb2_buf.size=37+16;
  u32 payload;assert(esparser_prepare_input(&s,&b.vb2_buf,0x80,&payload)==-EINVAL&&begins==9&&ends==8&&!cpu_access);
+ imported=false;b.vb2_buf.planes[0].dbuf=0;b.vb2_buf.planes[0].data_offset=0;expected_data_offset=0;
+ f.pixfmt=V4L2_PIX_FMT_JPEG;inspect_error=0;pad_result=16;b.vb2_buf.size=16;
+ int aborted_before=aborted;
+ assert(!esparser_queue(&s,&b)&&eos_calls==1&&kicks==5&&done==5&&aborted==aborted_before);
+ eos_result=-EIO;b.vb2_buf.size=16;
+ assert(esparser_queue(&s,&b)==-EIO&&eos_calls==2&&kicks==6&&aborted==aborted_before+1&&removed==1);
  return 0;}
 '''
         with tempfile.TemporaryDirectory() as directory:

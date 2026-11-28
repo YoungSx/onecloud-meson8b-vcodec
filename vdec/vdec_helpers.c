@@ -104,6 +104,12 @@ static int canvas_alloc(struct amvdec_session *sess, u8 *canvas_id)
 	return 0;
 }
 
+int amvdec_canvas_alloc(struct amvdec_session *sess, u8 *canvas_id)
+{
+	return canvas_alloc(sess, canvas_id);
+}
+EXPORT_SYMBOL_GPL(amvdec_canvas_alloc);
+
 static int set_canvas_yuv420m(struct amvdec_session *sess,
 			      struct vb2_buffer *vb, u32 width,
 			      u32 height, u32 reg)
@@ -500,7 +506,15 @@ static void dst_buf_done(struct amvdec_session *sess,
 			 const struct amvdec_picture *pic)
 {
 	struct device *dev = sess->core->dev_dec;
-	u32 output_size = amvdec_get_output_size(sess);
+	u32 src_w = sess->width, src_h = sess->height;
+	struct meson_capture_size capture;
+	u32 output_size;
+
+	if (sess->fmt_out->pixfmt == V4L2_PIX_FMT_JPEG &&
+	    (sess->rotation == 90 || sess->rotation == 270))
+		swap(src_w, src_h);
+	capture = meson_capture_resolve(&sess->capture, src_w, src_h);
+	output_size = amvdec_get_output_size_wh(capture.width, capture.height);
 
 	switch (sess->pixfmt_cap) {
 	case V4L2_PIX_FMT_NV12M:

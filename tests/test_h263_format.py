@@ -36,6 +36,7 @@ typedef uint32_t u32;typedef uint16_t u16;typedef uint8_t u8;typedef uint64_t u6
 #include "capture-geometry.h"
 #define V4L2_PIX_FMT_H264 5
 #define V4L2_PIX_FMT_HEVC 6
+#define V4L2_PIX_FMT_JPEG 7
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define V4L2_PIX_FMT_H263 1
 #define min(a,b) ((a)<(b)?(a):(b))
@@ -62,7 +63,7 @@ struct amvdec_format {u32 pixfmt,max_width,max_height,pixfmts_cap[3];};
 struct platform {const struct amvdec_format *formats;u32 num_formats;};
 struct core {struct platform *platform;void *ge2d_dev;};
 struct vb2_queue {bool busy;};struct m2m {struct vb2_queue src,dst;};
-struct amvdec_session {int fh,lock;struct meson_capture_geometry capture;u32 dpb_size;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;struct m2m *m2m_ctx;};
+struct amvdec_session {int fh,lock;struct meson_capture_geometry capture;u32 dpb_size;struct core *core;const struct amvdec_format *fmt_out;u32 width,height,rotation,src_buffer_size,pixfmt_cap,colorspace,ycbcr_enc,quantization,xfer_func;struct v4l2_fract pixelaspect;void *priv;struct m2m *m2m_ctx;};
 static inline struct vb2_queue *v4l2_m2m_get_src_vq(struct m2m *m){return &m->src;}
 static inline struct vb2_queue *v4l2_m2m_get_dst_vq(struct m2m *m){return &m->dst;}
 static int locked;

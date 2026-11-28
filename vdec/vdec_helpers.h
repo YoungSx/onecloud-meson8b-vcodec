@@ -18,6 +18,7 @@
  */
 int amvdec_set_canvases(struct amvdec_session *sess,
 			u32 reg_base[], u32 reg_num[]);
+int amvdec_canvas_alloc(struct amvdec_session *sess, u8 *canvas_id);
 
 /* Helpers to read/write to the various IPs (DOS, PARSER) */
 u32 amvdec_read_dos(struct amvdec_core *core, u32 reg);

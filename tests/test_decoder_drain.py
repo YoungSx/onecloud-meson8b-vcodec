@@ -20,7 +20,7 @@ class DecoderDrainTests(unittest.TestCase):
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
-typedef uint8_t u8;typedef uint32_t u32;
+typedef uint8_t u8;typedef uint32_t u32;typedef uint64_t u64;
 #define SZ_1K 1024
 #define V4L2_PIX_FMT_H263 1
 struct format {u32 pixfmt;};
@@ -29,6 +29,8 @@ static const u8 eos_sequence[1024];
 static int writes,scheduled,aborted,result;
 static unsigned int last_len;
 static const u8 *last_data;
+static u64 mock_jiffies;
+static u64 get_jiffies_64(void) { return mock_jiffies; }
 static int esparser_queue_eos(void *core,const u8 *data,unsigned int len) {
     (void)core;last_len=len;last_data=data;writes++;return result;
 }
@@ -40,7 +42,7 @@ static void schedule_delayed_work(int *work,int delay) {(void)work;(void)delay;s
                     end_array = source.index(';', begin) + 1
                     body = body.replace('static const u8 eos_sequence[1024];',
                                         source[begin:end_array])
-                body += "struct codec_" + codec + " {bool draining;int drain_work;};\n"
+                body += "struct codec_" + codec + " {uint64_t drain_jiffies;bool draining;int drain_work;};\n"
                 body += source[start:end]
                 body += r"""
 int main(void) {
@@ -51,7 +53,7 @@ int main(void) {
         assert(aborted==(int)i+1 && scheduled==0 && !c.draining);
     }
     result=0;DRAIN(&s);
-    assert(c.draining && scheduled==1 && writes==4);
+    assert(c.draining && scheduled==1 && writes==4 && c.drain_jiffies==0);
     DRAIN(&s);assert(scheduled==1 && writes==4);
     return 0;
 }
@@ -97,11 +99,12 @@ int main(void) {
 typedef uint32_t u32;typedef uint64_t u64;
 struct work_struct {int unused;};
 struct amvdec_session {u64 last_irq_jiffies;bool irq_active;int esparser_queued_bufs;};
-struct CODEC {struct amvdec_session *sess;bool draining;};
+struct CODEC {struct amvdec_session *sess;u64 drain_jiffies;bool draining;};
 static struct CODEC state;
 static u64 now,finish_irq;static int continuous,aborts,flushes;
 #define container_of(p,t,m) (&state)
 #define READ_ONCE(x) (x)
+#define max_t(type, a, b) ((type)(a) > (type)(b) ? (type)(a) : (type)(b))
 #define time_is_after_jiffies64(x) ((x)>now)
 #define msecs_to_jiffies(x) (x)
 static int atomic_read(int *p){return *p;}
@@ -111,7 +114,7 @@ static void amvdec_flush_capture_buffers(struct amvdec_session *s){(void)s;flush
 """.replace("CODEC", "codec_" + codec)
                 body += source[start:end]
                 body += r"""
-int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&s;state.draining=true;now=200;DRAIN(&w);assert(flushes==1 && !aborts && !state.draining);state.draining=true;s.irq_active=true;finish_irq=400;DRAIN(&w);assert(now==500 && flushes==2 && !aborts);state.draining=true;s.last_irq_jiffies=now;continuous=1;DRAIN(&w);assert(aborts==1 && flushes==2 && !state.draining);continuous=0;s.esparser_queued_bufs=2;state.draining=true;DRAIN(&w);assert(aborts==1 && flushes==3 && !state.draining);return 0;}
+int main(void){struct amvdec_session s={0};struct work_struct w={0};state.sess=&s;state.drain_jiffies=100;state.draining=true;now=200;DRAIN(&w);assert(flushes==1 && !aborts && !state.draining);state.drain_jiffies=now;state.draining=true;DRAIN(&w);assert(now==300 && flushes==2 && !aborts);state.drain_jiffies=0;state.draining=true;s.irq_active=true;finish_irq=400;DRAIN(&w);assert(now==500 && flushes==3 && !aborts);state.drain_jiffies=0;state.draining=true;s.last_irq_jiffies=now;continuous=1;DRAIN(&w);assert(aborts==1 && flushes==3 && !state.draining);continuous=0;s.esparser_queued_bufs=2;state.drain_jiffies=now;state.draining=true;DRAIN(&w);assert(aborts==1 && flushes==4 && !state.draining);return 0;}
 """.replace("DRAIN", "codec_" + codec + "_drain_work")
                 with tempfile.TemporaryDirectory() as directory:
                     path = pathlib.Path(directory)

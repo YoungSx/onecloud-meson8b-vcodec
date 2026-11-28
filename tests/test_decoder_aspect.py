@@ -43,7 +43,7 @@ typedef uint32_t u32;typedef uint64_t u64;typedef int irqreturn_t;
 #include "dos_regs.h"
 struct amvdec_core {void *dev;};
 struct format {u32 pixfmt;};
-struct amvdec_session {int fh;struct meson_capture_geometry capture;struct amvdec_core *core;struct format *fmt_out;struct v4l2_fract pixelaspect;u32 width,height,reference_width,reference_height,crop_left,crop_top;};
+struct amvdec_session {int fh;struct meson_capture_geometry capture;struct amvdec_core *core;struct format *fmt_out;struct v4l2_fract pixelaspect;u32 width,height,rotation,reference_width,reference_height,crop_left,crop_top;};
 struct file {void *private_data;};
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
 static u32 registers[65536];static int delivered,aborted;

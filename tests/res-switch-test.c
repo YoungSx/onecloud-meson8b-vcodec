@@ -848,6 +848,14 @@ int main(int argc, char **argv)
 	}
 	if (argc == 6)
 		setup_output(atoi(argv[4]), atoi(argv[5]));
+	if (getenv("ROTATE")) {
+		struct v4l2_control ctrl = {
+			.id = V4L2_CID_ROTATE,
+			.value = atoi(getenv("ROTATE")),
+		};
+
+		xioctl(VIDIOC_S_CTRL, &ctrl, "S_CTRL(ROTATE)");
+	}
 	es = fopen(argv[2], "rb");
 	if (!es) {
 		perror(argv[2]);
@@ -875,7 +883,10 @@ int main(int argc, char **argv)
 	{
 		long pos = 0;
 
-		if (out_fourcc == V4L2_PIX_FMT_MJPEG) {
+		if (out_fourcc == V4L2_PIX_FMT_JPEG) {
+			chunks[nchunks++] = eslen;
+			pos = eslen;
+		} else if (out_fourcc == V4L2_PIX_FMT_MJPEG) {
 			while (pos < eslen) {
 				long next = eslen;
 

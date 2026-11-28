@@ -48,6 +48,18 @@ Stage 2（临时加载 `meson8b-ge2d.ko` + `capture_ge2d=1`）验收；验收期
 [GE2D 扩展实机验收](validation-records.md#11-27-ge2d-格式色彩矩阵翻转旋转与缓存暂存验收)
 与[1080p 拆解与 alpha 混合验收](validation-records.md#11-27-1080p-阶段拆解ge2d-alpha-混合与网络超时现场)。
 
+11-28 随后在工作机与目标机临时加载下完成 P1/P2/P3 增量修复与有界验证：#31
+GE2D `BLEND_OVER` 补齐 `SRC2` 反向标志与 `90/270` 两遍中转（7 项翻转/旋转/DMA-BUF
+混合与 11 项 alpha 检查全通过）；#8 锚定 `drain_work` 静默基线后 `MPEG-2` 150 帧
+B 帧流三轮 `150/150` 且哈希全一致；#16 完成 720p no-slice 15/15 与缺失/损坏固件
+恢复；#10/#11 修正 `MPEG-4` `MESON8B` 工作区（B 帧 `vflip`/`testsrc2` 28/30 无全零帧，
+保留 `testsrc-q2` `my>=12` 与 `48/50` 尾帧边界）；#30 新增 `V4L2_PIX_FMT_JPEG`
+（`meson8b_jpeg.bin` + `PSCALE` + `ROTATE`）实机通过 9/9 像素验证。工作区已同步
+[内核补丁](../patches/0001-meson8b-runtime-codecs.patch) 并通过双构建；目标机测试后
+已清空临时文件与 `meson8b_jpeg.bin`、`meson8b-ge2d.ko`，生产在役模块保持下表
+已部署默认 NEON 版本及全部五业务容器正常，详见
+[11-28 实机验证记录](validation-records.md#11-28-ge2d-旋转混成格式尾帧与独立-jpeg-实机验证)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |

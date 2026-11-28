@@ -334,6 +334,7 @@ struct amvdec_session {
 	struct v4l2_m2m_ctx *m2m_ctx;
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct v4l2_ctrl *ctrl_min_buf_capture;
+	struct v4l2_ctrl *ctrl_rotate;
 	struct mutex lock; /* cap & out queues lock */
 
 	const struct amvdec_format *fmt_out;
@@ -342,6 +343,7 @@ struct amvdec_session {
 
 	u32 width;
 	u32 height;
+	u32 rotation;
 	struct meson_capture_geometry capture;
 	u32 colorspace;
 	u8 ycbcr_enc;
