@@ -274,10 +274,11 @@ static void ge2d_resolve_dir(const struct meson8b_ge2d_crop *crop,
 }
 
 /* Source and destination remain held until command completion or reset. */
-static int ge2d_blit_one(struct meson8b_ge2d *core,
-			 const struct meson8b_ge2d_image *src,
-			 const struct meson8b_ge2d_image *dst,
-			 const struct meson8b_ge2d_crop *crop)
+static int ge2d_blit_one_cmd(struct meson8b_ge2d *core,
+			     const struct meson8b_ge2d_image *src,
+			     const struct meson8b_ge2d_image *dst,
+			     const struct meson8b_ge2d_crop *crop,
+			     bool do_reset)
 {
 	enum meson8b_ge2d_format src_fmt = meson8b_ge2d_resolved_format(src);
 	enum meson8b_ge2d_format dst_fmt = meson8b_ge2d_resolved_format(dst);
@@ -311,9 +312,11 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	if (meson8b_ge2d_phase(width, scale_w, &hstep, &preh) ||
 	    meson8b_ge2d_phase(height, scale_h, &vstep, &prev))
 		return -EINVAL;
-	ret = ge2d_reset(core);
-	if (ret)
-		return ret;
+	if (do_reset) {
+		ret = ge2d_reset(core);
+		if (ret)
+			return ret;
+	}
 	ret = meson_canvas_config(core->canvas, core->src_canvas, src->address[0],
 				  meson8b_ge2d_plane_stride(src, 0),
 				  meson8b_ge2d_plane_rows(src, 0),
@@ -460,6 +463,14 @@ static int ge2d_blit_one(struct meson8b_ge2d *core,
 	return 0;
 }
 
+static int ge2d_blit_one(struct meson8b_ge2d *core,
+			 const struct meson8b_ge2d_image *src,
+			 const struct meson8b_ge2d_image *dst,
+			 const struct meson8b_ge2d_crop *crop)
+{
+	return ge2d_blit_one_cmd(core, src, dst, crop, true);
+}
+
 /* Bypass chroma interpolation when only copying or cropping identical NV12/NV21 bytes. */
 static int ge2d_blit(struct meson8b_ge2d *core,
 		     const struct meson8b_ge2d_image *src,
@@ -520,7 +531,7 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 			pass.global_alpha = 255;
 			pass.bg_color = 0;
 			/* SRC2 lacks xy_swap in CMD_CTRL: rotate into stage before OVER blend. */
-			ret = ge2d_blit_one(core, src, &stage, &pass);
+			ret = ge2d_blit_one_cmd(core, src, &stage, &pass, true);
 			if (ret)
 				return ret;
 			pass = (struct meson8b_ge2d_crop){
@@ -530,7 +541,7 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 				.global_alpha = crop->global_alpha,
 				.bg_color = crop->bg_color,
 			};
-			return ge2d_blit_one(core, &stage, dst, &pass);
+			return ge2d_blit_one_cmd(core, &stage, dst, &pass, false);
 		}
 		return ge2d_blit_one(core, src, dst, crop);
 	}
@@ -554,7 +565,7 @@ static int ge2d_blit(struct meson8b_ge2d *core,
 			region.top /= 2;
 			region.height /= 2;
 		}
-		ret = ge2d_blit_one(core, &input, &output, &region);
+		ret = ge2d_blit_one_cmd(core, &input, &output, &region, plane == 0);
 		if (ret)
 			return ret;
 	}

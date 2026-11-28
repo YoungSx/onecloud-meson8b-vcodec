@@ -299,3 +299,23 @@ encoder copied/copy_ns=0。正式NEON继续使用原模块，可选GE2D修复单
     hrtimer 唤醒并在高负载目标机上触发 `1080p` 解码超时与 `eth0` `NETDEV WATCHDOG`
     复位（详见[验证记录](validation-records.md#11-27-1080p-阶段拆解ge2d-alpha-混合与网络超时现场)），
     已回退保持 `50 us` 轮询，默认生产继续保持 NEON 与 GE2D 关闭。
+
+## 11-28 稳态 DMA-BUF 零 CPU 清理与 GE2D 单次复位
+
+针对已定位的两个稳态瓶颈补充实现与有界实机 A/B 对照（[候选提交日志](validation-records.md#11-28-稳态-dma-buf-清理与-hevc-tiles-组合验证)）：
+
+- **#14 / #32 稳态导入 DMA-BUF 零 CPU padding 访问**：`amvdec_frame_pool.pad_cleared[32][2]`
+  在首次 `convert()` 成功完成后按 `(vb->index, plane, dbuf, dma, size, width, height)` 记录
+  已清零尾部/行尾填充的导入缓冲；同尺寸复用时跳过 `dma_buf_begin_cpu_access`、
+  `vb2_plane_vaddr`、`amvdec_clear_padding()` 与 `DMA_BIDIRECTIONAL` 同步，切换输出几何、
+  更换 DMA-BUF、转换失败或 `STREAMOFF(CAPTURE)` 时立即失效重清。
+- **GE2D 多遍命令单次复位**：`ge2d_blit_one_cmd()` 抽取 `do_reset` 控制，仅在第一遍执行
+  `ge2d_reset()`；第一遍已等待 `STATUS0` 全部空闲后，半平面 `NV12->NV12` 第二平面（UV）与
+  `BLEND_OVER` 90°/270° 第二遍混合跳过冗余软硬件复位脉冲。
+- **60 帧 `1080p` DMA-BUF（`CAPTURE_DMABUF`）有界 A/B 对照**：
+  - 基线（3 轮）：`r1` `wall=2842 ms, convert=1822 ms`、`r2` `1813 ms / 1375 ms`、`r3` `1689 ms / 1307 ms`
+    （稳态均值 `1751 ms / 1341 ms`，即 `22.35 ms/frame`）。
+  - 优化后（3 轮）：`r1` `1685 ms / 1219 ms`、`r2` `1663 ms / 1238 ms`、`r3` `1617 ms / 1213 ms`
+    （稳态均值 `1640 ms / 1225 ms`，`convert_ms` 降低约 **8.6%** 至 `20.42 ms/frame`，
+    并消除 `r1` 冷路径毛刺）。实测时钟树显示 `clk81=159.375 MHz`，约 `20 ms/frame` 为当前
+    S805 `clk81` 域 GE2D 读写约 6 MiB/帧的内存带宽极限。

@@ -114,6 +114,12 @@ int main(void) {
  output.width=512;output.height=32;output.stride=512;output.address[1]=0x204000;
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert(registers[GEN_CTRL2/4]==(BIT(23)|BIT(7)));
+ /* Semiplanar copy skips resetting between Y and UV passes after Y succeeds. */
+ {
+  unsigned sb=starts,rb=resets;
+  assert(!ge2d_blit(&c,&input,&output,&crop));
+  assert(starts==sb+2 && resets==rb+1);
+ }
  crop=(struct meson8b_ge2d_crop){.left=2,.top=2,.width=256,.height=16};
  output.width=256;output.height=16;output.stride=256;output.address[1]=0x201000;
  crop.left=1;unsigned no_start=starts;
@@ -222,12 +228,12 @@ int main(void) {
  assert(!ge2d_blit(&c,&input,&output,&crop));
  assert((registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(0)))==(BIT(5)|BIT(3)|BIT(0)));
  assert((registers[SRC_Y/4]&0xffffu)==31u);
- /* 90/270 blend-over runs two passes so SRC2 reads rotated coordinates cleanly. */
+ /* 90/270 blend-over runs two passes with one reset so SRC2 reads rotated coordinates cleanly. */
  output=(struct meson8b_ge2d_image){.width=32,.height=512,.stride=128,.address={0x200000},.little_endian=true,.format=MESON8B_GE2D_FMT_XRGB32};
- starts_before=starts;
+ starts_before=starts;unsigned resets_before=resets;
  crop=(struct meson8b_ge2d_crop){.width=512,.height=32,.rotate=270,.vflip=true,.blend=MESON8B_GE2D_BLEND_OVER,.global_alpha=128};
  assert(!ge2d_blit(&c,&input,&output,&crop));
- assert(starts==starts_before+2&&(registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(0)))==BIT(0));
+ assert(starts==starts_before+2&&resets==resets_before+1&&(registers[CMD_CTRL/4]&(BIT(7)|BIT(6)|BIT(5)|BIT(4)|BIT(3)|BIT(0)))==BIT(0));
  /* Blending into planar/semiplanar YUV or invalid blend mode fails cleanly. */
  output=(struct meson8b_ge2d_image){.width=512,.height=32,.stride=512,.address={0x200000,0x204000},.little_endian=true,.format=MESON8B_GE2D_FMT_NV12};
  starts_before=starts;

@@ -60,6 +60,13 @@ B 帧流三轮 `150/150` 且哈希全一致；#16 完成 720p no-slice 15/15 与
 已部署默认 NEON 版本及全部五业务容器正常，详见
 [11-28 实机验证记录](validation-records.md#11-28-ge2d-旋转混成格式尾帧与独立-jpeg-实机验证)。
 
+随后完成 #14/#32 稳态导入 DMA-BUF 零 CPU padding 复用与 GE2D 多遍单次复位优化，以及
+#15 HEVC tiles 组合实机验证（多 slice、854×480 非 CTU 裁剪、非均匀网格、慢消费回压、
+`720p->854x480` 动态切换及两种 `STREAMOFF` 顺序+重开 6 组 56/56 零像素误差，60 帧
+1080p DMA-BUF `convert_ms` 稳态 `1341 -> 1225 ms`）；临时模块与文件已卸载清理，生产
+保持上表在役 NEON 状态及业务健康，详见
+[11-28 稳态清理与 HEVC tiles 记录](validation-records.md#11-28-稳态-dma-buf-清理与-hevc-tiles-组合验证)。
+
 | 组件 | 当前记录 |
 | --- | --- |
 | 内核 / boot DT / CMA | 原版5.15.79-meson；启动文件未替换，CMA64 MiB。 |

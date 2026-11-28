@@ -277,6 +277,47 @@ static void amvdec_clear_padding(void *address, u32 width, u32 stride,
 		memset(address + stride * rows, 0, payload - stride * rows);
 }
 
+static bool amvdec_pad_is_cleared(struct amvdec_session *sess,
+				  const struct vb2_buffer *vb, unsigned int plane,
+				  dma_addr_t dma, u32 payload,
+				  const struct meson8b_ge2d_image *output)
+{
+	const struct amvdec_pad_cleared *entry;
+
+	if (!vb->planes[plane].dbuf ||
+	    vb->index >= ARRAY_SIZE(sess->pool.pad_cleared))
+		return false;
+	entry = &sess->pool.pad_cleared[vb->index][plane];
+	return entry->dbuf == vb->planes[plane].dbuf && entry->dma == dma &&
+	       entry->size == payload && entry->width == output->width &&
+	       entry->height == output->height;
+}
+
+static void amvdec_mark_pad_cleared(struct amvdec_session *sess,
+				    const struct vb2_buffer *vb,
+				    const dma_addr_t dma[2], u32 luma,
+				    const struct meson8b_ge2d_image *output,
+				    const bool padded[2])
+{
+	unsigned int i;
+
+	if (vb->index >= ARRAY_SIZE(sess->pool.pad_cleared))
+		return;
+	for (i = 0; i < 2; i++) {
+		struct amvdec_pad_cleared *entry = &sess->pool.pad_cleared[vb->index][i];
+
+		if (!padded[i] || !vb->planes[i].dbuf) {
+			memset(entry, 0, sizeof(*entry));
+			continue;
+		}
+		entry->dbuf = vb->planes[i].dbuf;
+		entry->dma = dma[i];
+		entry->size = luma / (i ? 2 : 1);
+		entry->width = output->width;
+		entry->height = output->height;
+	}
+}
+
 /* Convert one decoded picture through GE2D or an unscaled CPU fallback. */
 static int amvdec_ge2d_capture(struct amvdec_session *sess,
 			     const struct amvdec_geometry *geo,
@@ -304,6 +345,8 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		.left = geo->crop_left, .top = geo->crop_top,
 		.width = geo->width, .height = geo->height,
 	};
+	dma_addr_t dma_addr[2] = { };
+	bool padded[2] = { };
 	void *dst[2] = { };
 	unsigned int i;
 	int ret;
@@ -351,7 +394,12 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		bool pad = output.width < output.stride || payload > output.stride * rows;
 
 		if (imported) {
-			if (pad) {
+			dma_addr_t dma = vb2_dma_contig_plane_dma_addr(vb, i);
+
+			padded[i] = pad;
+			dma_addr[i] = dma;
+			if (pad && !amvdec_pad_is_cleared(sess, vb, i, dma, payload,
+							  &output)) {
 				if (vb->planes[i].dbuf) {
 					ret = dma_buf_begin_cpu_access(vb->planes[i].dbuf,
 								       DMA_BIDIRECTIONAL);
@@ -373,7 +421,7 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 				if (ret)
 					return ret;
 			}
-			output.address[i] = vb2_dma_contig_plane_dma_addr(vb, i);
+			output.address[i] = dma;
 		} else {
 			dst[i] = vb2_plane_vaddr(vb, i);
 			if (!dst[i])
@@ -382,8 +430,14 @@ static int amvdec_ge2d_capture(struct amvdec_session *sess,
 		}
 	}
 	ret = core->ge2d_api->convert(core->ge2d_dev, &input, &output, &crop);
-	if (ret)
+	if (ret) {
+		if (imported && vb->index < ARRAY_SIZE(sess->pool.pad_cleared))
+			memset(sess->pool.pad_cleared[vb->index], 0,
+			       sizeof(sess->pool.pad_cleared[vb->index]));
 		goto fallback;
+	}
+	if (imported)
+		amvdec_mark_pad_cleared(sess, vb, dma_addr, luma, &output, padded);
 	core->ge2d_frames++;
 	if (!imported) {
 		const void *src = stage->vaddr;
@@ -744,6 +798,7 @@ void amvdec_pool_capture_stop(struct amvdec_session *sess)
 	mutex_lock(&sess->pool.lock);
 	meson8b_pool_drop(&sess->pool.state);
 	sess->pool.end = AMVDEC_POOL_RUNNING;
+	memset(sess->pool.pad_cleared, 0, sizeof(sess->pool.pad_cleared));
 	while ((buf = v4l2_m2m_dst_buf_remove(sess->m2m_ctx)))
 		v4l2_m2m_buf_done(buf, VB2_BUF_STATE_ERROR);
 	mutex_unlock(&sess->pool.lock);

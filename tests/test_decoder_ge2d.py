@@ -23,6 +23,7 @@ typedef uint32_t u32;typedef uint64_t u64;typedef uint64_t dma_addr_t;typedef in
 #define U32_MAX UINT32_MAX
 #define ERESTARTSYS 512
 #define ALIGN(n,a) (((n)+(a)-1)&~((a)-1))
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define V4L2_PIX_FMT_MJPEG 1
 #define DMA_BIDIRECTIONAL 0
 #define DMA_FROM_DEVICE 2
@@ -34,10 +35,11 @@ struct core {void *dev,*ge2d_dev;const struct meson8b_ge2d_api *ge2d_api;u64 ge2
 struct format {u32 pixfmt;};
 struct amvdec_geometry {u32 width,height,reference_width,reference_height,crop_left,crop_top;};
 struct amvdec_shadow {dma_addr_t paddr;u32 luma,size,width,height;void *vaddr,*cached;};
-struct amvdec_session {struct meson_capture_geometry capture;struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;} pool;};
+struct amvdec_pad_cleared {struct dma_buf *dbuf;dma_addr_t dma;unsigned long size;u32 width,height;};
+struct amvdec_session {struct meson_capture_geometry capture;struct core *core;struct format *fmt_out;struct {struct amvdec_shadow capture_stage;struct amvdec_pad_cleared pad_cleared[32][2];} pool;};
 struct dma_resv {long result;unsigned waits;bool write;};
 struct dma_buf {struct dma_resv *resv;};
-struct vb2_buffer {u32 num_planes,memory;struct {u32 data_offset,size;struct dma_buf *dbuf;void *vaddr;dma_addr_t dma;} planes[2];};
+struct vb2_buffer {u32 index,num_planes,memory;struct {u32 data_offset,size;struct dma_buf *dbuf;void *vaddr;dma_addr_t dma;} planes[2];};
 static int gpu_calls,cpu_calls,begin_calls,end_calls,conversion_error,begin_error,end_error;
 static int begin_once_error,cpu_error;static unsigned cpu_access,vmaps,resv_waits,sync_calls;
 static void *begin_failure,*end_failure;
@@ -146,7 +148,21 @@ int main(void){
  assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-EOPNOTSUPP&&cpu_calls==old_calls);
  c.ge2d_dev=&api;conversion_error=0;b.memory=V4L2_MEMORY_DMABUF;staged=false;
  b.planes[0].dbuf=&dbuf[0];b.planes[1].dbuf=&dbuf[1];
+ int old_begin_reuse=begin_calls,old_end_reuse=end_calls;unsigned old_vmaps_reuse=vmaps;
  assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ assert(begin_calls==old_begin_reuse+2&&end_calls==old_end_reuse+2&&vmaps==old_vmaps_reuse+2);
+ /* Reusing the same imported DMA-BUF at the same geometry skips CPU padding access. */
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ assert(begin_calls==old_begin_reuse+2&&end_calls==old_end_reuse+2&&vmaps==old_vmaps_reuse+2);
+ /* Changing capture dimensions invalidates the padding cache once per new geometry. */
+ expected_width=16;expected_height=8;
+ meson_capture_configure(&s.capture,34,16,16,8,true);
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ assert(begin_calls==old_begin_reuse+4&&end_calls==old_end_reuse+4&&vmaps==old_vmaps_reuse+4);
+ expected_width=18;expected_height=8;
+ meson_capture_configure(&s.capture,34,16,18,8,true);
+ assert(!amvdec_meson8b_copy_capture(&s,&g,&sh,&b)&&cpu_calls==old_calls);
+ assert(begin_calls==old_begin_reuse+6&&end_calls==old_end_reuse+6&&vmaps==old_vmaps_reuse+6);
  conversion_error=-ETIMEDOUT;
  assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-ETIMEDOUT&&cpu_calls==old_calls);
  b.memory=1;staged=true;b.planes[0].dbuf=b.planes[1].dbuf=NULL;
@@ -189,6 +205,7 @@ int main(void){
  conversion_error=0;end_error=-EIO;calls=cpu_calls;old_gpu=gpu_calls;
  assert(amvdec_meson8b_copy_capture(&s,&g,&sh,&b)==-EIO&&cpu_calls==calls&&gpu_calls==old_gpu);
  /* Both planes reject transient begin/end and mapping failures, scaled or not. */
+ memset(s.pool.pad_cleared,0,sizeof(s.pool.pad_cleared));
  for(int scaled=0;scaled<2;scaled++)for(int p=0;p<2;p++)for(int failure=0;failure<3;failure++){
   meson_capture_configure(&s.capture,34,16,18,8,scaled);
   begin_failure=end_failure=b.planes[p].dbuf;

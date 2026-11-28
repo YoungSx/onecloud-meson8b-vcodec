@@ -1961,3 +1961,28 @@ S805 实机临时加载验收：
   并完成严格 `checkpatch.pl`、`make test` 及 `scripts/build-kernel.sh` 双构建验证；
   实机测试结束后已卸载 `meson8b-ge2d`、清除临时 staged 文件与 `meson8b_jpeg.bin`，
   核对 `meson8b-vcodec`/`containerd`/`docker` 均 `active`、原有五业务容器全部正常。
+
+## 11-28 稳态 DMA-BUF 清理与 HEVC tiles 组合验证
+
+在工作机源码实施优化并通过临时加载有界实机验证（测试后立即卸载临时模块并恢复在役默认 NEON）：
+
+- **#14 / #32 稳态导入 DMA-BUF 零 CPU padding 复用与 GE2D 单次复位**：
+  - 实现：`amvdec_frame_pool` 新增 `pad_cleared[32][2]`，仅在 `ge2d_api->convert()` 成功返回后
+    记录 `(dbuf, dma, size, width, height)`，并于几何变更、`dbuf`/`dma`/`size` 变更、转换失败及
+    `amvdec_pool_capture_stop()` 时清零失效；`ge2d_blit_one_cmd()` 抽取 `do_reset` 参数，使
+    半平面 `NV12->NV12` UV 平面及 `BLEND_OVER` `90°/270°` 第二遍复用第一遍空闲状态跳过重复复位。
+  - 60 帧 `1080p` H.264 `CAPTURE_DMABUF`（`meson-drm` 哑缓冲）三轮有界 A/B 对照：
+    - 基线：`r1` `wall=2842 ms / convert=1822 ms`，`r2` `1813 / 1375 ms`，`r3` `1689 / 1307 ms`；
+    - 优化：`r1` `1685 / 1219 ms`，`r2` `1663 / 1238 ms`，`r3` `1617 / 1213 ms`
+      （稳态 `convert_ms` 均值 `1341 -> 1225 ms`，`20.42 ms/frame`，当前受 `clk81=159.375 MHz`
+      下 GE2D 读写约 6 MiB/帧的内存带宽限制）。
+  - 12 帧 `854×480`（`stride=864`）连续输出复用尾部填充零字节校验：`nonzero_padding_bytes=0`。
+- **#15 HEVC tiles 多维度实机组合验证（Kvazaar `--slices tiles` 独立条带流）**：
+  - `tile-ms-1080p`（`1920×1080`，`2×2` 均匀 tiles、4 独立 slice）：`EOS frames=12`，`bad_frames=0, max_abs_diff=0`；
+  - `tile-crop-854×480`（`854×480`，非 CTU/16 倍数裁剪 + `3×2` tiles）：`EOS frames=12`，`bad_frames=0, max_abs_diff=0`；
+  - `tile-nonuni-640×384`（`640×384`，`128,448 × 128` 非均匀 `3×2` tiles）：`EOS frames=12`，`bad_frames=0, max_abs_diff=0`；
+  - `CAPTURE_BUFFERS=4 CAPTURE_DELAY_MS=20` 回压复用（`854×480`）：`EOS frames=12`，逐帧哈希与无回压完全一致；
+  - `tile-switch`（`1280×720 2×2` 8 帧 -> `854×480 3×2` 12 帧）：`EOS frames=20 resolutions=2`，`bad_frames=0, max_abs_diff=0`；
+  - 提前取消与重开：`STREAMOFF_AFTER=3` 分别测试 `STREAMOFF_CAPTURE_FIRST=0` 与 `1` 后同节点重开 `tile-nonuni-640×384`（`EOS frames=12`，逐帧哈希完全一致）。
+- **收尾与双构建校验**：同步导出 [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)，
+  清理目标机临时目录与覆盖文件并确认在役默认 NEON、5 个业务容器与硬件设备健康。

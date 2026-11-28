@@ -92,6 +92,7 @@ struct amvdec_frame_pool {
 	struct meson8b_pool state;
 	struct amvdec_picture picture[MESON8B_POOL_MAX];
 	struct amvdec_shadow slot[MESON8B_POOL_MAX];
+	u32 pad_cleared[32][2];
 	enum amvdec_pool_end end;
 };
 struct amvdec_timestamp {

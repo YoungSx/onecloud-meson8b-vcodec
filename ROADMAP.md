@@ -61,7 +61,7 @@ decoder缩放接口接入完整标准链的内容与收益尚未验收。
 | MPEG-4 Part2尾帧 | 既有28/30等失败仍未闭环，不重放VOP或补造图片 | [#10](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/10) |
 | MPEG-4 B图内容 | 保留内容相关损坏现场，逐行/全平面检查，不能由已通过子集推出已修复 | [#11](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/11) |
 | WMV3 simple/main | Annex L/RCV已部署，3/5尾帧与完整simple/main验收仍缺 | [#17](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/17) |
-| HEVC tiles | 几何/MPRED/SAO和均匀/非均匀基础像素已通过；多slice与回压/取消/切换组合验收继续 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15) |
+| HEVC tiles | 均匀/非均匀、多 slice、854×480 非 CTU 裁剪、回压、动态切换、取消顺序与重开组合实机全通过（56/56 零误差）；仅遗留参考比对拓展与后续边界 | [#15](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/15) |
 | H.263 | baseline/PLUS/UFEP及有界内容已通过；固件错误恢复、HD等声明范围与官方工具配置待补 | [#16](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/16) |
 | 码控 | 低目标可达性和饱和/错误行为；严格CBR不是已证实的S805原版能力 | [#24](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/24) |
 | 原厂对照 | 获取原厂配置及可恢复环境，按同输入/质量/内存分别比较播放、解码和转码 | [#33](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/33) |
