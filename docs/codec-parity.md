@@ -202,11 +202,14 @@ AVS JiZhun 的 S805 固件和厂商帧协议存在，不属于已证明的硬件
 标准 UAPI/应用落点，不能借用 MPEG4/VC1 标识，不能把 AVS2/AVS3 当成 AVS
 JiZhun。当前不开放该格式，完整追平目标仍未完成。
 
+11-28 一手源码与 UAPI/工具链再核对补充确认：`linux-5.15.79` `videodev2.h` 仍无 `AVS`/`RV30`/`RV40`/`DIV3` 压缩格式（已含 `V4L2_PIX_FMT_XVID` 与 `V4L2_PIX_FMT_H264_MVC`），官方 FFmpeg 7.0.2 亦无 `wmv3`/`avs`/`rv*`/`div3`/`h264_mvc`/`jpeg` M2M 解码器映射；`vreal.c` 依赖 `rmparser` 与 RV8 `LMEM_DMA`，`vh264mvc.c` 依赖 CCPU `CPC_P=0xc00` 与双视图 DPB。当前仅 [#30](https://github.com/YoungSx/onecloud-meson8b-vcodec/issues/30) 独立 JPEG 解码已完成移植并补全 `SOF2` 拒绝、`STREAMOFF` 重开、1295 字微码核对与 `JPEG->H264` 验收，其余 P3 路径继续保持研究/开放状态，不开放虚假能力枚举。
+
 旧格式 IRQ handler 已纠正一个确定的错误边界：MPEG-1/2 的1–8、
 MPEG-4/VC-1/MJPEG的1–4固件槽号先验证再转换为零起始索引。旧取模行为会
 把9或5之类越界通知别名到有效图片；当前错误通知终止队列并清邮箱，不交付
 或回收错误槽。实际 handler 主机回归覆盖正常、空通知、越界和零槽状态。
-这没有证明历史尾帧/B图损坏由同一机制引起，不能替代逐帧硬件对照。
+`VC-1` 中断已读取 `VC1_REPEAT_COUNT` 作诊断并保留 V4L2 有状态单解码图像每缓冲语义（不合成重复像素帧），
+当前仍仅交付 `SA00040` `6/7`、`SA00050` `14/15` 唯一图像（已输出零误差），不能替代隔行/尾图闭合验收。
 
 ## 旧格式验图入口
 

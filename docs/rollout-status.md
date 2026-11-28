@@ -63,9 +63,13 @@ B 帧流三轮 `150/150` 且哈希全一致；#16 完成 720p no-slice 15/15 与
 随后完成 #14/#32 稳态导入 DMA-BUF 零 CPU padding 复用与 GE2D 多遍单次复位优化，以及
 #15 HEVC tiles 组合实机验证（多 slice、854×480 非 CTU 裁剪、非均匀网格、慢消费回压、
 `720p->854x480` 动态切换及两种 `STREAMOFF` 顺序+重开 6 组 56/56 零像素误差，60 帧
-1080p DMA-BUF `convert_ms` 稳态 `1341 -> 1225 ms`）；临时模块与文件已卸载清理，生产
-保持上表在役 NEON 状态及业务健康，详见
-[11-28 稳态清理与 HEVC tiles 记录](validation-records.md#11-28-稳态-dma-buf-清理与-hevc-tiles-组合验证)。
+1080p DMA-BUF `convert_ms` 稳态 `1341 -> 1225 ms`）；并补充 #8（5 轮 `150/150` + 回压/`STREAMOFF`）、
+#16（`720p`/`1080p` `-threads 1`、回压/`STREAMOFF` 与 FFmpeg 7.0.2 `h263_v4l2m2m`）、
+#30（`SOF2` 拒绝与 `JPEG->H264`）、#31（9/9 纹理混合与取消）、#14/#32 `1080p->720p` 共享转码
+（60/60 `wall_ms=6342` `direct=60`）、#9/#17/#10/#11/#24 复核及 P3 源码/UAPI 审计；
+临时模块与覆盖文件已全部卸载清理，生产保持上表在役 NEON 状态、五业务容器与四项 HTTP 200 健康，详见
+[11-28 稳态清理与 HEVC tiles 记录](validation-records.md#11-28-稳态-dma-buf-清理与-hevc-tiles-组合验证)
+与[11-28 P1/P2/P3 补齐实机验证与一手源码审计](validation-records.md#11-28-p1p2p3-补齐实机验证与一手源码审计)。
 
 | 组件 | 当前记录 |
 | --- | --- |

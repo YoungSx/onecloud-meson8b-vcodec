@@ -265,6 +265,7 @@ static irqreturn_t codec_vc1_threaded_isr(struct amvdec_session *sess)
 	u32 buffer_index;
 	u32 field = V4L2_FIELD_NONE;
 	u32 offset;
+	u32 repeat_count;
 
 	amvdec_write_dos(core, ASSIST_MBOX1_CLR_REG, 1);
 	reg = amvdec_read_dos(core, VC1_BUFFEROUT);
@@ -279,6 +280,14 @@ static irqreturn_t codec_vc1_threaded_isr(struct amvdec_session *sess)
 	}
 	buffer_index--;
 	offset = amvdec_read_dos(core, VC1_OFFSET_REG);
+	/*
+	 * V4L2 stateful decoders emit one CAPTURE buffer per decoded picture;
+	 * firmware VC1_REPEAT_COUNT (RPTFRM pulldown metadata) does not create
+	 * duplicate pixel frames.
+	 */
+	repeat_count = amvdec_read_dos(core, VC1_REPEAT_COUNT);
+	dev_dbg(core->dev, "vc1 buffer %u type %u repeat %u\n",
+		buffer_index, (reg >> 3) & 7, repeat_count);
 	amvdec_set_par_from_ratio(sess, amvdec_read_dos(core, VC1_PIC_RATIO), 14);
 
 	if (reg & INTERLACE_FLAG)

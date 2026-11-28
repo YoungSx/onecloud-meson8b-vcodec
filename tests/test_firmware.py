@@ -69,6 +69,22 @@ class FirmwareTests(unittest.TestCase):
             data = subprocess.check_output([str(path / 'check')])
         self.assertEqual(data, (ROOT / 'firmware/meson/vdec/meson8b_h263.bin').read_bytes())
 
+    def test_jpeg_microcode_matches_the_independent_vendor_array(self):
+        source = ROOT / 'sources/vendor/drivers/amlogic/amports/m8/ucode/jpeg/jpeg_mc.c'
+        code = '#include <stdint.h>\n#include <stdio.h>\ntypedef uint32_t u32;\n'
+        code += f'#include "{source}"\n'
+        code += ('int main(void) { unsigned count = sizeof(jpegdec_mc)/sizeof(u32); '
+                 'for(unsigned i=0;i<count;i++) '
+                 'for(unsigned b=0;b<4;b++) putchar((jpegdec_mc[i]>>(8*b))&255); '
+                 'for(unsigned i=count*4;i<16384;i++) putchar(0); return ferror(stdout); }\n')
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory)
+            (path / 'check.c').write_text(code)
+            subprocess.run(['cc', '-Wall', '-Werror', str(path / 'check.c'),
+                            '-o', str(path / 'check')], check=True)
+            data = subprocess.check_output([str(path / 'check')])
+        self.assertEqual(data, (ROOT / 'firmware/meson/vdec/meson8b_jpeg.bin').read_bytes())
+
 
 if __name__ == '__main__':
     unittest.main()

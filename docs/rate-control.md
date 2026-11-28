@@ -62,10 +62,15 @@ Shrinking clamps existing credits. Enlarging or retargeting does not grant a
 fresh burst. STREAMOFF/ON starts a new session budget.
 
 预测 QP 可以在经验证的范围内提高，但硬件不能保证任意内容都达到目标。
+S805 实机 `-p motion -r 30/1`（`NV12`）对照已观测到该饱和边界：`640×360 @ 500k` 输出
+`60/60`（`current_bps=1232701`、`qp=32`、`saturated=57/60`），提至 `1600k` 时收敛为
+`1496926` bps（`qp=26`、`saturated=0`），`1920×1080 @ 1000k` 则饱和在 `11414056` bps
+（`qp=32`、`saturated=28/30`），三组均完成独立软解。
 超预算 AU 不发布：其 payload 清零、两个队列置错，后续已排队帧不再调用
 硬件。客户端须报告失败，或在首片发布前选择更小尺寸；不能把部分输出
 继续当作成功。此处是 VBR 码量约束，没有严格 CBR、HRD signaling 或填充字节，
 也不会按网络发送时间限速。
+同时核对固定 `encoder.c`：S805 并无主机可控 `CBR` 微码路径（`ME_F_SKIP_SAD`/`WEIGHT` 已与 `me_mode != 3` 一致）。
 
 Prediction may raise QP within the verified range. Hardware cannot reach every
 target for every scene. An oversized access unit is not published: its payload

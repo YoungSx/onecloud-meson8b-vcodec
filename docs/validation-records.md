@@ -1986,3 +1986,50 @@ S805 实机临时加载验收：
   - 提前取消与重开：`STREAMOFF_AFTER=3` 分别测试 `STREAMOFF_CAPTURE_FIRST=0` 与 `1` 后同节点重开 `tile-nonuni-640×384`（`EOS frames=12`，逐帧哈希完全一致）。
 - **收尾与双构建校验**：同步导出 [0001-meson8b-runtime-codecs.patch](../patches/0001-meson8b-runtime-codecs.patch)，
   清理目标机临时目录与覆盖文件并确认在役默认 NEON、5 个业务容器与硬件设备健康。
+
+## 11-28 P1/P2/P3 补齐实机验证与一手源码审计
+
+在 `24ef933` 基础上补充 `VC1_REPEAT_COUNT` 诊断与 `jpegdec_mc` 主机校验后，完成 `5.15.79-meson` 构建、
+`154` 项主机回归（`make test`）及目标机临时模块有界验收（测试后均卸载临时 `meson8b-ge2d`、清理覆盖文件并恢复在役默认 NEON 与业务容器）：
+
+- **#8 MPEG-2 B 帧（`m2v-bf-150f` / `m2v-bf-90f`）**：
+  - `m2v-bf-150f` 连续 5 轮均交付 `150/150` 帧且逐帧哈希完全一致（`81f0ce9933ae2572a6d3c9720e451c42`），
+    对比独立软件参考 `0..149` 全平面：`max_Y_MAD=0.0255`、`min_Y_PSNR=63.92 dB`、`max_U_MAD=0.0442`、`max_V_MAD=0.0479`；
+  - `m2v-bf-90f` `90/90`（`max_Y_MAD=0.0255`、`min_Y_PSNR=63.92 dB`、`max_U_MAD=0.0442`、`max_V_MAD=0.0465`）；
+  - `CAPTURE_BUFFERS=4 CAPTURE_DELAY_MS=20` 慢消费回压 `150/150`（哈希同上）及 `STREAMOFF_AFTER=10` 两种停流顺序（`0/1`）+ 重开 `150/150`（哈希同上）全通过。
+- **#16 H.263**：
+  - 定位此前 `h263p` 失败原因：`ffmpeg -c:v h263p` 默认多线程切片触发 H.263 Slice Structured 拒绝（`-EOPNOTSUPP` / `-95`），
+    `-threads 1` 生成标准无切片 H.263+；
+  - `h263p-1080p-clean.h263`（`1920×1080`、10 帧）`EOS frames=10`（`max_Y_MAD=0.0008`、`min_Y_PSNR=79.34 dB`）；
+  - `h263p-720p-clean.h263`（`1280×720`、12 帧）`EOS frames=12`（`max_Y_MAD=0.0019`、`min_Y_PSNR=74.79 dB`），
+    `CAPTURE_BUFFERS=4 CAPTURE_DELAY_MS=20` 回压 `12/12` 及 `STREAMOFF_AFTER=4`（`0/1`）+ 重开 `12/12` 通过；
+  - 官方配套容器 FFmpeg 7.0.2（`-f h263 -c:v h263_v4l2m2m`）处理 `h263p-720p-clean.h263` 通过。
+- **#30 独立 JPEG（`V4L2_PIX_FMT_JPEG`）**：
+  - 补充验证 `SOF2` 渐进 JPEG 明确拒绝（`frames=0`），随后同节点运行 `SOF0` `640×480` `1/1`（`Y_MAD=0.0158`、`Y_PSNR=66.16 dB`），
+    `STREAMOFF_AFTER=1`（`0/1`）+ 重开 `1/1`，以及 `JPEG -> H.264` `60/60` 通过（`pool_bytes=0`）；
+  - 主机 `tests/test_firmware.py` 新增 `jpegdec_mc` 1295 字全部匹配 `firmware/meson/vdec/meson8b_jpeg.bin` 检查。
+- **#31 GE2D 纹理混合与队列取消**：
+  - `ge2d-copy 512 32 5` 与 `ge2d-cancel-test`（单队列 `QBUF` 后 `STREAMOFF`，`0/1`）通过；
+  - `ge2d-alpha-v2` 9 组纹理图案覆盖 `BLEND_COPY`、`BLEND_CONST`、`BLEND_OVER`（逐像素 `ga=255` 及全局 `ga=128/160/200`）、
+    `rot=0/90/180/270`、`HFLIP`/`VFLIP` 及 `DMABUF=0/1`，全部 9/9 通过（copy `max_err=0`，其余 8 组 `max_err=1, bad=0`）。
+  - 硬件超时复位注入矩阵与生产默认 GE2D 启用仍在 #31 保持开放。
+- **#14 / #32 / #7 直接 `vdec(capture_ge2d=1) -> venc` 缩小链路与 CMA 边界**：
+  - 确认 `/dev/dri/card0`（`lima`）对 dumb create 返回 `ENOSYS`，`/dev/dri/card1`（`meson-drm`）支持连续 dumb 分配；
+    12+ 个 `1080p` dumb 缓冲会耗尽 64 MiB CMA（`cma_alloc failed 765 pages / 3133440 bytes`）；
+  - `CAPTURE_BUFFERS=4 SCALE_W=1280 SCALE_H=720` `1080p-60f` `vdec -> venc` 转码：`EOS frames=60 resolutions=1`，
+    `wall_ms=6342`，`vdec: converted=60, convert_ns=5.270 s, ge2d_frames=60, pool_bytes=0`，`venc: direct_frames=60, copied_frames=0, copy_ns=0`，`CmaFree=55524 KiB`；
+  - 同 `1080p->720p` 独立解码缩小亦通过 `CAPTURE_BUFFERS=4 CAPTURE_DELAY_MS=20` 回压 `60/60` 与 `STREAMOFF_AFTER=10`（`0/1`）+ 重开 `60/60`。
+- **#9 / #17 / #10 / #11 / #24 未关闭项最新实机复核**：
+  - `VC-1`：`SA00040.vc1` 交付 `6/7` 唯一图像、`SA00050.vc1` 交付 `14/15` 唯一图像，已交付帧逐像素零误差（`Y/U/V_mad=0.0000`），
+    新增 `VC1_REPEAT_COUNT` 诊断且明确 V4L2 有状态每缓冲一幅解码图像语义；尾图缺失仍开放。
+  - `WMV3`：`320×240` 5 帧 RCV 交付 `3/5`（`0..2` `max_Y_MAD=0.0017`、`min_Y_PSNR=72.24 dB`），官方 FFmpeg 7.0.2 无 `wmv3_v4l2m2m`。
+  - `MPEG-4`：`m4v-repro` `88/90`（`max_Y_MAD=0.0449`、`min_Y_PSNR=60.98 dB`）；`m4v-bf-testsrc-q2` `28/30`（`min_Y_PSNR=11.26 dB`，行 11 起宏块写入停止仍在）。
+  - `H.264 RC`：`NV12` `-p motion -r 30/1` 下 `640×360 @ 500k` `60/60`（`current_bps=1232701`、`qp=32`、`saturated=57/60`），
+    `640×360 @ 1600k` `60/60`（`current_bps=1496926`、`qp=26`、`saturated=0`），`1080p @ 1000k` `30/30`（`current_bps=11414056`、`qp=32`、`saturated=28/30`），均完成软解核对。
+- **P3 一手源码/UAPI/FFmpeg 边界审计（#18 / #20 / #21 / #22 / #27 / #28 / #29）**：
+  - 核对固定 Hardkernel `amports`、`linux-5.15.79` `videodev2.h` 与官方 FFmpeg 7.0.2：
+    `#20`（`B_Slice`/`HENC_B_PICTURE` 仅出现在 `encoder.h`，`encoder.c` 未使用且 `MESON8B` 只选 `mix_dump_mc*`）、
+    `#21`（`vh265.c` 将 `LongTerm_Curr/Col/Ref` 与 `HEVC_MPRED_LT_REF` 硬编码为 `0` 并发 `TODO`）、
+    `#22`（`encoder.c` 仅发整帧 IRQ 并每帧读取一次 `VLC_TOTAL_BYTES`，无 slice-ready 中断/偏移寄存器）、
+    `#18/#27/#28/#29`（`5.15.79` UAPI 缺 `AVS`/`RV30`/`RV40`/`DIV3`，FFmpeg 7.0.2 缺 `wmv3`/`avs`/`rv*`/`div3`/`h264_mvc`/`jpeg` M2M 包装；
+    `vreal.c` 需 `rmparser` + RV8 `LMEM_DMA`，`vh264mvc.c` 需 CCPU `CPC_P=0xc00` + 双视图 DPB）。上述均保留研究/未实现边界并开放跟踪。

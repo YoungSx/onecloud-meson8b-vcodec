@@ -59,7 +59,10 @@ WAVE 固件。软件 x265 或外部机器/设备的 HEVC encoder 是另一种实
 逐帧调度与上下文恢复，11-24已通过两路320×240各30帧完整软解与YUV检查；
 11-25两路720p/两路1080p各12幅内容通过，1080p采样最低CMA约5.1 MiB。
 这些短测不保证任意多路或实时总吞吐，范围见[验证记录](validation-records.md#11-25-重启后格式修正与-ge2d-验收)。
-H.264 B/CABAC/Main/High 的可用编码路径尚未发现，不能从没有独立
-B-picture 命令进一步断言硅片绝对不支持。
+H.264 B/CABAC/Main/High 的可用编码路径尚未发现；11-28 再次核对固定 `encoder.c` 与 `encoder_mc.c`：
+`B_Slice` 与 `HENC_B_PICTURE` 仅出现在 `encoder.h` 枚举中，`encoder.c` 从未引用，
+`MESON8B` `select_ucode` 只选择 `mix_dump_mc` / `mix_dump_mc_dblk`（CAVLC Baseline I/P），
+`mix_sw_mc_hdec*` 需主机逐宏块上传且平台 `HAS_VDEC2=0`；同样 `encoder.c` 仅发整帧完成 IRQ
+并在帧末读一次 `VLC_TOTAL_BYTES`，无 slice-ready 中断/偏移寄存器（#20/#22 继续保持开放研究边界）。
 这些需要固件/寄存器依据、逐帧内容、时延与服务并存实测；多分片NAL已经存在
 不等于硬件能在整帧前交付。GE2D也需要Meson8b实际转换验证后才能集成。

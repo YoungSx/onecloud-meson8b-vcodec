@@ -34,6 +34,7 @@ typedef uint32_t u32;typedef int irqreturn_t;
 #define V4L2_FIELD_INTERLACED_TB 1
 #define V4L2_FIELD_INTERLACED_BT 2
 #define dev_err(...) ((void)0)
+static inline void dev_dbg(const void *dev, const char *fmt, ...) {(void)dev;(void)fmt;}
 #include "dos_regs.h"
 struct amvdec_core {void *dev;};
 struct format {u32 pixfmt;};

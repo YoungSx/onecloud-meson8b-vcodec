@@ -40,6 +40,7 @@ typedef uint32_t u32;typedef uint64_t u64;typedef int irqreturn_t;
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 #define EXPORT_SYMBOL_GPL(x)
 #define IRQ_HANDLED 1
+static inline void dev_dbg(const void *dev, const char *fmt, ...) {(void)dev;(void)fmt;}
 #include "dos_regs.h"
 struct amvdec_core {void *dev;};
 struct format {u32 pixfmt;};
